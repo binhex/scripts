@@ -6,7 +6,7 @@ set -e
 # create "makepkg-user" user for makepkg
 useradd -m -s /bin/bash makepkg-user
 echo -e "makepkg-password\nmakepkg-password" | passwd makepkg-user
-echo "makepkg-user ALL=(ALL) NOPASSWD: ALL" | (EDITOR="tee -a" visudo)
+echo "makepkg-user ALL=(ALL) NOPASSWD: NOPASSWD: ALL" | (EDITOR="tee -a" visudo)
 
 # download aur helper
 curl -L -o "/home/makepkg-user/${aur_helper}.tar.gz" "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_helper}.tar.gz"

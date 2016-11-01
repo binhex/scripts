@@ -20,7 +20,7 @@ su -c "cd /home/makepkg-user/${aur_helper} && makepkg -s --noconfirm --needed" -
 pacman -U /home/makepkg-user/${aur_helper}/${aur_helper}*.pkg.tar.xz --noconfirm
 
 # install app using aur helper (as root)
-"${aur_helper}" -S "${aur_packages}" --noconfirm
+"${aur_helper}" -S "${aur_packages}" --noconfirm || true
 
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm

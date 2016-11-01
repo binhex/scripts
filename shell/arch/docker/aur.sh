@@ -15,10 +15,12 @@ su -c "tar -xvf ${aur_helper}.tar.gz" - makepkg-user
 
 # install aur helper (as non root)
 su -c "cd /home/makepkg-user/${aur_helper} && makepkg -s --noconfirm --needed" - makepkg-user
+
+# install compiled package using pacman (as root)
 pacman -U /home/makepkg-user/${aur_helper}/${aur_helper}*.pkg.tar.xz --noconfirm
 
 # install app using aur helper (as root)
-su -c "${aur_helper} -S ${aur_packages} --noconfirm" - makepkg-user
+"${aur_helper}" -S "${aur_packages}" --noconfirm
 
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm

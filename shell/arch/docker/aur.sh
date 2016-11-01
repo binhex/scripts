@@ -13,12 +13,12 @@ curl -L -o "/home/makepkg-user/${aur_helper}.tar.gz" "https://aur.archlinux.org/
 cd /home/makepkg-user
 su -c "tar -xvf ${aur_helper}.tar.gz" - makepkg-user
 
-# install aur helper
+# install aur helper (as non root)
 su -c "cd /home/makepkg-user/${aur_helper} && makepkg -s --noconfirm --needed" - makepkg-user
-pacman -U /home/makepkg-user/${aur_helper}/packer*.pkg.tar.xz --noconfirm
+pacman -U /home/makepkg-user/${aur_helper}/${aur_helper}*.pkg.tar.xz --noconfirm
 
-# install app using aur helper
-su -c "${aur_helper} -S ${aur_packages} --noconfirm" - makepkg-user
+# install app using aur helper (as root)
+"${aur_helper} -S ${aur_packages} --noconfirm"
 
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm

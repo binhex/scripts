@@ -15,6 +15,3 @@ fi
 
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm
-
-# remove git
-pacman -Ru git --noconfirm

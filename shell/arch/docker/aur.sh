@@ -7,6 +7,9 @@ set -e
 curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 
+# generate aur database files
+"${aur_helper}" --gendb
+
 # install app using aur helper (as root)
 "${aur_helper}" -S "${aur_packages}" --noconfirm || true
 

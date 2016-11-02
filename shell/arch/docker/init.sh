@@ -22,7 +22,7 @@ if [[ "${HOST_OS}" == "unRAID" ]]; then
 	echo "[info] Host is running unRAID" | ts '%Y-%m-%d %H:%M:%.S'
 fi
 
-echo "[info] Show system information" | uname -a | ts '%Y-%m-%d %H:%M:%.S'
+echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
 export PUID=$(echo "${PUID}" | sed -e 's/^[ \t]*//')
 if [[ ! -z "${PUID}" ]]; then

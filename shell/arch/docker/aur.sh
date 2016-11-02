@@ -15,6 +15,3 @@ pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v gre
 
 # remove git
 pacman -Ru git --noconfirm
-
-# remove makepkg-user account
-userdel -r makepkg-user

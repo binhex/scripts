@@ -10,7 +10,6 @@ pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 # install app using aur helper (as root)
 if [[ ! -z "${aur_packages}" ]]; then
 	"${aur_helper}" -S "${aur_packages}" --noconfirm || true
-	"${aur_helper}" --gendb
 fi
 
 # remove base devel excluding useful core packages

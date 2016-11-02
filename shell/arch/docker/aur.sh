@@ -10,8 +10,11 @@ pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 # generate aur database files
 "${aur_helper}" --gendb
 
-# install app using aur helper (as root)
-"${aur_helper}" -S "${aur_packages}" --noconfirm || true
+if [[ ! -z "${aur_packages}" ]]; then
+
+	# install app using aur helper (as root)
+	"${aur_helper}" -S "${aur_packages}" --noconfirm || true
+fi
 
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm

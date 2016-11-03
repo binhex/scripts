@@ -3,12 +3,10 @@
 # exit script if return code != 0
 set -e
 
-# manually download aur helper from binhex repo
-curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
-pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
-
-# install app using aur helper (as root)
+# install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
+	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
+	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 	"${aur_helper}" -S "${aur_packages}" --noconfirm || true
 fi
 

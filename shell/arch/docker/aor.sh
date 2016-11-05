@@ -9,7 +9,7 @@ aor_package_repo=$(echo $aor_package_results | jq ".repo")
 aor_package_arch=$(echo $aor_package_results | jq ".arch")
 
 # get latest compiled package from aor (required due to the fact we use archive snapshot)
-if [[ ! -z "${aor_packages}" ]]; then
-	curl -L -o "/tmp/${aor_packages}.tar.xz" "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
-	pacman -U "/tmp/${aor_packages}.tar.xz" --noconfirm
+if [[ ! -z "${aor_package_name}" ]]; then
+	curl -L -o "/tmp/${aor_package_name}.tar.xz" "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
+	pacman -U "/tmp/${aor_package_name}.tar.xz" --noconfirm
 fi

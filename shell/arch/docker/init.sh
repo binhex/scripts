@@ -50,14 +50,21 @@ groupmod -o -g "${PGID}" users &>/dev/null
 # permissions, otherwise recursively set on volume mappings for host
 if [[ ! -f "/config/perms.txt" ]]; then
 
-	echo "[info] Setting permissions recursively on /config and /data..." | ts '%Y-%m-%d %H:%M:%.S'
-	chown -R "${PUID}":"${PGID}" /config /data
-	chmod -R 775 /config /data
+	echo "[info] Setting permissions recursively on volume mappings..." | ts '%Y-%m-%d %H:%M:%.S'
+	
+	if [[ -d "/data" ]]; then
+		chown -R "${PUID}":"${PGID}" /config /data
+		chmod -R 775 /config /data
+	else
+		chown -R "${PUID}":"${PGID}" /config
+		chmod -R 775 /config
+	fi
+	
 	echo "This file prevents permissions from being applied/re-applied to /config, if you want to reset permissions then please delete this file and restart the container." > /config/perms.txt
 
 else
 
-	echo "[info] Permissions already set for /config and /data" | ts '%Y-%m-%d %H:%M:%.S'
+	echo "[info] Permissions already set for volume mappings" | ts '%Y-%m-%d %H:%M:%.S'
 
 fi
 

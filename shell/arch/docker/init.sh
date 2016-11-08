@@ -68,6 +68,8 @@ else
 
 fi
 
+# ENVVARS_PLACEHOLDER
+
 # PERMISSIONS_PLACEHOLDER
 
 # restore stdout/stderr (to prevent duplicate logging from supervisor)

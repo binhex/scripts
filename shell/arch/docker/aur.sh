@@ -7,7 +7,7 @@ set -e
 if [[ ! -z "${aur_packages}" ]]; then
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
-	"${aur_helper}" -S --auronly "${aur_packages}" --noconfirm || true
+	"${aur_helper}" -S ${aur_packages} --noconfirm || true
 fi
 
 # remove base devel excluding useful core packages

@@ -1,19 +1,17 @@
 #!/bin/bash
 
-# disable exit if return code != 0 (apacan can return exit code 1 due to minor errors)
-set +e
-
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
+	pacman -S --needed base-devel --noconfirm
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
+	set +e
 	"${aur_helper}" -S ${aur_packages} --noconfirm
+	exit_code=$?
+	set -e
+else
+	exit 0
 fi
-
-# re-enable exit script if return code != 0
-set -e
-
-exit_code=$?
 
 if (( ${exit_code} != 0 && ${exit_code} != 1 )); then
 	echo "apacman returned exit code ${exit_code} (exit code 1 ignored), showing man for exit codes:-"
@@ -41,5 +39,5 @@ fi
 # remove base devel excluding useful core packages
 pacman -Ru $(pacman -Qgq base-devel | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip) --noconfirm
 
-# remove cached apacman packages
-rm -rf /var/cache/apacman/
+# remove cached aur packages
+rm -rf "/var/cache/${aur_helper}/" || true

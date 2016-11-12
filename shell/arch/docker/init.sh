@@ -76,4 +76,4 @@ fi
 exec 1>&3 2>&4
 
 echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
-/usr/bin/supervisord -c /etc/supervisor.conf -n
+exec /usr/bin/supervisord -c /etc/supervisor.conf -n

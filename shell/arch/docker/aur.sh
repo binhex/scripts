@@ -1,13 +1,17 @@
 #!/bin/bash
 
+# disable exit if return code != 0 (apacan can return exit code 1 due to minor errors)
+set +e
+
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 	"${aur_helper}" -S ${aur_packages} --noconfirm
-else
-	exit 0
 fi
+
+# re-enable exit script if return code != 0
+set -e
 
 exit_code=$?
 

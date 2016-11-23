@@ -5,12 +5,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 	pacman -S --needed base-devel --noconfirm
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
-	set +e
 	"${aur_helper}" -S ${aur_packages} --noconfirm
 	exit_code=$?
 	set -e
 else
-	exit 0
+	return 0
 fi
 
 if (( ${exit_code} != 0 && ${exit_code} != 1 )); then
@@ -32,8 +31,8 @@ if (( ${exit_code} != 0 && ${exit_code} != 1 )); then
 	13  Permission problem −− su
 EOM
 
-	# set exit code to 1 to denote failure to build env
-	exit 1
+	# set return code to 1 to denote failure to build env
+	return 1
 fi
 
 # remove base devel excluding useful core packages

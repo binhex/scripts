@@ -5,6 +5,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	pacman -S --needed base-devel --noconfirm
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
+	set +e
 	"${aur_helper}" -S ${aur_packages} --noconfirm
 	exit_code=$?
 	set -e

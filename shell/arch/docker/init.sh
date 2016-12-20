@@ -53,13 +53,22 @@ if [[ ! -f "/config/perms.txt" ]]; then
 	echo "[info] Setting permissions recursively on volume mappings..." | ts '%Y-%m-%d %H:%M:%.S'
 	
 	if [[ -d "/data" ]]; then
-		chown -R "${PUID}":"${PGID}" /config /data
-		chmod -R 775 /config /data
+		volumes="/config /data"
 	else
-		chown -R "${PUID}":"${PGID}" /config
-		chmod -R 775 /config
+		volumes="/config"
 	fi
+
+	set +e
+	chown -R "${PUID}":"${PGID}" "${volumes}"
+	exit_code_chown=$?
+	chmod -R 775 "${volumes}"
+	exit_code_chmod=$?
+	set -e
 	
+	if (( ${exit_code_chown} != 0 || ${exit_code_chmod} != 0 )); then
+		echo "[warn] Unable to chown/chmod ${volumes}, assuming SMB mountpoint"
+	fi
+
 	echo "This file prevents permissions from being applied/re-applied to /config, if you want to reset permissions then please delete this file and restart the container." > /config/perms.txt
 
 else

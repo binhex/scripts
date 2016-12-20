@@ -51,20 +51,20 @@ groupmod -o -g "${PGID}" users &>/dev/null
 if [[ ! -f "/config/perms.txt" ]]; then
 
 	echo "[info] Setting permissions recursively on volume mappings..." | ts '%Y-%m-%d %H:%M:%.S'
-	
+
 	if [[ -d "/data" ]]; then
-		volumes="/config /data"
+		volumes=( "/config" "/data" )
 	else
-		volumes="/config"
+		volumes=( "/config" )
 	fi
 
 	set +e
-	chown -R "${PUID}":"${PGID}" "${volumes}"
+	chown -R "${PUID}":"${PGID}" "${volumes[@]}"
 	exit_code_chown=$?
-	chmod -R 775 "${volumes}"
+	chmod -R 775 "${volumes[@]}"
 	exit_code_chmod=$?
 	set -e
-	
+
 	if (( ${exit_code_chown} != 0 || ${exit_code_chmod} != 0 )); then
 		echo "[warn] Unable to chown/chmod ${volumes}, assuming SMB mountpoint"
 	fi

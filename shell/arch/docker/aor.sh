@@ -22,11 +22,15 @@ if [[ ! -z "${aor_packages}" ]]; then
 
 		# get latest compiled package from aor (required due to the fact we use archive snapshot)
 		if [[ ! -z "${aor_package_repo}" && ! -z "${aor_package_arch}" ]]; then
+
 			echo "curl -L -o "/tmp/${aor_package_name}.tar.xz" "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/""
 			curl -L -o "/tmp/${aor_package_name}.tar.xz" "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
 			pacman -U "/tmp/${aor_package_name}.tar.xz" --noconfirm
+
 		else
+
 			echo "Unable to determine package repo and/or architecture, skipping package ${aor_package_name}"
+
 		fi
 
 	done

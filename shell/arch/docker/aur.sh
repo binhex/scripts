@@ -1,9 +1,13 @@
 #!/bin/bash
 
+# define aur helper and ver
+aur_helper="apacman"
+aur_helper_version="3.1-1"
+
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
 	pacman -S --needed base-devel --noconfirm
-	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-any.pkg.tar.xz"
+	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 	set +e
 	"${aur_helper}" -S ${aur_packages} --noconfirm

@@ -10,14 +10,28 @@ if [[ ! -z "${aur_packages}" ]]; then
 	pacman -S --needed base-devel --noconfirm
 	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
+	
+	# unset failing build on non zero exit code (required as apacman can have exit code of 1 if systemd ref in install)
 	set +e
+
+	# check aur helper is functional and then use
+	"${aur_helper}" -V
+	helper_check_exit_code=$?
+
 	"${aur_helper}" -S ${aur_packages} --noconfirm
-	exit_code=$?
+	helper_package_exit_code=$?
+
+	# reset flag to force failed build on non zero exit code
 	set -e
 
-	if (( ${exit_code} != 0 && ${exit_code} != 1 )); then
+	if (( ${helper_check_exit_code} != 0 )); then
+		echo "${aur_helper} check returned exit code ${helper_check_exit_code}, exiting script..."
+		return 1
+	fi
+
+	if (( ${helper_package_exit_code} != 0 && ${helper_package_exit_code} != 1 )); then
 	
-		echo "apacman returned exit code ${exit_code} (exit code 1 ignored), showing man for exit codes:-"
+		echo "${aur_helper} returned exit code ${helper_package_exit_code} (exit code 1 ignored), showing man for exit codes:-"
 		echo "0   Success"
 		echo "1   Miscellaneous errors"
 		echo "2   Invalid parameters"

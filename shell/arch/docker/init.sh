@@ -48,10 +48,10 @@ groupmod -o -g "${PGID}" users &>/dev/null
 
 # set umask to specified value if defined
 if [[ ! -z "${UMASK}" ]]; then
-	echo "[info] umask defined as '${UMASK}'" | ts '%Y-%m-%d %H:%M:%.S'
+	echo "[info] UMASK defined as '${UMASK}'" | ts '%Y-%m-%d %H:%M:%.S'
 	sed -i -e "s~umask.*~umask = ${UMASK}~g" /etc/supervisor/conf.d/*.conf
 else
-	echo "[warn] umask not defined (via -e UMASK), defaulting to '000'" | ts '%Y-%m-%d %H:%M:%.S'
+	echo "[warn] UMASK not defined (via -e UMASK), defaulting to '000'" | ts '%Y-%m-%d %H:%M:%.S'
 	sed -i -e "s~umask.*~umask = 000~g" /etc/supervisor/conf.d/*.conf
 fi
 

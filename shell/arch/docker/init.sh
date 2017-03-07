@@ -49,10 +49,10 @@ groupmod -o -g "${PGID}" users &>/dev/null
 # set umask to specified value if defined
 if [[ ! -z "${UMASK}" ]]; then
 	echo "[info] umask defined as '${UMASK}'" | ts '%Y-%m-%d %H:%M:%.S'
-	umask "${UMASK}"
+	sed -i -e "s~umask.*~umask = ${UMASK}~g" /etc/supervisor.conf
 else
-	echo "[warn] umask not defined (via -e UMASK), defaulting to '0022'" | ts '%Y-%m-%d %H:%M:%.S'
-	umask 0022
+	echo "[warn] umask not defined (via -e UMASK), defaulting to '000'" | ts '%Y-%m-%d %H:%M:%.S'
+	sed -i -e "s~umask.*~umask = 000~g" /etc/supervisor.conf
 fi
 
 # check for presence of perms file, if it exists then skip setting

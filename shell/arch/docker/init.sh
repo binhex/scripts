@@ -52,7 +52,7 @@ if [[ ! -z "${UMASK}" ]]; then
 	sed -i -e "s~umask.*~umask = ${UMASK}~g" /etc/supervisor.conf
 else
 	echo "[warn] umask not defined (via -e UMASK), defaulting to '000'" | ts '%Y-%m-%d %H:%M:%.S'
-	sed -i -e "s~umask.*~umask = 000~g" /etc/supervisor.conf
+	sed -i -e "s~umask.*~umask = 000~g"  /etc/supervisor/conf.d/*.conf
 fi
 
 # check for presence of perms file, if it exists then skip setting

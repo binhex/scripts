@@ -8,9 +8,9 @@ aur_helper_version="3.1-1"
 if [[ ! -z "${aur_packages}" ]]; then
 
 	pacman -S --needed base-devel --noconfirm
-	curl -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
+	curl --connect-timeout 5 --max-time 10 --retry 5 --retry-delay 0 --retry-max-time 60 -o "/tmp/${aur_helper}-any.pkg.tar.xz" -L "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
-	
+
 	# unset failing build on non zero exit code (required as apacman can have exit code of 1 if systemd ref in install)
 	set +e
 

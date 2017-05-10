@@ -38,68 +38,67 @@ function run_curl() {
 }
 
 function show_help() {
-  cat <<ENDHELP
+	cat <<ENDHELP
 Description:
-  Wrapper for curl to ensure it retries when failing to download (non 2xx code).
-
+	Wrapper for curl to ensure it retries when failing to download (non 2xx code).
 Syntax:
-  ${ourScriptName} [args]
+	${ourScriptName} [args]
 Where:
-  -h or --help
-    Displays this text.
+	-h or --help
+		Displays this text.
 
-  -rc or --retry-count <number>
-    Set the number of retries before we give up.
-    Defaults to '${defaultRetryCount}'.
+	-rc or --retry-count <number>
+		Set the number of retries before we give up.
+		Defaults to '${defaultRetryCount}'.
 
-  -rw or --retry-wait <number>
-    Time in seconds to wait between retries.
-    Defaults to '${defaultRetryWait}'.
+	-rw or --retry-wait <number>
+		Time in seconds to wait between retries.
+		Defaults to '${defaultRetryWait}'.
 
-  -of or --output-file <path+filename>
-    Path to filename to store result from curl.
-    Defaults to '${defaultOutputFile}'.
+	-of or --output-file <path+filename>
+		Path to filename to store result from curl.
+		Defaults to '${defaultOutputFile}'.
 
-  -url or --url <url>
-    URL that curl will process.
-    No default.
+	-url or --url <url>
+		URL that curl will process.
+		No default.
 Example:
-  curly.sh -rc 6 -rw 10 -of /tmp/curly_output -url http://www.google.co.uk
-  
+	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -url http://www.google.co.uk
+	
 ENDHELP
 }
 
 while [ "$#" != "0" ]
 do
-  case "$1"
-  in
-    -rc|--retry-count)
-      retry_count=$2
-      shift
-      ;;
-    -rw|--retry-wait)
-      retry_wait=$2
-      shift
-      ;;
-    -of|--output-file)
-      output_file=$2
-      shift
-      ;;
-    -url|--url)
-      url=$2
-      shift
-      ;;
-    -h|--help)
-      show_help
-      exit 0
-      ;;
-    *)
-      echo "${ourScriptName}: ERROR: Unrecognised argument '$1'." >&2
-      show_help
-       exit 1
-       ;;
-   esac
-   shift
+	case "$1"
+	in
+		-rc|--retry-count)
+			retry_count=$2
+			shift
+			;;
+		-rw|--retry-wait)
+			retry_wait=$2
+			shift
+			;;
+		-of|--output-file)
+			output_file=$2
+			shift
+			;;
+		-url|--url)
+			url=$2
+			shift
+			;;
+		-h|--help)
+			show_help
+			exit 0
+			;;
+		*)
+			echo "${ourScriptName}: ERROR: Unrecognised argument '$1'." >&2
+			show_help
+			 exit 1
+			 ;;
+	 esac
+	 shift
 done
 
 run_curl "${retry_count}" "${retry_wait}" "${output_file}" "${url}"

@@ -1,16 +1,15 @@
 #!/bin/bash
 # this script adds additional retry and response code checking for curl to verify the download is successful
 
-# exit on non zero return code
-set -e
-
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
 readonly defaultOutputFile="/tmp/curly_output"
+readonly defaultSilentMode="true"
 retry_count="${defaultRetryCount}"
 retry_wait="${defaultRetryWait}"
 output_file="${defaultOutputFile}"
+silent_mode="${defaultSilentMode}"
 
 function run_curl() {
 	echo -e "Attempting to curl ${url}...\n"
@@ -18,18 +17,25 @@ function run_curl() {
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
+	# add in silent flag if enabled (default)
+	if [[ "${silent_mode}" == "true" ]]; then
+		silent_mode="-s"
+	else
+		silent_mode=""
+	fi
+
 	while true; do
 
-		response_code=$(curl --connect-timeout 5 --max-time 10 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L -w "%{http_code}" "${url}")
+		response_code=$(curl --connect-timeout 5 --max-time 10 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
-			echo -e "\ncurl successful for ${url}, response code ${response_code}\n"
+			echo -e "\ncurl successful for ${url}, response code ${response_code}"
 			break
 		else
 			if [ "${retry_count}" -eq "0" ]; then
-				echo -e "\nResponse code ${response_code} from curl != 200, exausted retries exiting script...\n"; exit 1
+				echo -e "\nResponse code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
 			else
-				echo -e "\nResponse code ${response_code} from curl != 200, retrying in 10 secs...\n"; sleep "${retry_wait}"
+				echo -e "\nResponse code ${response_code} from curl != 2xx, retrying in 10 secs..."; sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 			fi
 		fi
@@ -59,12 +65,15 @@ Where:
 		Path to filename to store result from curl.
 		Defaults to '${defaultOutputFile}'.
 
+	-sm or --silent-mode <true|false>
+		Define whether to run curl silently or not.
+		Defaults to '${defaultSilentMode}'.
+
 	-url or --url <url>
 		URL that curl will process.
 		No default.
 Example:
-	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -url http://www.google.co.uk
-	
+	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -sm true -url http://www.google.co.uk
 ENDHELP
 }
 
@@ -84,6 +93,10 @@ do
 			output_file=$2
 			shift
 			;;
+		-sm|--silent-mode)
+			silent_mode=$2
+			shift
+			;;
 		-url|--url)
 			url=$2
 			shift
@@ -101,4 +114,4 @@ do
 	 shift
 done
 
-run_curl "${retry_count}" "${retry_wait}" "${output_file}" "${url}"
+run_curl "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"

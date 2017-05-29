@@ -12,7 +12,7 @@ output_file="${defaultOutputFile}"
 silent_mode="${defaultSilentMode}"
 
 function run_curl() {
-	echo -e "Attempting to curl ${url}...\n"
+	echo -e "[info] Attempting to curl ${url}...\n"
 
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
@@ -35,24 +35,24 @@ function run_curl() {
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
 
-			echo -e "\nCurl successful for ${url}, response code ${response_code}"; exit 0
+			echo -e "[info] Curl successful for ${url}, response code ${response_code}"; exit 0
 			break
 
 		else
 
 			if [ "${retry_count}" -eq "0" ]; then
 
-				echo -e "\nResponse code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
+				echo -e "[warn] Response code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
 
 			else
 
-				echo -e "\nResponse code ${response_code} from curl != 2xx"
+				echo -e "[warn] Response code ${response_code} from curl != 2xx"
 
 				if [ "${exit_code}" -ge "1" ]; then
-					echo -e "\nExit code ${exit_code} from curl != 0"
+					echo -e "[warn] Exit code ${exit_code} from curl != 0"
 				fi
 
-				echo "retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+				echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 
 			fi

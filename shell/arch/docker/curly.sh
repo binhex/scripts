@@ -35,7 +35,7 @@ function run_curl() {
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
 
-			echo -e "\ncurl successful for ${url}, response code ${response_code}"
+			echo -e "\nCurl successful for ${url}, response code ${response_code}"; exit 0
 			break
 
 		else

@@ -12,11 +12,15 @@ output_file="${defaultOutputFile}"
 silent_mode="${defaultSilentMode}"
 
 function run_curl() {
-	echo -e "Attempting to curl ${url}...\n"
+
+	if [[ "${silent_mode}" == "false" ]]; then
+		echo -e "[info] Attempting to curl ${url}...\n"
+	fi
 
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
+<<<<<<< HEAD
 	# add in silent flag if enabled (default)
 	if [[ "${silent_mode}" == "true" ]]; then
 
@@ -26,6 +30,13 @@ function run_curl() {
 
 		silent_mode=""
 
+=======
+	# add in silent mode flag for curl if set to 'true' (default)
+	if [[ "${silent_mode}" == "false" ]]; then
+		silent_mode=""
+	else
+		silent_mode="-s"
+>>>>>>> origin/master
 	fi
 
 	while true; do
@@ -34,13 +45,20 @@ function run_curl() {
 		exit_code=$?
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
+<<<<<<< HEAD
 
 			echo -e "\ncurl successful for ${url}, response code ${response_code}"
+=======
+			if [[ "${silent_mode}" == "false" ]]; then
+			  echo -e "\n[info] curl successful for ${url}, response code ${response_code}"
+			fi
+>>>>>>> origin/master
 			break
 
 		else
 
 			if [ "${retry_count}" -eq "0" ]; then
+<<<<<<< HEAD
 
 				echo -e "\nResponse code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
 
@@ -53,6 +71,13 @@ function run_curl() {
 				fi
 
 				echo "retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+=======
+				echo -e "\n[warn] Response code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
+			else
+				if [[ "${silent_mode}" == "false" ]]; then
+				  echo -e "\n[warn] Response code ${response_code} from curl != 2xx, retrying in 10 secs..."; sleep "${retry_wait}"
+				fi
+>>>>>>> origin/master
 				retry_count=$((retry_count-1))
 
 			fi

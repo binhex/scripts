@@ -19,24 +19,42 @@ function run_curl() {
 
 	# add in silent flag if enabled (default)
 	if [[ "${silent_mode}" == "true" ]]; then
+
 		silent_mode="-s"
+
 	else
+
 		silent_mode=""
+
 	fi
 
 	while true; do
 
 		response_code=$(curl --connect-timeout 5 --max-time 10 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
+		exit_code=$?
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
+
 			echo -e "\ncurl successful for ${url}, response code ${response_code}"
 			break
+
 		else
+
 			if [ "${retry_count}" -eq "0" ]; then
+
 				echo -e "\nResponse code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
+
 			else
-				echo -e "\nResponse code ${response_code} from curl != 2xx, retrying in 10 secs..."; sleep "${retry_wait}"
+
+				echo -e "\nResponse code ${response_code} from curl != 2xx"
+
+				if [ "${exit_code}" -ge "1" ]; then
+					echo -e "\nExit code ${exit_code} from curl != 0"
+				fi
+
+				echo "retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
+
 			fi
 		fi
 

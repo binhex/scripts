@@ -3,8 +3,8 @@
 # exit script if return code != 0
 set -e
 
-# send stdout and stderr to supervisor log file (to capture output from this script)
-exec 3>&1 4>&2 1>>/config/supervisord.log 2>&1
+# redirect new file descriptors and then tee stdout & stderr to supervisor log and console (captures output from this script)
+exec 3>&1 4>&2 &> >(tee -a /config/supervisord.log)
 
 cat << "EOF"
 Created by...
@@ -90,8 +90,9 @@ fi
 
 # PERMISSIONS_PLACEHOLDER
 
-# restore stdout/stderr (to prevent duplicate logging from supervisor)
+echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
+
+# restore file descriptors to prevent duplicate stdout & stderr to supervisord.log
 exec 1>&3 2>&4
 
-echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
 exec /usr/bin/supervisord -c /etc/supervisor.conf -n

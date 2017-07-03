@@ -52,6 +52,7 @@ function run_curl() {
 					echo -e "[warn] Exit code ${exit_code} from curl != 0"
 				fi
 
+				echo "[info] ${retry_count} retries left"
 				echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 

@@ -48,6 +48,9 @@ tar -xvf "${bootstrap_gzip_tarball}" --strip 1
 # remove downloaded tarball to prevent inclusion in new root tarball
 rm -rf "${bootstrap_gzip_tarball}"
 
+# remove empty folder from /
+rm -rf ./x86_64 || true
+
 # create text file detailing build date
 echo "bootstrap tarball creation date: ${bootstrap_date}" >> ./build.txt
 echo "root tarball creation date: $(date)" >> ./build.txt

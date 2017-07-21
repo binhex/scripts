@@ -1,8 +1,9 @@
 #!/bin/bash
 
+# fail fast
 set -e
 
-# ensure we are out of any current venv
+# ensure we exit out of any current virtualenv
 deactivate || true
 
 # clear down last pex build history
@@ -14,9 +15,6 @@ arch="64"
 # python app name
 app_name="MovieGrabber-linux${arch}"
 
-# generate path for virtualenv
-venv_path="/tmp/venv"
-
 # pex output path
 pex_output_path="/tmp/venv"
 
@@ -25,6 +23,9 @@ requirements_path="/tmp"
 
 # remove previous pex package
 rm -rf "${pex_output_path}/${app_name}.pex"
+
+# generate path for virtualenv
+venv_path="/tmp/venv"
 
 # run virtualenv
 virtualenv -p python2 "${venv_path}"

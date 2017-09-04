@@ -24,7 +24,7 @@ fi
 
 echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
-export PUID=$(echo "${PUID}" | sed -e 's/^[ \t]*//')
+export PUID=$(echo "${PUID}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
 if [[ ! -z "${PUID}" ]]; then
 	echo "[info] PUID defined as '${PUID}'" | ts '%Y-%m-%d %H:%M:%.S'
 else
@@ -35,7 +35,7 @@ fi
 # set user nobody to specified user id (non unique)
 usermod -o -u "${PUID}" nobody &>/dev/null
 
-export PGID=$(echo "${PGID}" | sed -e 's/^[ \t]*//')
+export PGID=$(echo "${PGID}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
 if [[ ! -z "${PGID}" ]]; then
 	echo "[info] PGID defined as '${PGID}'" | ts '%Y-%m-%d %H:%M:%.S'
 else

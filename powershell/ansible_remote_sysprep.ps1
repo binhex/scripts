@@ -35,7 +35,7 @@ param (
     )
 
 # variables for script
-$script_version                         = "2017092706"
+$script_version                         = "2017092707"
 $script_name                            = "ansible_system_prep"
 $min_free_disk_space_bytes              = 2000000000 # equates to 2 GB
 $current_date_time                      = Get-Date -format "dd-MMM-yyyy HH-mm-ss"
@@ -200,48 +200,6 @@ Function checkOSReady() {
     log("INFO: System now ready")
 }
 
-# Chocolatey sadly doesn't have a retry function, and thus we have to write our
-# own, the function below is a simple loop to retry up to the specified count
-# defined via $choco_install_retry_count, with a sleep between retries, as defined
-# via $choco_install_retry_sleep.
-# note - chocolatey requires re-launch of command prompt after install, thus the
-# cmd.exe /C "start cmd.exe /C..." trickery.
-Function chocoInstallPackage() {
-    param([string]$choco_package_name, [string]$choco_package_version)
-
-    log("INFO: Attempting to install Chocolatey Package '$choco_package_name'...")
-
-    while($true) {
-        if($choco_package_version) {
-            cmd.exe /C "start cmd.exe /C choco install -y $choco_package_name --version $choco_package_version"
-        }
-        else {
-            cmd.exe /C "start cmd.exe /C choco install -y $choco_package_name"
-        }
-        if ($LastExitCode -eq 0)
-        {
-            echo "INFO: Chocolatey Package '$choco_package_name' installed"
-            break
-        }
-        ElseIf ($LastExitCode -eq 3010)
-        {
-            echo "INFO: Chocolatey Package '$choco_package_name' installed, reboot required"
-            break
-        }
-        else {
-            if ($choco_install_retry_count -ne 0) {
-                log("INFO: Chocolatey Package '$choco_package_name' failed to install, exit code '$LastExitCode', retrying...")
-                $choco_install_retry_count -= 1
-            }
-            else {
-                log("INFO: Chocolatey Package '$choco_package_name' failed to install, exit code '$LastExitCode', retry count exceeded")
-                exitScript -exit_code $LastExitCode
-            }
-        }
-        Start-Sleep -s $choco_install_retry_sleep
-    }
-}
-
 # function to check whether we already have chocolatey installed or not
 Function checkChocoInstalled() {
     log("INFO: Check if Chocolatey is already installed (used to install Powershell and Net Framework)...")
@@ -266,8 +224,68 @@ Function chocoBootstrap() {
         }
         catch {
             log("ERROR: Failed to bootstrap Chocolately, exiting...")
-            exitScript -exit_code $LastExitCode
+            exitScript -exit_code 80
         }
+        log("INFO: SUCCESS")
+
+        log("INFO: Attempting to reload environment variable for PATH (required for choco after install)...")
+        try {
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        }
+        catch {
+            log("ERROR: Failed to reload environment variable for PATH, exiting...")
+            exitScript -exit_code 90
+        }
+        log("INFO: SUCCESS")
+    }
+}
+
+# Chocolatey sadly doesn't have a retry function, and thus we have to write our
+# own, the function below is a simple loop to retry up to the specified count
+# defined via $choco_install_retry_count, with a sleep between retries, as defined
+# via $choco_install_retry_sleep.
+# NOTES Start-Process is used to allow us to run a new elevated command prompt
+# (using the -Verb runas), we need to create a new command prompt in order to use
+# chocolatey reliably after the bootstrap. The -PassThru flag is used to get the
+# exit code from choco, the -Wait is used to ensure we wait for the sub process
+# to finish before we continue.
+Function chocoInstallPackage() {
+    param([string]$choco_package_name, [string]$choco_package_version)
+
+    log("INFO: Attempting to install Chocolatey Package '$choco_package_name'...")
+
+    while($true) {
+        if($choco_package_version) {
+            choco install --yes --force $choco_package_name --version $choco_package_version
+            #$choco_process = Start-Process -FilePath "choco" -ArgumentList "install --yes --force $choco_package_name --version $choco_package_version" -Verb runas -PassThru -Wait
+        }
+        else {
+            choco install --yes --force $choco_package_name
+            #$choco_process = Start-Process -FilePath "choco" -ArgumentList "install --yes --force $choco_package_name" -Verb runas -PassThru -Wait
+        }
+        if ($LastExitCode -eq 0)
+        #if ($choco_process.ExitCode -eq 0)
+        {
+            echo "INFO: Chocolatey Package '$choco_package_name' installed"
+            break
+        }
+        ElseIf ($LastExitCode -eq 3010)
+        #ElseIf ($choco_process.ExitCode -eq 3010)
+        {
+            echo "INFO: Chocolatey Package '$choco_package_name' installed, reboot required"
+            break
+        }
+        else {
+            if ($choco_install_retry_count -ne 0) {
+                log("INFO: Chocolatey Package '$choco_package_name' failed to install, exit code '$LastExitCode', retrying...")
+                $choco_install_retry_count -= 1
+            }
+            else {
+                log("INFO: Chocolatey Package '$choco_package_name' failed to install, exit code '$LastExitCode', retry count exceeded")
+                exitScript -exit_code $LastExitCode
+            }
+        }
+        Start-Sleep -s $choco_install_retry_sleep
     }
 }
 

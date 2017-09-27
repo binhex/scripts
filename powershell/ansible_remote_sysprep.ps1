@@ -244,11 +244,7 @@ Function chocoBootstrap() {
 # own, the function below is a simple loop to retry up to the specified count
 # defined via $choco_install_retry_count, with a sleep between retries, as defined
 # via $choco_install_retry_sleep.
-# NOTES Start-Process is used to allow us to run a new elevated command prompt
-# (using the -Verb runas), we need to create a new command prompt in order to use
-# chocolatey reliably after the bootstrap. The -PassThru flag is used to get the
-# exit code from choco, the -Wait is used to ensure we wait for the sub process
-# to finish before we continue.
+# note default timeout for choco is 2700 seconds
 Function chocoInstallPackage() {
     param([string]$choco_package_name, [string]$choco_package_version)
 
@@ -257,20 +253,16 @@ Function chocoInstallPackage() {
     while($true) {
         if($choco_package_version) {
             choco install --yes --force $choco_package_name --version $choco_package_version
-            #$choco_process = Start-Process -FilePath "choco" -ArgumentList "install --yes --force $choco_package_name --version $choco_package_version" -Verb runas -PassThru -Wait
         }
         else {
             choco install --yes --force $choco_package_name
-            #$choco_process = Start-Process -FilePath "choco" -ArgumentList "install --yes --force $choco_package_name" -Verb runas -PassThru -Wait
         }
         if ($LastExitCode -eq 0)
-        #if ($choco_process.ExitCode -eq 0)
         {
             echo "INFO: Chocolatey Package '$choco_package_name' installed"
             break
         }
         ElseIf ($LastExitCode -eq 3010)
-        #ElseIf ($choco_process.ExitCode -eq 3010)
         {
             echo "INFO: Chocolatey Package '$choco_package_name' installed, reboot required"
             break

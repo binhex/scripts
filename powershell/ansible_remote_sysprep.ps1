@@ -35,7 +35,7 @@ param (
     )
 
 # variables for script
-$script_version                         = "2017092707"
+$script_version                         = "2017092811"
 $script_name                            = "ansible_system_prep"
 $min_free_disk_space_bytes              = 2000000000 # equates to 2 GB
 $current_date_time                      = Get-Date -format "dd-MMM-yyyy HH-mm-ss"
@@ -43,7 +43,7 @@ $choco_install_retry_count              = 5
 $choco_install_retry_sleep              = 30 # defined in seconds
 $os_systemdrive                         = "$Env:SYSTEMDRIVE"
 $os_computername                        = "$Env:COMPUTERNAME"
-$cpu_idle_time                          = 30 # defined in seconds
+$cpu_idle_time                          = 60 # defined in seconds
 $cpu_idle_percentage                    = 20 # defined as a percentage
 $reg_path                               = "HKLM:\SOFTWARE\IBM\Cambridge\Nebula"
 $reg_path_auto_login                    = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
@@ -53,7 +53,7 @@ $reg_path_run_once                      = "HKLM:\Software\Microsoft\Windows\Curr
 $powershell_choco_package_name          = "powershell"
 $powershell_choco_package_version       = "5.1.14409.20170510"
 $powershell_choco_wmf_version           = "5.1.14409.1005"
-$net_framework_4_5_reg_min_version      = "378389" # taken from here - https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
+$net_framework_4_5_reg_min_version      = "379893" # taken from here - https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
 $net_framework_choco_package_name       = "dotnet4.5"
 $local_ansible_account_group_member     = "Administrators"
 $scheduled_task_name                    = "AnsibleSysPrep"
@@ -252,9 +252,11 @@ Function chocoInstallPackage() {
 
     while($true) {
         if($choco_package_version) {
+            log("choco install --yes --force $choco_package_name --version $choco_package_version")
             choco install --yes --force $choco_package_name --version $choco_package_version
         }
         else {
+            log("choco install --yes --force $choco_package_name")
             choco install --yes --force $choco_package_name
         }
         if ($LastExitCode -eq 0)

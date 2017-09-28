@@ -23,6 +23,8 @@
 #
 # Usage example: powershell -ExecutionPolicy ByPass -File .\ansible_system_prep.ps1 ansible ansible
 
+# NOTE chocolatey logs located at C:\ProgramData\chocolatey\logs\choco.summary
+
 # input parameters for script (see above)
 param (
 [Parameter(Mandatory=$true)]
@@ -35,7 +37,7 @@ param (
     )
 
 # variables for script
-$script_version                         = "2017092811"
+$script_version                         = "2017092817"
 $script_name                            = "ansible_system_prep"
 $min_free_disk_space_bytes              = 2000000000 # equates to 2 GB
 $current_date_time                      = Get-Date -format "dd-MMM-yyyy HH-mm-ss"
@@ -53,8 +55,8 @@ $reg_path_run_once                      = "HKLM:\Software\Microsoft\Windows\Curr
 $powershell_choco_package_name          = "powershell"
 $powershell_choco_package_version       = "5.1.14409.20170510"
 $powershell_choco_wmf_version           = "5.1.14409.1005"
-$net_framework_4_5_reg_min_version      = "379893" # taken from here - https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
-$net_framework_choco_package_name       = "dotnet4.5"
+$net_framework_4_5_2_reg_min_version    = "379893" # taken from here - https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
+$net_framework_choco_package_name       = "dotnet4.5.2"
 $local_ansible_account_group_member     = "Administrators"
 $scheduled_task_name                    = "AnsibleSysPrep"
 $scheduled_task_group                   = "Administrators"
@@ -250,6 +252,9 @@ Function chocoInstallPackage() {
 
     log("INFO: Attempting to install Chocolatey Package '$choco_package_name'...")
 
+    # set working directory (required to upgrade powershell via chocolatey)
+    Set-Location $PSHome
+
     while($true) {
         if($choco_package_version) {
             log("choco install --yes --force $choco_package_name --version $choco_package_version")
@@ -284,29 +289,29 @@ Function chocoInstallPackage() {
 }
 
 # function to check .Net Framework version, we need to do this as powershell
-# v5 requires .Net framework 4.5 as a prereq
+# v5 requires .Net framework 4.5.2 as a prereq
 Function checkNetFrameworkInstalled() {
-    log("INFO: Check Net Framework installed is at least 4.5...")
+    log("INFO: Check Net Framework installed is at least 4.5.2...")
     $net_framework_version = (Get-ItemProperty -Path $reg_path_net_framework -Name 'Release' -ErrorAction SilentlyContinue).'Release'
 
     if([string]::IsNullOrEmpty($net_framework_version)) {
-        log("INFO: Net Framework 4.5 NOT installed")
-        $script:net_framework_4_5_installed = "false"
+        log("INFO: Net Framework 4.5.2 NOT installed")
+        $script:net_framework_4_5_2_installed = "false"
     }
-    ElseIf([Decimal]$net_framework_version -ge [Decimal]$net_framework_4_5_reg_min_version) {
-        log("INFO: Net Framework 4.5 or higher currently installed, skipping")
-        $script:net_framework_4_5_installed = "true"
+    ElseIf([Decimal]$net_framework_version -ge [Decimal]$net_framework_4_5_2_reg_min_version) {
+        log("INFO: Net Framework 4.5.2 or higher currently installed, skipping")
+        $script:net_framework_4_5_2_installed = "true"
     }
     else {
-        log("INFO: Net Framework 4.5 version installed ($net_framework_version) below required version ($net_framework_4_5_reg_min_version)")
-        $script:net_framework_4_5_installed = "false"
+        log("INFO: Net Framework 4.5.2 version installed ($net_framework_version) below required version ($net_framework_4_5_2_reg_min_version)")
+        $script:net_framework_4_5_2_installed = "false"
     }
 }
 
-# function to install .Net Framework v4.5 via chocolatey
+# function to install .Net Framework v4.5.2 via chocolatey
 # note this DOES require that the command prmpt is run as an admin
 Function upgradeNetFrameworkUsingChoco() {
-    if($net_framework_4_5_installed -eq "false") {
+    if($net_framework_4_5_2_installed -eq "false") {
         chocoInstallPackage $net_framework_choco_package_name
     }
 }
@@ -477,7 +482,7 @@ Function exitScript() {
         log("INFO: Updating script version '$script_version' in the Registry before exit...")
         writeScriptVersionToRegistry
 
-        if($powershell_5_1_installed -eq "false" -OR $net_framework_4_5_installed -eq "false" -OR $scheduled_task_created -eq "true") {
+        if($powershell_5_1_installed -eq "false" -OR $net_framework_4_5_2_installed -eq "false" -OR $scheduled_task_created -eq "true") {
             log("INFO: Restart required, restarting in 5 secs...")
             Start-Sleep -s 5
             log("INFO: Script '$script_name' ended, exit code '$exit_code'")

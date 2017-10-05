@@ -21,9 +21,7 @@
 #   Arg 1       Local account name that Ansible will use to connect
 #   Arg 2       Password for the local account that Ansible will use to connect
 #
-# Usage example: powershell -ExecutionPolicy ByPass -File .\ansible_system_prep.ps1 ansible ansible
-
-# NOTE chocolatey logs located at C:\ProgramData\chocolatey\logs\choco.summary
+# Usage example: powershell -ExecutionPolicy ByPass -File .\win_ansible_prep.ps1 ansible ansible
 
 # input parameters for script (see above)
 param (
@@ -37,28 +35,31 @@ param (
     )
 
 # variables for script
-$script_version                         = "2017092817"
-$script_name                            = "ansible_system_prep"
-$min_free_disk_space_bytes              = 2000000000 # equates to 2 GB
-$current_date_time                      = Get-Date -format "dd-MMM-yyyy HH-mm-ss"
-$choco_install_retry_count              = 5
-$choco_install_retry_sleep              = 30 # defined in seconds
+$script_version                         = "2017100400"
+$script_name                            = "win_ansible_prep"
 $os_systemdrive                         = "$Env:SYSTEMDRIVE"
 $os_computername                        = "$Env:COMPUTERNAME"
-$cpu_idle_time                          = 60 # defined in seconds
-$cpu_idle_percentage                    = 20 # defined as a percentage
-$reg_path                               = "HKLM:\SOFTWARE\IBM\Cambridge\Nebula"
-$reg_path_auto_login                    = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
-$reg_path_net_framework                 = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\"
-$reg_path_choco                         = "HKLM:\SYSTEM\ControlSet001\Control\Session Manager\Environment\"
-$reg_path_run_once                      = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
+$current_date_time                      = Get-Date -format "dd-MMM-yyyy HH-mm-ss"
+$min_free_disk_space_bytes              = 2000000000 # equates to 2 GB
+$choco_install_retry_count              = 5
+$choco_install_retry_sleep_secs         = 30
+$choco_execution_timeout_secs           = 2700
+$cpu_idle_time_secs                     = 30
+$cpu_idle_percentage                    = 20 # equal to or less than
+$cpu_idle_timeout_secs                  = 1200 # 20 minutes
+$powershell_min_major_version           = 2
 $powershell_choco_package_name          = "powershell"
 $powershell_choco_package_version       = "5.1.14409.20170510"
 $powershell_choco_wmf_version           = "5.1.14409.1005"
+$reg_path                               = "HKLM:\SOFTWARE\IBM\Cambridge\Nebula"
+$reg_path_net_framework                 = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\"
+$reg_path_choco                         = "HKLM:\SYSTEM\ControlSet001\Control\Session Manager\Environment\"
+$reg_path_run_once                      = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
 $net_framework_4_5_2_reg_min_version    = "379893" # taken from here - https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
 $net_framework_choco_package_name       = "dotnet4.5.2"
 $local_ansible_account_group_member     = "Administrators"
 $scheduled_task_name                    = "AnsibleSysPrep"
+$scheduled_task_description             = "Ansible System Preperation post install task"
 $scheduled_task_group                   = "Administrators"
 $scheduled_task_delay_mins              = "10"
 $transcript_path                        = "$os_systemdrive\temp"
@@ -169,15 +170,15 @@ Function checkPowershellMajorVersion() {
           log("ERROR: Powershell version cannot be detected, assuming unsupported OS, exiting...")
           exitScript -exit_code 40
       }
-      ElseIf([Decimal]$powershell_current_major_version -lt 2) {
-          log("WARNING: Powershell major version installed '$powershell_current_major_version' is less than the minimum required (ver 2.x), exiting...")
+      ElseIf([Decimal]$powershell_current_major_version -lt $powershell_min_major_version) {
+          log("WARNING: Powershell major version installed '$powershell_current_major_version' is less than the minimum required '$powershell_min_major_version', exiting...")
           exitScript -exit_code 50
       }
       log("INFO: PASSED")
 }
 
 # function to detect CPU load, when it's below our threshold value (as defined via
-# $cpu_idle_percentage) for a period of X seconds (as defined via $cpu_idle_time)
+# $cpu_idle_percentage) for a period of X seconds (as defined via $cpu_idle_time_secs)
 # then we assume windows is ready for operation.
 # note there is currently NO way of doing this by looking at services/event log.
 Function checkOSReady() {
@@ -188,18 +189,27 @@ Function checkOSReady() {
         return [Decimal]$load
     }
 
-    $idle_seconds = 0
-    while($idle_seconds -lt $cpu_idle_time) {
+    $idle_secs = 0
+    while($idle_secs -lt $cpu_idle_time_secs) {
         $cpu_current_load_percentage = getCPULoad
-        if($cpu_current_load_percentage -lt $cpu_idle_percentage) {
-            $idle_seconds += 1
+
+        if($cpu_idle_timeout_secs -eq 0) {
+            log("WARNING: Timeout reached, CPU load did not drop below '$cpu_idle_percentage' percent for '$cpu_idle_time_secs' seconds")
+            break
         }
         else {
-            $idle_seconds = 0
+            $cpu_idle_timeout_secs -= 1
+        }
+
+        if($cpu_current_load_percentage -lt $cpu_idle_percentage) {
+            $idle_secs += 1
+        }
+        else {
+            $idle_secs = 0
         }
         Start-Sleep -s 1
     }
-    log("INFO: System now ready")
+    log("INFO: PASSED")
 }
 
 # function to check whether we already have chocolatey installed or not
@@ -245,8 +255,8 @@ Function chocoBootstrap() {
 # Chocolatey sadly doesn't have a retry function, and thus we have to write our
 # own, the function below is a simple loop to retry up to the specified count
 # defined via $choco_install_retry_count, with a sleep between retries, as defined
-# via $choco_install_retry_sleep.
-# note default timeout for choco is 2700 seconds
+# via $choco_install_retry_sleep_secs.
+# NOTE chocolatey logs located at C:\ProgramData\chocolatey\logs\choco.summary
 Function chocoInstallPackage() {
     param([string]$choco_package_name, [string]$choco_package_version)
 
@@ -257,12 +267,12 @@ Function chocoInstallPackage() {
 
     while($true) {
         if($choco_package_version) {
-            log("choco install --yes --force $choco_package_name --version $choco_package_version")
-            choco install --yes --force $choco_package_name --version $choco_package_version
+            log("choco install --yes $choco_package_name --version $choco_package_version")
+            choco install --yes --execution-timeout=$choco_execution_timeout_secs $choco_package_name --version $choco_package_version
         }
         else {
-            log("choco install --yes --force $choco_package_name")
-            choco install --yes --force $choco_package_name
+            log("choco install --yes $choco_package_name")
+            choco install --yes --execution-timeout=$choco_execution_timeout_secs $choco_package_name
         }
         if ($LastExitCode -eq 0)
         {
@@ -271,7 +281,7 @@ Function chocoInstallPackage() {
         }
         ElseIf ($LastExitCode -eq 3010)
         {
-            echo "INFO: Chocolatey Package '$choco_package_name' installed, reboot required"
+            echo "INFO: Chocolatey Package '$choco_package_name' installed (exit code indicates reboot required)"
             break
         }
         else {
@@ -284,12 +294,12 @@ Function chocoInstallPackage() {
                 exitScript -exit_code $LastExitCode
             }
         }
-        Start-Sleep -s $choco_install_retry_sleep
+        Start-Sleep -s $choco_install_retry_sleep_secs
     }
 }
 
 # function to check .Net Framework version, we need to do this as powershell
-# v5 requires .Net framework 4.5.2 as a prereq
+# v5.1 requires .Net framework 4.5.2 as a prereq
 Function checkNetFrameworkInstalled() {
     log("INFO: Check Net Framework installed is at least 4.5.2...")
     $net_framework_version = (Get-ItemProperty -Path $reg_path_net_framework -Name 'Release' -ErrorAction SilentlyContinue).'Release'
@@ -433,7 +443,7 @@ Function createScheduledTask() {
           $service.Connect()
 
           $TaskDefinition = $service.NewTask(0)
-          $TaskDefinition.RegistrationInfo.Description = "Run the Ansible Remoting Preperation script"
+          $TaskDefinition.RegistrationInfo.Description = $scheduled_task_description
           $TaskDefinition.Settings.Enabled = $true
           $TaskDefinition.Settings.AllowDemandStart = $true
           $TaskDefinition.Principal.RunLevel = 1 # TASK_RUNLEVEL_HIGHEST
@@ -444,9 +454,12 @@ Function createScheduledTask() {
           $trigger.Delay = "PT" + "$scheduled_task_delay_mins" + "M" # delay task for 5 minutes
           $trigger.Enabled = $true
 
+          # run Ansible Remoting Preperation Powershell script
           $Action = $TaskDefinition.Actions.Create(0)
           $action.Path = "Powershell.exe"
           $action.Arguments = "-Noninteractive -ExecutionPolicy Bypass -File $ansible_remoting_script_path"
+
+          # delete this scheduled task (prevents re-run on boot)
           $Action = $TaskDefinition.Actions.Create(0)
           $action.Path = "schtasks.exe"
           $action.Arguments = "/Delete /TN $scheduled_task_name /F"

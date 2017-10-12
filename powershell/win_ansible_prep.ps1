@@ -21,7 +21,7 @@
 #   Arg 1       Local account name that Ansible will use to connect
 #   Arg 2       Password for the local account that Ansible will use to connect
 #
-# Usage example: powershell -ExecutionPolicy ByPass -File .\win_ansible_prep.ps1 ansible ansible
+# Usage example: powershell -ExecutionPolicy ByPass -File .\ansible_system_prep.ps1 ansible ansible
 
 # input parameters for script (see above)
 param (
@@ -35,7 +35,7 @@ param (
     )
 
 # variables for script
-$script_version                         = "2017100400"
+$script_version                         = "2017101200"
 $script_name                            = "win_ansible_prep"
 $os_systemdrive                         = "$Env:SYSTEMDRIVE"
 $os_computername                        = "$Env:COMPUTERNAME"
@@ -51,7 +51,7 @@ $powershell_min_major_version           = 2
 $powershell_choco_package_name          = "powershell"
 $powershell_choco_package_version       = "5.1.14409.20170510"
 $powershell_choco_wmf_version           = "5.1.14409.1005"
-$reg_path                               = "HKLM:\SOFTWARE\IBM\Cambridge\Nebula"
+$reg_path_script_run                    = "HKLM:\SOFTWARE\IBM\Cambridge\Nebula"
 $reg_path_net_framework                 = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\"
 $reg_path_choco                         = "HKLM:\SYSTEM\ControlSet001\Control\Session Manager\Environment\"
 $reg_path_run_once                      = "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
@@ -110,7 +110,7 @@ Function log($str) {
 # exit, else run.
 Function checkScriptVersionInRegistry() {
     log("INFO: Check whether this script has been run previously (registry value)...")
-    $current_version = (Get-ItemProperty -Path $reg_path -Name $script_name -ErrorAction SilentlyContinue).$script_name
+    $current_version = (Get-ItemProperty -Path $reg_path_script_run -Name $script_name -ErrorAction SilentlyContinue).$script_name
 
     if(-NOT [string]::IsNullOrEmpty($current_version)) {
         if ($current_version -eq $script_version) {
@@ -481,10 +481,15 @@ Function createScheduledTask() {
 # function to write the script version to the registry (used to compare script version
 # with registry version later on - see function checkScriptVersionInRegistry)
 Function writeScriptVersionToRegistry() {
-    # create registry path first (required for older Powershell versions)
-    New-Item -Path $reg_path -Name "" –Force | out-null
+    $check_reg_path_exists = Test-Path $reg_path_script_run
+
+    if (!($check_reg_path_exists)) {
+        # create registry path first (required for older PowerShell versions)
+        New-Item -Path $reg_path_script_run -Name "" –Force | out-null
+    }
+
     # create value for registry key
-    set-itemproperty -Path $reg_path -Name "$script_name" -value "$script_version" -type String
+    set-itemproperty -Path $reg_path_script_run -Name "$script_name" -value "$script_version" -type String
 }
 
 # function to stop transcript with exit code

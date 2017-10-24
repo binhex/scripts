@@ -10,13 +10,13 @@ set -e
 pacman -S wget tar --noconfirm
 
 # define path to extract to
-bootstrap_extract="/tmp/extract"
+bootstrap_extract_path="/tmp/extract"
 
 # define archlinux download site
 archlinux_download_site="https://archive.archlinux.org"
 
 # define date of bootstrap tarball
-bootstrap_date="2017.07.01"
+bootstrap_date="2017.10.01"
 
 # define today's date, used for filename for root tarball we create
 todays_date=$(date +%Y-%m-%d)
@@ -24,14 +24,17 @@ todays_date=$(date +%Y-%m-%d)
 # define input tarball filename
 bootstrap_gzip_tarball="archlinux-bootstrap.tar.gz"
 
-# define input tarball filename
-root_bz2_tarball="archlinux-root-${todays_date}.tar.bz2"
+# define path to extract to
+tarball_output_path="/tmp"
+
+# define output tarball filename
+tarball_output_file="archlinux-root-${todays_date}.tar.bz2"
 
 # remove previously created root tarball (if it exists)
-rm "${root_bz2_tarball}" || true
+rm "${tarball_output_file}" || true
 
 # create extraction path
-mkdir -p "${bootstrap_extract}"; cd "${bootstrap_extract}"
+mkdir -p "${bootstrap_extract_path}"; cd "${bootstrap_extract_path}"
 
 # download bootstrap gzipped tarball from arch linux using wildcards
 wget -r --no-parent -nH --cut-dirs=3 -e robots=off --reject "index.html" "${archlinux_download_site}/iso/${bootstrap_date}/" -A "archlinux-bootstrap*.tar.gz"
@@ -56,9 +59,11 @@ echo "bootstrap tarball creation date: ${bootstrap_date}" >> ./build.txt
 echo "root tarball creation date: $(date)" >> ./build.txt
 
 # tar and bz2 compress again, excluding folders we dont require for docker usage
-tar -cvpjf ../"${root_bz2_tarball}" --exclude=./ext --exclude=./etc/hosts --exclude=./etc/hostname --exclude=./etc/resolv.conf --exclude=./sys --exclude=./usr/share/man --exclude=./usr/share/gtk-doc --exclude=./usr/share/doc --exclude=./usr/share/locale --exclude=./usr/lib/systemd --one-file-system .
+tar -cvpjf "${tarball_output_path}/${tarball_output_file}" --exclude=./ext --exclude=./etc/hosts --exclude=./etc/hostname --exclude=./etc/resolv.conf --exclude=./sys --exclude=./usr/share/man --exclude=./usr/share/gtk-doc --exclude=./usr/share/doc --exclude=./usr/share/locale --exclude=./usr/lib/systemd --one-file-system .
 
 # remove extracted folder to tidy up after tarball creation
-rm -rf "${bootstrap_extract}"
+rm -rf "${bootstrap_extract_path}"
 
 # upload to github for use in arch-scratch
+
+echo "bootstrap tarball created at ${tarball_output_path}/${tarball_output_file}"

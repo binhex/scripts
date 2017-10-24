@@ -12,7 +12,7 @@ output_file="${defaultOutputFile}"
 silent_mode="${defaultSilentMode}"
 
 function run_curl() {
-	echo -e "[info] Attempting to curl ${url}..."
+	echo -e "[info] attempting to curl ${url}..."
 
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))

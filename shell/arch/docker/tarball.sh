@@ -25,7 +25,7 @@ todays_date=$(date +%Y-%m-%d)
 bootstrap_gzip_tarball="archlinux-bootstrap.tar.gz"
 
 # define path to extract to
-tarball_output_path="/tmp"
+tarball_output_path="/host/appdata"
 
 # define output tarball filename
 tarball_output_file="archlinux-root-${todays_date}.tar.bz2"

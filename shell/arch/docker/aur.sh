@@ -26,7 +26,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
-	"${aur_helper}" -S ${aur_packages} --gendb --noconfirm
+	"${aur_helper}" -S ${aur_packages} --noconfirm
 	helper_package_exit_code=$?
 
 	if (( ${helper_package_exit_code} != 0 && ${helper_package_exit_code} != 1 )); then

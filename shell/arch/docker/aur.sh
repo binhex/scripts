@@ -18,9 +18,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	"${aur_helper}" -V
 	helper_check_exit_code=$?
 
-	"${aur_helper}" -S ${aur_packages} --noconfirm
-	helper_package_exit_code=$?
-
 	# reset flag to force failed build on non zero exit code
 	set -e
 
@@ -29,8 +26,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
+	"${aur_helper}" -S ${aur_packages} --gendb --noconfirm
+	helper_package_exit_code=$?
+
 	if (( ${helper_package_exit_code} != 0 && ${helper_package_exit_code} != 1 )); then
-	
+
 		echo "${aur_helper} returned exit code ${helper_package_exit_code} (exit code 1 ignored), showing man for exit codes:-"
 		echo "0   Success"
 		echo "1   Miscellaneous errors"

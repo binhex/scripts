@@ -1,5 +1,5 @@
 #!/bin/bash
-# this script downloads github releases in zipped format, extracts and cleans up
+# This script downloads github releases in zipped format, extracts and cleans up
 
 # exit script if return code != 0
 set -e
@@ -19,16 +19,16 @@ function github_downloader() {
 
 	echo -e "[info] Running script to download latest release from GitHub..."
 
-	mkdir -p "${download_path}"
-	mkdir -p "${extract_path}"
-	mkdir -p "${install_path}"
-
 	github_release_tags_url="https://github.com/${github_owner}/${github_repo}/releases"
 
+	echo -e "[info] Removing previous run release tag html webpage ${download_path}/release_tag ..."
+	rm -f "${download_path}/release_tag"
+
 	echo -e "[info] Downloading GitHub release tags from url ${github_release_tags_url}..."
+	mkdir -p "${download_path}"
 	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/release_tag" -url "${github_release_tags_url}"
 
-	release_tag=$(cat ${download_path}/release_tag | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+	release_tag=$(cat "${download_path}/release_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
 	echo -e "[info] Release tag from GitHub is ${release_tag}"
 
 	github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
@@ -36,10 +36,18 @@ function github_downloader() {
 	echo -e "[info] Downloading release from GitHub url ${github_release_url}, saving to ${download_full_path}..."
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
 
+	echo -e "[info] Removing previous extraction path ${extract_path} ..."
+	rm -rf "${extract_path}/"
+
 	echo -e "[info] Extracting to ${extract_path} ..."
+	mkdir -p "${extract_path}"
 	unzip -o "${download_full_path}" -d "${extract_path}"
 
+	echo -e "[info] Removing previous install path ${install_path} ..."
+	rm -rf "${install_path}/"
+
 	echo -e "[info] Moving to install path ${install_path} ..."
+	mkdir -p "${install_path}"
 	mv -f "${extract_path}/${github_repo}"*/* "${install_path}/"
 
 	echo -e "[info] Removing source archive from ${download_full_path} ..."

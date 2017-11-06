@@ -12,7 +12,7 @@ output_file="${defaultOutputFile}"
 silent_mode="${defaultSilentMode}"
 
 function run_curl() {
-	echo -e "[info] attempting to curl ${url}..."
+	echo -e "[info] Attempting to curl ${url}..."
 
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
@@ -35,7 +35,7 @@ function run_curl() {
 
 		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
 
-			echo -e "[info] curl successful for ${url}, response code ${response_code}"; exit 0
+			echo -e "[info] Curl successful for ${url}, response code ${response_code}"; exit 0
 			break
 
 		else

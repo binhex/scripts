@@ -13,7 +13,6 @@ readonly defaultReleaseType="source"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
-download_full_path="${download_path}/${download_filename}"
 extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 
@@ -22,6 +21,7 @@ function github_downloader() {
 	echo -e "[info] Running script to download latest release from GitHub..."
 
 	github_release_tags_url="https://github.com/${github_owner}/${github_repo}/releases"
+	download_full_path="${download_path}/${download_filename}"
 
 	echo -e "[info] Removing previous run release tag html webpage ${download_path}/release_tag ..."
 	rm -f "${download_path}/release_tag"
@@ -43,7 +43,7 @@ function github_downloader() {
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
 
 	if [ "${release_type}" == "source" ]; then
-	
+
 		echo -e "[info] Removing previous extraction path ${extract_path} ..."
 		rm -rf "${extract_path}/"
 

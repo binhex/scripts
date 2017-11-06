@@ -1,17 +1,20 @@
 #!/bin/bash
-# this script adds additional retry and response code checking for curl to verify the download is successful
+# This script adds additional retry and response code checking for curl to verify the download is successful
 
+# setup default values
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
-readonly defaultOutputFile="/tmp/curly_output"
+readonly defaultOutputFile="/tmp/curly-download"
 readonly defaultSilentMode="true"
+
 retry_count="${defaultRetryCount}"
 retry_wait="${defaultRetryWait}"
 output_file="${defaultOutputFile}"
 silent_mode="${defaultSilentMode}"
 
 function run_curl() {
+
 	echo -e "[info] Attempting to curl ${url}..."
 
 	# construct retry max time from count and wait
@@ -19,13 +22,9 @@ function run_curl() {
 
 	# add in silent flag if enabled (default)
 	if [[ "${silent_mode}" == "true" ]]; then
-
 		silent_mode="-s"
-
 	else
-
 		silent_mode=""
-
 	fi
 
 	while true; do
@@ -133,5 +132,12 @@ do
 	 esac
 	 shift
 done
+
+# check we have mandatory parameters, else exit with warning
+if [[ -z "${url}" ]]; then
+	echo "[warning] URL not defined via parameter -url or --url, displaying help..."
+	show_help
+	exit 1
+fi
 
 run_curl "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"

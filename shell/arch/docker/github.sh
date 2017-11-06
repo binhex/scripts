@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script downloads github releases in zipped format, extracts and cleans up
+# This script downloads github soure releases in zipped format, it also has basic support for binary releases.
 
 # exit script if return code != 0
 set -e

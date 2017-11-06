@@ -9,11 +9,13 @@ readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-download.zip"
 readonly defaultDownloadPath="/tmp"
 readonly defaultExtractPath="/tmp/extracted"
+readonly defaultReleaseType="source"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
 download_full_path="${download_path}/${download_filename}"
 extract_path="${defaultExtractPath}"
+release_type="${defaultReleaseType}"
 
 function github_downloader() {
 
@@ -31,7 +33,11 @@ function github_downloader() {
 	release_tag=$(cat "${download_path}/release_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
 	echo -e "[info] Release tag from GitHub is ${release_tag}"
 
-	github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
+	if [ "${release_type}" == "source" ]; then
+		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
+	else
+		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${release_tag}/${download-filename}"
+	fi
 
 	echo -e "[info] Downloading release from GitHub url ${github_release_url}, saving to ${download_full_path}..."
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
@@ -85,6 +91,10 @@ Where:
 		Define GitHub owners name.
 		No default.
 
+	-rt or --release-type <binary|source>
+		Define whether to download binary artifacts or source from GitHub.
+		Default to '${defaultReleaseType}'.
+
 	-gr or --github-repo <repo>
 		Define GitHub repository name.
 		No default.
@@ -119,6 +129,10 @@ do
 			;;
 		-gr|--github-repo)
 			github_repo=$2
+			shift
+			;;
+		-rt|--release-type)
+			release_type=$2
 			shift
 			;;
 		-h|--help)

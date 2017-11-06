@@ -26,7 +26,7 @@ function github_downloader() {
 	echo -e "[info] Removing previous run release tag html webpage ${download_path}/release_tag ..."
 	rm -f "${download_path}/release_tag"
 
-	echo -e "[info] Downloading GitHub release tags from url ${github_release_tags_url}..."
+	echo -e "[info] Identifying GitHub release tags..."
 	mkdir -p "${download_path}"
 	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/release_tag" -url "${github_release_tags_url}"
 
@@ -39,7 +39,7 @@ function github_downloader() {
 		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${release_tag}/${download_filename}"
 	fi
 
-	echo -e "[info] Downloading release from GitHub url ${github_release_url}, saving to ${download_full_path}..."
+	echo -e "[info] Downloading release from GitHub..."
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
 
 	if [ "${release_type}" == "source" ]; then
@@ -54,7 +54,7 @@ function github_downloader() {
 		echo -e "[info] Removing previous install path ${install_path} ..."
 		rm -rf "${install_path}/"
 
-		echo -e "[info] Moving to install path ${install_path} ..."
+		echo -e "[info] Moving from extraction path ${extract_path}/${github_repo} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
 		mv -f "${extract_path}/${github_repo}"*/* "${install_path}/"
 
@@ -66,7 +66,7 @@ function github_downloader() {
 		echo -e "[info] Removing previous install path ${install_path} ..."
 		rm -rf "${install_path}/"
 
-		echo -e "[info] Moving to install path ${install_path} ..."
+		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
 		mv -f "${download_full_path}" "${install_path}/${download_filename}"
 

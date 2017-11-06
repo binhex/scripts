@@ -36,29 +36,41 @@ function github_downloader() {
 	if [ "${release_type}" == "source" ]; then
 		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
 	else
-		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${release_tag}/${download-filename}"
+		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${release_tag}/${download_filename}"
 	fi
 
 	echo -e "[info] Downloading release from GitHub url ${github_release_url}, saving to ${download_full_path}..."
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
 
-	echo -e "[info] Removing previous extraction path ${extract_path} ..."
-	rm -rf "${extract_path}/"
+	if [ "${release_type}" == "source" ]; then
+	
+		echo -e "[info] Removing previous extraction path ${extract_path} ..."
+		rm -rf "${extract_path}/"
 
-	echo -e "[info] Extracting to ${extract_path} ..."
-	mkdir -p "${extract_path}"
-	unzip -o "${download_full_path}" -d "${extract_path}"
+		echo -e "[info] Extracting to ${extract_path} ..."
+		mkdir -p "${extract_path}"
+		unzip -o "${download_full_path}" -d "${extract_path}"
 
-	echo -e "[info] Removing previous install path ${install_path} ..."
-	rm -rf "${install_path}/"
+		echo -e "[info] Removing previous install path ${install_path} ..."
+		rm -rf "${install_path}/"
 
-	echo -e "[info] Moving to install path ${install_path} ..."
-	mkdir -p "${install_path}"
-	mv -f "${extract_path}/${github_repo}"*/* "${install_path}/"
+		echo -e "[info] Moving to install path ${install_path} ..."
+		mkdir -p "${install_path}"
+		mv -f "${extract_path}/${github_repo}"*/* "${install_path}/"
 
-	echo -e "[info] Removing source archive from ${download_full_path} ..."
-	rm -f "${download_full_path}"
+		echo -e "[info] Removing source archive from ${download_full_path} ..."
+		rm -f "${download_full_path}"
 
+	else
+
+		echo -e "[info] Removing previous install path ${install_path} ..."
+		rm -rf "${install_path}/"
+
+		echo -e "[info] Moving to install path ${install_path} ..."
+		mkdir -p "${install_path}"
+		mv -f "${download_full_path}" "${install_path}/${download_filename}"
+
+	fi
 }
 
 function show_help() {

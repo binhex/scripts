@@ -26,23 +26,25 @@ function github_downloader() {
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
-	echo -e "[info] Removing previous run release tag html webpage ${download_path}/release_tag ..."
-	rm -f "${download_path}/release_tag"
+	echo -e "[info] Removing previous run release tag html webpage ${download_path}/github_tag ..."
+	rm -f "${download_path}/github_tag"
 
-	echo -e "[info] Identifying GitHub release tags..."
-	mkdir -p "${download_path}"
-	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/release_tag" -url "${github_release_tags_url}"
+	if [[ -z "${github_tag}" ]]; then
 
-	if [[ -z "${release_tag}" ]]; then
-		release_tag=$(cat "${download_path}/release_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+		echo -e "[info] Identifying GitHub tag..."
+		mkdir -p "${download_path}"
+
+		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_tag" -url "${github_github_tags_url}"
+		github_tag=$(cat "${download_path}/github_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+
 	fi
 
-	echo -e "[info] GitHub Release tag is ${release_tag}"
+	echo -e "[info] GitHub tag is ${github_tag}"
 
 	if [ "${release_type}" == "source" ]; then
-		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
+		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${github_tag}.zip"
 	else
-		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${release_tag}/${download_filename}"
+		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${github_tag}/${download_filename}"
 	fi
 
 	echo -e "[info] Downloading release from GitHub..."

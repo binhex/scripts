@@ -33,8 +33,11 @@ function github_downloader() {
 	mkdir -p "${download_path}"
 	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/release_tag" -url "${github_release_tags_url}"
 
-	release_tag=$(cat "${download_path}/release_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
-	echo -e "[info] Release tag from GitHub is ${release_tag}"
+	if [[ -z "${release_tag}" ]]; then
+		release_tag=$(cat "${download_path}/release_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+	fi
+
+	echo -e "[info] GitHub Release tag is ${release_tag}"
 
 	if [ "${release_type}" == "source" ]; then
 		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${release_tag}.zip"
@@ -116,8 +119,13 @@ Where:
 	-gr or --github-repo <repo>
 		Define GitHub repository name.
 		No default.
+
+	-gt or --github-tag <tag name>
+		Define GitHub release tag name.
+		If not defined then latest tag will be used.
+
 Example:
-	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -gr arch-deluge
+	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
 ENDHELP
 }
 
@@ -147,6 +155,10 @@ do
 			;;
 		-gr|--github-repo)
 			github_repo=$2
+			shift
+			;;
+		-gt|--github-tag)
+			github_tag=$2
 			shift
 			;;
 		-rt|--release-type)
@@ -185,4 +197,4 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-github_downloader "$Pdownload_filename}" "${download_path}" "${extract_path}" "${install_path}" "${github_owner}" "${github_repo}"
+github_downloader "$Pdownload_filename}" "${download_path}" "${extract_path}" "${install_path}" "${github_owner}" "${github_repo}" "${github_tag}"

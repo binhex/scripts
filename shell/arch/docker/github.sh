@@ -6,7 +6,7 @@ set -e
 
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
-readonly defaultDownloadFilename="github-download.zip"
+readonly defaultDownloadFilename="github-source.zip"
 readonly defaultDownloadPath="/tmp"
 readonly defaultExtractPath="/tmp/extracted"
 readonly defaultReleaseType="source"
@@ -22,6 +22,9 @@ function github_downloader() {
 
 	github_release_tags_url="https://github.com/${github_owner}/${github_repo}/releases"
 	download_full_path="${download_path}/${download_filename}"
+
+	filename=$(basename "${download_filename}")
+	download_filename_ext="${filename##*.}"
 
 	echo -e "[info] Removing previous run release tag html webpage ${download_path}/release_tag ..."
 	rm -f "${download_path}/release_tag"
@@ -42,9 +45,9 @@ function github_downloader() {
 	echo -e "[info] Downloading release from GitHub..."
 	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
 
-	if [ "${release_type}" == "source" ]; then
+	if [ "${download_filename_ext}" == "zip" ]; then
 
-		echo -e "[info] Removing previous extraction path ${extract_path} ..."
+		echo -e "[info] Removing previous extract path ${extract_path} ..."
 		rm -rf "${extract_path}/"
 
 		echo -e "[info] Extracting to ${extract_path} ..."
@@ -60,6 +63,9 @@ function github_downloader() {
 
 		echo -e "[info] Removing source archive from ${download_full_path} ..."
 		rm -f "${download_full_path}"
+
+		echo -e "[info] Removing extract path ${download_full_path} ..."
+		rm -rf "${extract_path}/"
 
 	else
 

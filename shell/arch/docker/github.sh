@@ -2,7 +2,7 @@
 # This script downloads github soure releases in zipped format, it also has basic support for binary releases.
 
 # exit script if return code != 0
-set -e
+#set -e
 
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
@@ -57,9 +57,6 @@ function github_downloader() {
 		mkdir -p "${extract_path}"
 		unzip -o "${download_full_path}" -d "${extract_path}"
 
-		echo -e "[info] Removing previous install path ${install_path} ..."
-		rm -rf "${install_path}/"
-
 		echo -e "[info] Moving from extraction path ${extract_path}/${github_repo} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
 		mv -f "${extract_path}/${github_repo}"*/* "${install_path}/"
@@ -71,9 +68,6 @@ function github_downloader() {
 		rm -rf "${extract_path}/"
 
 	else
-
-		echo -e "[info] Removing previous install path ${install_path} ..."
-		rm -rf "${install_path}/"
 
 		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
 		mkdir -p "${install_path}"

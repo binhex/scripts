@@ -26,20 +26,18 @@ function github_downloader() {
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
-	echo -e "[info] Removing previous run release tag html webpage ${download_path}/github_tag ..."
-	rm -f "${download_path}/github_tag"
-
 	if [[ -z "${github_release}" ]]; then
 
-		echo -e "[info] Identifying GitHub tag..."
+		echo -e "[info] Identifying GitHub release..."
 		mkdir -p "${download_path}"
 
 		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
 		github_release=$(cat "${download_path}/github_release" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+		rm -f "${download_path}/github_release"
 
 	fi
 
-	echo -e "[info] GitHub tag is ${github_release}"
+	echo -e "[info] GitHub release is ${github_release}"
 
 	if [ "${release_type}" == "source" ]; then
 		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
@@ -66,7 +64,7 @@ function github_downloader() {
 		echo -e "[info] Removing source archive from ${download_full_path} ..."
 		rm -f "${download_full_path}"
 
-		echo -e "[info] Removing extract path ${download_full_path} ..."
+		echo -e "[info] Removing extract path ${extract_path} ..."
 		rm -rf "${extract_path}/"
 
 	else

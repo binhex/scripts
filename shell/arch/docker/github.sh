@@ -20,7 +20,7 @@ function github_downloader() {
 
 	echo -e "[info] Running script to download latest release from GitHub..."
 
-	github_release_tags_url="https://github.com/${github_owner}/${github_repo}/releases"
+	github_release_url="https://github.com/${github_owner}/${github_repo}/releases"
 	download_full_path="${download_path}/${download_filename}"
 
 	filename=$(basename "${download_filename}")
@@ -29,22 +29,22 @@ function github_downloader() {
 	echo -e "[info] Removing previous run release tag html webpage ${download_path}/github_tag ..."
 	rm -f "${download_path}/github_tag"
 
-	if [[ -z "${github_tag}" ]]; then
+	if [[ -z "${github_release}" ]]; then
 
 		echo -e "[info] Identifying GitHub tag..."
 		mkdir -p "${download_path}"
 
-		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_tag" -url "${github_github_tags_url}"
-		github_tag=$(cat "${download_path}/github_tag" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
+		github_release=$(cat "${download_path}/github_release" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
 
 	fi
 
-	echo -e "[info] GitHub tag is ${github_tag}"
+	echo -e "[info] GitHub tag is ${github_release}"
 
 	if [ "${release_type}" == "source" ]; then
-		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${github_tag}.zip"
+		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 	else
-		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${github_tag}/${download_filename}"
+		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${download_filename}"
 	fi
 
 	echo -e "[info] Downloading release from GitHub..."
@@ -116,9 +116,9 @@ Where:
 		Define GitHub repository name.
 		No default.
 
-	-gt or --github-tag <tag name>
-		Define GitHub release tag name.
-		If not defined then latest tag will be used.
+	-grs or --github-release <release name>
+		Define GitHub release name.
+		If not defined then latest release will be used.
 
 Example:
 	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
@@ -153,8 +153,8 @@ do
 			github_repo=$2
 			shift
 			;;
-		-gt|--github-tag)
-			github_tag=$2
+		-grs|--github-release)
+			github_release=$2
 			shift
 			;;
 		-rt|--release-type)
@@ -193,4 +193,4 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-github_downloader "$Pdownload_filename}" "${download_path}" "${extract_path}" "${install_path}" "${github_owner}" "${github_repo}" "${github_tag}"
+github_downloader

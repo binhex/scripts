@@ -20,7 +20,7 @@ if [[ ! -z "${aor_packages}" ]]; then
 		cat /tmp/aor_json
 
 		# filter based on exact package name to prevent fuzzy matching of wrong packages
-		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "${aor_package_name}" '.results[] | select(.pkgname | startswith('$aor_package_name') and endswith('$aor_package_name')))
+		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "${aor_package_name}" '.results[] | select(.pkgname | startswith('$aor_package_name') and endswith('$aor_package_name'))')
 
 		if [[ -n "${aor_package_json}" ]]; then
 

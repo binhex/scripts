@@ -16,8 +16,14 @@ if [[ ! -z "${aor_packages}" ]]; then
 		# get repo and arch from aor using api (json format)
 		/root/curly.sh -rc 6 -rw 10 -of /tmp/aor_json -url "https://www.archlinux.org/packages/search/json/?q=${aor_package_name}&repo=Community&repo=Core&repo=Extra&repo=Multilib&arch=any&arch=x86_64"
 
+		echo "[info] display output of aor_json..."
+		cat /tmp/aor_json
+
 		# filter based on exact package name to prevent fuzzy matching of wrong packages
-		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "$aor_package_name" '.results[] | select(.pkgname | startswith($aor_package_name) and endswith($aor_package_name))')
+		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "${aor_package_name}" '.results[] | select(.pkgname | startswith($aor_package_name) and endswith($aor_package_name))')
+
+		echo "[info] display aor package json after exact match on package name ${aor_package_name}..."
+		echo "${aor_package_json}"
 
 		aor_package_repo=$(echo $aor_package_json | jq -r ".repo")
 		echo "[info] aor package repo is ${aor_package_repo}"

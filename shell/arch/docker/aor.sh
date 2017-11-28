@@ -20,16 +20,45 @@ if [[ ! -z "${aor_packages}" ]]; then
 		cat /tmp/aor_json
 
 		# filter based on exact package name to prevent fuzzy matching of wrong packages
-		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "${aor_package_name}" '.results[] | select(.pkgname | startswith($aor_package_name) and endswith($aor_package_name))')
+		aor_package_json=$(cat /tmp/aor_json | jq -c --arg aor_package_name "${aor_package_name}" ".results[] | select(.pkgname | startswith(${aor_package_name}) and endswith(${aor_package_name}))")
 
-		echo "[info] display aor package json after exact match on package name ${aor_package_name}..."
-		echo "${aor_package_json}"
+		if [[ -n "${aor_package_json}" ]]; then
+
+			echo "[info] display aor package json after exact match on package name ${aor_package_name}..."
+			echo "${aor_package_json}"
+
+		else
+
+			echo "[info] aor package json empty, assuming failure and exiting..."
+			exit 1
+
+		fi
 
 		aor_package_repo=$(echo $aor_package_json | jq -r ".repo")
-		echo "[info] aor package repo is ${aor_package_repo}"
+
+		if [[ -n "${aor_package_repo}" ]]; then
+
+			echo "[info] aor package repo is ${aor_package_repo}"
+
+		else
+
+			echo "[info] aor package repo is empty, assuming failure and exiting..,"
+			exit 1
+
+		fi
 
 		aor_package_arch=$(echo $aor_package_json | jq -r ".arch")
-		echo "[info] aor package arch is ${aor_package_arch}"
+
+		if [[ -n "${aor_package_arch}" ]]; then
+
+			echo "[info] aor package arch is ${aor_package_arch}"
+
+		else
+
+			echo "[info] aor package arch is empty, assuming failure and exiting..,"
+			exit 1
+
+		fi
 
 		# get latest compiled package from aor (required due to the fact we use archive snapshot)
 		if [[ ! -z "${aor_package_repo}" && ! -z "${aor_package_arch}" ]]; then

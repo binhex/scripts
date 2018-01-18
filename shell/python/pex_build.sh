@@ -15,6 +15,9 @@ platform="linux"
 # architecture
 arch="64"
 
+# python version
+python_version="2"
+
 # friendly app name
 app_name="MovieGrabber"
 
@@ -34,7 +37,7 @@ rm -rf "${pex_output_path}/${pex_output_file}.pex"
 venv_path="/tmp/venv"
 
 # run virtualenv
-virtualenv -p python2 "${venv_path}"
+virtualenv -p "python${python_version}" "${venv_path}"
 
 # activate new virtualenv environment (gives you access to pip in virtual env)
 source "${venv_path}/bin/activate"

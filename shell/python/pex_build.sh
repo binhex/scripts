@@ -9,11 +9,17 @@ deactivate || true
 # clear down last pex build history
 rm -rf ~/.pex
 
-# platform architecture
+# platform
+platform="linux"
+
+# architecture
 arch="64"
 
+# friendly app name
+app_name="MovieGrabber"
+
 # python app name
-app_name="MovieGrabber-linux${arch}"
+pex_output_file="${app_name}-${platform}${arch}"
 
 # pex output path
 pex_output_path="/tmp/venv"
@@ -22,7 +28,7 @@ pex_output_path="/tmp/venv"
 requirements_path="/tmp"
 
 # remove previous pex package
-rm -rf "${pex_output_path}/${app_name}.pex"
+rm -rf "${pex_output_path}/${pex_output_file}.pex"
 
 # generate path for virtualenv
 venv_path="/tmp/venv"
@@ -37,9 +43,9 @@ source "${venv_path}/bin/activate"
 "${venv_path}/bin/pip" install pex
 
 # create pex requirements package for application
-pex -r "${requirements_path}"/requirements.txt -o "${pex_output_path}/${app_name}.pex"
+pex -r "${requirements_path}"/requirements.txt -o "${pex_output_path}/${pex_output_file}.pex"
 
 # ensure we are now exit current venv
 deactivate || true
 
-echo "Now use the pex package by executing '${pex_output_path}/${app_name}.pex ./${app_name}.py'"
+echo "Now use the pex package by executing '${pex_output_path}/${pex_output_file}.pex ./${pex_output_file}.py'"

@@ -15,8 +15,8 @@ bootstrap_extract_path="/tmp/extract"
 # define archlinux download site
 archlinux_download_site="https://archive.archlinux.org"
 
-# define date of bootstrap tarball
-bootstrap_date="2017.10.01"
+# define date of bootstrap tarball to download (constructed from current '<year>.<month>.01'
+bootstrap_date=$(date '+%Y.%m.01')
 
 # define today's date, used for filename for root tarball we create
 todays_date=$(date +%Y-%m-%d)
@@ -25,13 +25,16 @@ todays_date=$(date +%Y-%m-%d)
 bootstrap_gzip_tarball="archlinux-bootstrap.tar.gz"
 
 # define path to extract to
-tarball_output_path="/host/appdata"
+tarball_output_path="/cache/appdata"
 
 # define output tarball filename
-tarball_output_file="archlinux-root-${todays_date}.tar.bz2"
+tarball_output_file="arch-root.tar.bz2"
 
 # remove previously created root tarball (if it exists)
 rm "${tarball_output_file}" || true
+
+# remove previously created extraction folder (if it exists)
+rm "${bootstrap_extract_path}" || true
 
 # create extraction path
 mkdir -p "${bootstrap_extract_path}"; cd "${bootstrap_extract_path}"
@@ -64,6 +67,8 @@ tar -cvpjf "${tarball_output_path}/${tarball_output_file}" --exclude=./ext --exc
 # remove extracted folder to tidy up after tarball creation
 rm -rf "${bootstrap_extract_path}"
 
-# upload to github for use in arch-scratch
+# remove previously uploaded tarball "asset" from github
+
+# upload new tarball 'asset' to github for use in arch-scratch (ensure tag is 'latest')
 
 echo "bootstrap tarball created at ${tarball_output_path}/${tarball_output_file}"

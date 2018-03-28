@@ -62,7 +62,7 @@ echo "bootstrap tarball creation date: ${bootstrap_date}" >> ./build.txt
 echo "root tarball creation date: $(date)" >> ./build.txt
 
 # tar and bz2 compress again, excluding folders we dont require for docker usage
-tar -cvpjf "${tarball_output_path}/${tarball_output_file}" --exclude=./ext --exclude=./etc/hosts --exclude=./etc/hostname --exclude=./etc/resolv.conf --exclude=./sys --exclude=./usr/share/man --exclude=./usr/share/gtk-doc --exclude=./usr/share/doc --exclude=./usr/share/locale --exclude=./usr/lib/systemd --one-file-system .
+tar -cvpjf "${tarball_output_path}/${tarball_output_file}" --exclude=./ext --exclude=./etc/hosts --exclude=./etc/hostname --exclude=./etc/resolv.conf --exclude=./sys --exclude=./usr/share/man --exclude=./usr/share/gtk-doc --exclude=./usr/share/doc --exclude=./usr/share/locale --one-file-system .
 
 # remove extracted folder to tidy up after tarball creation
 rm -rf "${bootstrap_extract_path}"

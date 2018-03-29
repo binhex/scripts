@@ -11,6 +11,8 @@ $github_staged_filename = "Dockerfile"
 # define description for mass commits
 $github_commit_msg = "switching to latest built base image"
 
+Write-Host "Starting..."
+
 # set up all the environment variables
 Write-Host "Setting up GitHub Environment"
 . (Resolve-Path "$env:LOCALAPPDATA\GitHub\shell.ps1")
@@ -30,15 +32,21 @@ Get-ChildItem -Recurse -Depth 2 -Force |
  ForEach-Object {
     cd $_.FullName
     cd ../
-	$current_absolute_path = (Get-Item -Path ".\" -Verbose).FullName
-    Write-Host "Pushing local changes from $current_absolute_path to GitHub..."
-	# this command ensures we track changes to existing files (staging)
-	git add $github_staged_filename
-	# this command commits certain file(s) with a commit message
-	git commit $github_staged_filename -m $github_commit_msg
-	# this command pushes the local changes to github
-    git push origin master
+    $current_absolute_path = (Get-Item -Path ".\" -Verbose).FullName
+    Write-Host "Looking for local changes in $current_absolute_path..."
+    # this command ensures we track changes to existing files (staging)
+    git add $github_staged_filename
+    # this command checks for local differences to HEAd (github remote)
+    git diff-index --quiet HEAD -- $github_staged_filename
+    if ($LastExitCode -ne 0) {
+        Write-Host "Changes detected, committing change with message '$github_commit_msg'..."
+        # this command commits certain file(s) with a commit message
+        git commit $github_staged_filename -m $github_commit_msg
+        # this command pushes the local changes to github
+        Write-Host "Pushing local changes from $current_absolute_path to GitHub..."
+        git push origin master
+    }
     cd ../
  }
 
- Write-Host "Script finished"
+Write-Host "Complete"

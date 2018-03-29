@@ -32,8 +32,11 @@ Get-ChildItem -Recurse -Depth 2 -Force |
     cd ../
 	$current_absolute_path = (Get-Item -Path ".\" -Verbose).FullName
     Write-Host "Pushing local changes from $current_absolute_path to GitHub..."
+	# this command ensures we track changes to existing files (staging)
 	git add $github_staged_filename
-	git commit -m $github_commit_msg
+	# this command commits certain file(s) with a commit message
+	git commit $github_staged_filename -m $github_commit_msg
+	# this command pushes the local changes to github
     git push origin master
     cd ../
  }

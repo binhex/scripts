@@ -32,14 +32,14 @@ function run_curl() {
 		response_code=$(curl --continue-at - --connect-timeout 5 --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
 		exit_code=$?
 
-		if [ "${response_code}" -ge "200" ] && [ "${response_code}" -le "299" ]; then
+		if [[ "${response_code}" -ge 200 ]] && [[ "${response_code}" -le 299 ]]; then
 
 			echo -e "[info] Curl successful for ${url}, response code ${response_code}"; exit 0
 			break
 
 		else
 
-			if [ "${retry_count}" -eq "0" ]; then
+			if [[ "${retry_count}" -eq 0 ]]; then
 
 				echo -e "[warn] Response code ${response_code} from curl != 2xx, exausted retries exiting script..."; exit 1
 
@@ -47,7 +47,7 @@ function run_curl() {
 
 				echo -e "[warn] Response code ${response_code} from curl != 2xx"
 
-				if [ "${exit_code}" -ge "1" ]; then
+				if [[ "${exit_code}" -ge 1 ]]; then
 					echo -e "[warn] Exit code ${exit_code} from curl != 0"
 				fi
 

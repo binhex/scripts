@@ -30,10 +30,6 @@ function run_curl() {
 	while true; do
 
 		response_code=$(curl --continue-at - --connect-timeout 5 --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
-		response_code=$(echo "${response_code}" | tr -d '\r')
-
-		echo "DEBUG response code '${response_code}'"
-
 		exit_code=$?
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then

@@ -11,8 +11,11 @@ echo "[info] Script '${ourScriptName}' starting..."
 # define connection to rtorrent xmlrpc
 xmlrpc_connection="localhost:9080"
 
-# define period to sleep (in seconds)
+# define period to sleep in seconds
 sleep_period_secs=30
+
+# define max seed time in seconds
+max_seed_time_secs=600
 
 # simple function to exit script
 function exit_script() {
@@ -46,14 +49,29 @@ while true; do
 		echo "[info] Processing all torrents..."
 		for rtorrent_infohash in "${rtorrent_infohashes_list[@]}"; do
 
-			# check if torrent is seeding (finished) by grabbing the 64 bit integer value from the timestamp.finished, if the value is NOT 0 then its seeding
-			rtorrent_timestamp=$(xmlrpc "${xmlrpc_connection}" d.timestamp.finished "${rtorrent_infohash}" | grep -P -o "(?<=\s)[0-9]+$" | xargs)
+			# check if torrent is seeding (finished) by grabbing the epoch time value from d.timestamp.finished, if the value is NOT 0 then its seeding
+			finished_time_epoch=$(xmlrpc "${xmlrpc_connection}" d.timestamp.finished "${rtorrent_infohash}" | grep -P -o "(?<=\s)[0-9]+$" | xargs)
 
-			# if rtorrent_timestamp != 0 then seeding - remove torrent
-			if [[ "${rtorrent_timestamp}" -ne 0 ]]; then
+			# if finished_time_epoch != 0 then seeding
+			if [[ "${finished_time_epoch}" -ne 0 ]]; then
 
-				echo "[info] Erasing seeding torrent with hash ${rtorrent_infohash} from rtorrent..."
-				xmlrpc "${xmlrpc_connection}" d.erase "${rtorrent_infohash}"
+				# calculate current time as an epoch
+				current_time_epoch=$(date +%s)
+
+				# compare difference between current time epoch and finished time epoch
+				seed_time_secs=$(($current_time_epoch-$finished_time_epoch))
+
+				# if greater than or equal to max seed time, remove
+				if [[ "$seed_time_secs" -ge "$max_seed_time_secs" ]]; then
+
+					echo "[info] Max seed time value of $max_seed_time_secs secs reached, removing seeding torrent with hash ${rtorrent_infohash} from rtorrent..."
+					xmlrpc "${xmlrpc_connection}" d.erase "${rtorrent_infohash}"
+
+				else
+
+					echo "[info] Max seed time value of $max_seed_time_secs secs not reached (currently $seed_time_secs secs), skipping removal of torrent with hash ${rtorrent_infohash}"
+
+				fi
 
 			fi
 

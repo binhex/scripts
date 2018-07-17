@@ -93,7 +93,7 @@ function github_downloader() {
 
 	else
 
-		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
+		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_full_path} ..."
 		mkdir -p "${install_path}"
 		mv -f "${download_full_path}" "${install_full_path}"
 

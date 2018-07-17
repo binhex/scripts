@@ -46,6 +46,7 @@ function github_downloader() {
 
 		install_full_path="${install_path}/${download_filename}"
 		download_full_path="${download_path}/${download_filename}"
+
 		echo -e "[info] Downloading release source from GitHub..."
 		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
@@ -65,9 +66,10 @@ function github_downloader() {
 
 		install_full_path="${install_path}/${match_asset_name}"
 		download_full_path="${download_path}/${match_asset_name}"
+
 		echo -e "[info] Downloading release asset from GitHub..."
 		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-		
+
 	fi
 
 	if [ "${download_filename_ext}" == "zip" ]; then
@@ -94,6 +96,9 @@ function github_downloader() {
 		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
 		mv -f "${download_full_path}" "${install_full_path}"
+
+		echo -e "[info] Marking downloaded binary asset as executable..."
+		chmod +x "${install_full_path}"
 
 	fi
 }

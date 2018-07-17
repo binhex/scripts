@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script downloads github soure releases in zipped format, it also has basic support for binary releases.
+# This script downloads github soure releases in zipped format, it also has basic support for binary assets.
 
 # exit script if return code != 0
 #set -e
@@ -16,37 +16,59 @@ download_path="${defaultDownloadPath}"
 extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 
-function github_downloader() {
+function github_release_version() {
 
-	echo -e "[info] Running script to download latest release from GitHub..."
+	echo -e "[info] Running function to identify latest release tag from GitHub..."
 
 	github_release_url="https://github.com/${github_owner}/${github_repo}/releases"
-	download_full_path="${download_path}/${download_filename}"
 
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
-	if [[ -z "${github_release}" ]]; then
+	echo -e "[info] Identifying GitHub release..."
+	mkdir -p "${download_path}"
 
-		echo -e "[info] Identifying GitHub release..."
-		mkdir -p "${download_path}"
-
-		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-		github_release=$(cat "${download_path}/github_release" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
-		rm -f "${download_path}/github_release"
-
-	fi
+	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
+	github_release=$(cat "${download_path}/github_release" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+	rm -f "${download_path}/github_release"
 
 	echo -e "[info] GitHub release is ${github_release}"
 
-	if [ "${release_type}" == "source" ]; then
-		github_release_url="https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
-	else
-		github_release_url="https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${download_filename}"
-	fi
+}
 
-	echo -e "[info] Downloading release from GitHub..."
-	/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "${github_release_url}"
+function github_downloader() {
+
+	echo -e "[info] Running function to download latest release from GitHub..."
+
+	github_release="${1}"
+	
+	if [ "${release_type}" == "source" ]; then
+
+		install_full_path="${install_path}/${download_filename}"
+		download_full_path="${download_path}/${download_filename}"
+		echo -e "[info] Downloading release source from GitHub..."
+		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+
+	else
+
+		# loop over list of assets to download, space seperated
+		all_asset_names=$(curl -s "https://api.github.com/repos/nzbget/nzbget/releases/latest" | jq -r '.assets[] | .name')
+		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
+
+		if [[ -z "${match_asset_name}" ]]; then
+
+			echo -e "[warn] No assets matching pattern '${download_filename}' available for download, showing all available assets..."
+			echo -e "${all_asset_names}"
+			echo -e "[info] Exiting script..." ; exit 1
+
+		fi
+
+		install_full_path="${install_path}/${match_asset_name}"
+		download_full_path="${download_path}/${match_asset_name}"
+		echo -e "[info] Downloading release asset from GitHub..."
+		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+		
+	fi
 
 	if [ "${download_filename_ext}" == "zip" ]; then
 
@@ -71,7 +93,7 @@ function github_downloader() {
 
 		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
-		mv -f "${download_full_path}" "${install_path}/${download_filename}"
+		mv -f "${download_full_path}" "${install_full_path}"
 
 	fi
 }
@@ -191,4 +213,8 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-github_downloader
+if [[ -z "${github_release}" ]]; then
+	github_release_version
+fi
+
+github_downloader "${github_release}"

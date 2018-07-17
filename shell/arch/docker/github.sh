@@ -53,7 +53,7 @@ function github_downloader() {
 	else
 
 		# loop over list of assets to download, space seperated
-		all_asset_names=$(curl -s "https://api.github.com/repos/nzbget/nzbget/releases/latest" | jq -r '.assets[] | .name')
+		all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
 		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
 
 		if [[ -z "${match_asset_name}" ]]; then

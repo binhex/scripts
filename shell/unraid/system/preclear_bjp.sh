@@ -68,12 +68,9 @@
 # Version 1.16  - Fix for sfdisk, as -R flag no longer supported.
 #                 Fix for dd so that pre and post read status show speed (incorrectly showing time).
 #                 Removed reference to 'strings' command as this is not present in unRAID v6.5.1, now using 'cat -v'
+# Version 1.17  - Remove rogue comments in script.
 #
 ver="1.16"
-
-
-patch preclear script - sfdisk -R not supported, and dd output change, 
-	# pre-read and post-read status are showing time instead of speed.
 
 progname=$0
 options=$*

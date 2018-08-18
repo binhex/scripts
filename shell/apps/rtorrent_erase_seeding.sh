@@ -22,6 +22,13 @@ function exit_script() {
 	echo "[info] Script '${ourScriptName}' finished" ; exit 1
 }
 
+# if the script is already running (maybe the case if rtorret calls 
+# script and rtorrent been restarted) then we exit the script
+if pidof -o %PPID -x "${ourScriptName}" >/dev/null; then
+	echo "[info] Script '${ourScriptName}' already running"
+	exit_script
+fi
+
 # trap ctrl+c and go to exit_script function (must go above infinite loop)
 trap exit_script SIGINT
 

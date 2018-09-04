@@ -52,7 +52,7 @@ function github_downloader() {
 
 	else
 
-		# loop over list of assets to download, space seperated
+		# loop over list of assets to download, space separated
 		all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
 		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
 

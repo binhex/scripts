@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script downloads github soure releases in zipped format, it also has basic support for binary assets.
+# This script downloads github source releases in zipped format, it also has basic support for binary assets.
 
 # exit script if return code != 0
 #set -e
@@ -20,7 +20,8 @@ function github_release_version() {
 
 	echo -e "[info] Running function to identify latest release tag from GitHub..."
 
-	github_release_url="https://github.com/${github_owner}/${github_repo}/releases"
+	# use github rest api to get app release info
+	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest"
 
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
@@ -29,7 +30,7 @@ function github_release_version() {
 	mkdir -p "${download_path}"
 
 	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-	github_release=$(cat "${download_path}/github_release" | grep -P -o -m 1 "(?<=/${github_owner}/${github_repo}/releases/tag/)[^\"]+")
+	github_release=$(cat "${download_path}/github_release" | jq -r '.tag_name')
 	rm -f "${download_path}/github_release"
 
 	echo -e "[info] GitHub release is ${github_release}"

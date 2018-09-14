@@ -31,8 +31,14 @@ function github_release_version() {
 	echo -e "[info] Identifying GitHub release..."
 	mkdir -p "${download_path}"
 
+	if [ "${query_type}" == "tags" ]; then
+		json_query="[0].name"
+	else
+		json_query=".tag_name"
+	fi
+
 	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-	github_release=$(cat "${download_path}/github_release" | jq -r '.tag_name')
+	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
 	rm -f "${download_path}/github_release"
 
 	echo -e "[info] GitHub release is ${github_release}"

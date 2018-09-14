@@ -2,7 +2,7 @@
 # This script downloads github source releases in zipped format, it also has basic support for binary assets.
 
 # exit script if return code != 0
-#set -e
+set -e
 
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
@@ -10,18 +10,20 @@ readonly defaultDownloadFilename="github-source.zip"
 readonly defaultDownloadPath="/tmp"
 readonly defaultExtractPath="/tmp/extracted"
 readonly defaultReleaseType="source"
+readonly defaultQueryType="releases/latest"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
 extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
+query_type="${defaultQueryType}"
 
 function github_release_version() {
 
 	echo -e "[info] Running function to identify latest release tag from GitHub..."
 
 	# use github rest api to get app release info
-	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest"
+	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
@@ -138,6 +140,10 @@ Where:
 		Define whether to download binary artifacts or source from GitHub.
 		Default to '${defaultReleaseType}'.
 
+	-qt or --query-type <release/latest|tags>
+		Define github api query type for release or tags from GitHub.
+		Default to '${defaultQueryType}'.
+
 	-gr or --github-repo <repo>
 		Define GitHub repository name.
 		No default.
@@ -185,6 +191,10 @@ do
 			;;
 		-rt|--release-type)
 			release_type=$2
+			shift
+			;;
+		-qt|--query-type)
+			query_type=$2
 			shift
 			;;
 		-h|--help)

@@ -32,7 +32,7 @@ function github_release_version() {
 	mkdir -p "${download_path}"
 
 	if [ "${query_type}" == "tags" ]; then
-		json_query="[0].name"
+		json_query=".[0].name"
 	else
 		json_query=".tag_name"
 	fi

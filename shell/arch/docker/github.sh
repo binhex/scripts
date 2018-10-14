@@ -25,9 +25,6 @@ function github_release_version() {
 	# use github rest api to get app release info
 	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
-	filename=$(basename "${download_filename}")
-	download_filename_ext="${filename##*.}"
-
 	echo -e "[info] Identifying GitHub release..."
 	mkdir -p "${download_path}"
 
@@ -50,7 +47,10 @@ function github_downloader() {
 	echo -e "[info] Running function to download latest release from GitHub..."
 
 	github_release="${1}"
-	
+
+	filename=$(basename "${download_filename}")
+	download_filename_ext="${filename##*.}"
+
 	if [ "${release_type}" == "source" ]; then
 
 		install_full_path="${install_path}/${download_filename}"

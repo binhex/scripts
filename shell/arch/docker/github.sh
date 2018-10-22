@@ -11,12 +11,14 @@ readonly defaultDownloadPath="/tmp"
 readonly defaultExtractPath="/tmp/extracted"
 readonly defaultReleaseType="source"
 readonly defaultQueryType="releases/latest"
+readonly defaultDownloadRelease="true"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
 extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 query_type="${defaultQueryType}"
+download_release="${defaultDownloadRelease}"
 
 function github_release_version() {
 
@@ -147,7 +149,7 @@ Where:
 		Default to '${defaultReleaseType}'.
 
 	-qt or --query-type <release/latest|tags>
-		Define github api query type for release or tags from GitHub.
+		Define GitHub api query type for release or tags from GitHub.
 		Default to '${defaultQueryType}'.
 
 	-gr or --github-repo <repo>
@@ -157,6 +159,10 @@ Where:
 	-grs or --github-release <release name>
 		Define GitHub release name.
 		If not defined then latest release will be used.
+
+	-dr or --download-release <true|false>
+		Define whether to download the GitHub release artifact.
+		Default to '${defaultDownloadRelease}'.
 
 Example:
 	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
@@ -203,6 +209,10 @@ do
 			query_type=$2
 			shift
 			;;
+		-dr|--download-release)
+			download_release=$2
+			shift
+			;;
 		-h|--help)
 			show_help
 			exit 0
@@ -235,8 +245,14 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
+# if we dont define the tag/release then find out what it is
 if [[ -z "${github_release}" ]]; then
 	github_release_version
 fi
 
-github_downloader "${github_release}"
+# if we want to download the release artifact then do so, otherwise return release/tag only
+if [[ "${download_release}" == "true" ]]; then
+	github_downloader "${github_release}"
+else
+	echo "${github_release}"
+fi

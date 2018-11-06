@@ -94,7 +94,7 @@ function github_downloader() {
 
 		echo -e "[info] Moving from extraction path ${extract_path}/${github_repo} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
-		cp -R "${extract_path}" "${install_path}"
+		cp -R "${extract_path}"/*/* "${install_path}"
 
 		echo -e "[info] Removing source archive from ${download_full_path} ..."
 		rm -f "${download_full_path}"

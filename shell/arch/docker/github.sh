@@ -114,6 +114,19 @@ function github_downloader() {
 	fi
 }
 
+function github_compile_src() {
+
+	# install compilation tooling
+	pacman -S --needed base-devel --noconfirm
+
+	# run commands to compile
+	eval "${compile_src}"
+	
+	# remove base devel excluding useful core packages
+	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
+
+}
+
 function show_help() {
 	cat <<ENDHELP
 Description:
@@ -164,6 +177,10 @@ Where:
 		Define whether to download the GitHub release artifact.
 		Default to '${defaultDownloadRelease}'.
 
+	-cs or --compile-src <commands to execute>
+		Define commands to execute to compile source code.
+		Default is not defined.
+
 Example:
 	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
 ENDHELP
@@ -213,6 +230,10 @@ do
 			download_release=$2
 			shift
 			;;
+		-cs|--compile-src)
+			compile_src=$2
+			shift
+			;;
 		-h|--help)
 			show_help
 			exit 0
@@ -256,3 +277,9 @@ if [[ "${download_release}" == "true" ]]; then
 else
 	echo "${github_release}"
 fi
+
+# if we need to compile source then install base-devel and run commands to compile
+if [[ -n "${compile_src}" ]]; then
+	github_compile_src
+fi
+

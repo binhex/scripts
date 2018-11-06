@@ -94,7 +94,7 @@ function github_downloader() {
 
 		echo -e "[info] Moving from extraction path ${extract_path}/${github_repo} to install path ${install_path} ..."
 		mkdir -p "${install_path}"
-		mv -f "${extract_path}"/*/* "${install_path}/"
+		cp -R "${extract_path}" "${install_path}"
 
 		echo -e "[info] Removing source archive from ${download_full_path} ..."
 		rm -f "${download_full_path}"
@@ -106,7 +106,10 @@ function github_downloader() {
 
 		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_full_path} ..."
 		mkdir -p "${install_path}"
-		mv -f "${download_full_path}" "${install_full_path}"
+		cp -R "${download_full_path}" "${install_full_path}"
+
+		echo -e "[info] Removing source archive from ${download_full_path} ..."
+		rm -f "${download_full_path}"
 
 		echo -e "[info] Marking downloaded binary asset as executable..."
 		chmod +x "${install_full_path}"
@@ -121,7 +124,7 @@ function github_compile_src() {
 
 	# run commands to compile
 	eval "${compile_src}"
-	
+
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
 

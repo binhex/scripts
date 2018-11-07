@@ -123,7 +123,7 @@ function github_compile_src() {
 	pacman -S --needed base-devel --noconfirm
 
 	# run commands to compile
-	eval "${compile_src}"
+	/bin/bash -c "${compile_src}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm

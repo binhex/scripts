@@ -30,10 +30,14 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
-	if [[ -n ignore_aur_errors ]]; then
-		aur_options="--warn --noconfirm"
-	else
-		aur_options="--noconfirm"
+	aur_options="--noconfirm"
+	
+	if [[ -n aur_build_only ]]; then
+		aur_options="--buildonly ${aur_options]"
+	fi
+
+	if [[ -n aur_ignore_errors ]]; then
+		aur_options="--warn ${aur_options]"
 	fi
 
 	"${aur_helper}" -S ${aur_packages} "${aur_options}"

@@ -36,7 +36,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_options="--noconfirm"
 	fi
 
-	"${aur_helper}" -S "${aur_packages}" "${aur_options}"
+	"${aur_helper}" -S ${aur_packages} "${aur_options}"
 
 	helper_package_exit_code=$?
 

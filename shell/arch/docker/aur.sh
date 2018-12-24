@@ -30,7 +30,14 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
-	"${aur_helper}" -S ${aur_packages} --noconfirm
+	if [[ -n ignore_aur_errors ]]; then
+		aur_options="--warn --noconfirm"
+	else
+		aur_options="--noconfirm"
+	fi
+
+	"${aur_helper}" -S "${aur_packages}" "${aur_options}"
+
 	helper_package_exit_code=$?
 
 	if (( ${helper_package_exit_code} != 0 && ${helper_package_exit_code} != 1 )); then

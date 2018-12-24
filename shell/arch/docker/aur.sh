@@ -67,7 +67,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	fi
 
 	# if helper build only then use pacman to install compiled package
-	if [[ -n aur_build_only ]]; then
+	if [[ -n "${aur_build_only}" ]]; then
 		pacman -U /var/cache/${aur_helper}/* --noconfirm
 	fi
 

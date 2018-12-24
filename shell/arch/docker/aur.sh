@@ -32,11 +32,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	aur_options="--noconfirm"
 
-	if [[ -n aur_build_only ]]; then
+	if [[ -n "${aur_build_only}" ]]; then
 		aur_options="--buildonly ${aur_options}"
 	fi
 
-	if [[ -n aur_ignore_errors ]]; then
+	if [[ -n "${aur_ignore_errors}" ]]; then
 		aur_options="--warn ${aur_options}"
 	fi
 

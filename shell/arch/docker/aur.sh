@@ -40,7 +40,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_options="--warn ${aur_options}"
 	fi
 
-	"${aur_helper}" -S ${aur_packages} "${aur_options}"
+	eval "${aur_helper} -S ${aur_packages} ${aur_options}"
 
 	helper_package_exit_code=$?
 

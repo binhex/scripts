@@ -7,7 +7,7 @@ aur_helper_version="3.1-1"
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
 
-	pacman -S --needed base-devel --noconfirm
+	pacman -S jshon base-devel --needed --noconfirm
 
 	# remove existing aur helper if it exists to prevent curl 416 error
 	rm -f "/tmp/${aur_helper}-any.pkg.tar.xz"

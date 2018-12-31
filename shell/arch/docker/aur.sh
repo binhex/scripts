@@ -68,7 +68,15 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# if helper build only then use pacman to install compiled package
 	if [[ -n "${aur_build_only}" ]]; then
-		pacman -U /var/cache/${aur_helper}/pkg/* --noconfirm
+
+		# split space separated string of packages into list
+		IFS=' ' read -ra aur_package_list <<< "${aur_packages}"
+
+		# process each package in the list
+		for aur_package_name in "${aur_package_list[@]}"; do
+			pacman -U "/var/cache/${aur_helper}/pkg/"*"${aur_package_name}"* --noconfirm
+		done
+
 	fi
 
 	# remove base devel excluding useful core packages

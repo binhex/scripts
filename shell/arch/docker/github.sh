@@ -8,17 +8,17 @@ set -e
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-source.zip"
 readonly defaultDownloadPath="/tmp"
+readonly defaultDownloadRelease="true"
 readonly defaultExtractPath="/tmp/extracted"
 readonly defaultReleaseType="source"
 readonly defaultQueryType="releases/latest"
-readonly defaultDownloadRelease="true"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
+download_release="${defaultDownloadRelease}"
 extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 query_type="${defaultQueryType}"
-download_release="${defaultDownloadRelease}"
 
 function github_release_version() {
 
@@ -58,8 +58,17 @@ function github_downloader() {
 		install_full_path="${install_path}/${download_filename}"
 		download_full_path="${download_path}/${download_filename}"
 
-		echo -e "[info] Downloading release source from GitHub..."
-		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+		if [[ ! -z "${download_branch}" ]]; then
+
+			echo -e "[info] Downloading latest commit on branch ${download_branch} from GitHub..."
+			/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+
+		else
+
+			echo -e "[info] Downloading release source from GitHub..."
+			/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+
+		fi
 
 	else
 
@@ -148,6 +157,10 @@ Where:
 		Define path to download to.
 		Defaults to '${defaultDownloadPath}'.
 
+	-db or --download-branch <branch name>
+		Define GitHub branch to download.
+		No default.
+
 	-ep or --extract-path <path>
 		Define path to extract the download to.
 		Defaults to '${defaultExtractPath}'.
@@ -199,6 +212,10 @@ do
 			;;
 		-dp| --download-path)
 			download_path=$2
+			shift
+			;;
+		-db| --download-branch)
+			download_branch=$2
 			shift
 			;;
 		-ep|extract-path)

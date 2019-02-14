@@ -101,7 +101,7 @@ function github_downloader() {
 		mkdir -p "${extract_path}"
 		unzip -o "${download_full_path}" -d "${extract_path}"
 
-		echo -e "[info] Moving from extraction path ${extract_path}/${github_repo} to install path ${install_path} ..."
+		echo -e "[info] Moving from extraction path ${extract_path}/*/* to install path ${install_path} ..."
 		mkdir -p "${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 

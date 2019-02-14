@@ -13,6 +13,8 @@ echo "[info] Updating mirrorlist for pacman using reflector..."
 # --save /etc/pacman.d/mirrorlist   = Save the mirrorlist to the given path.
 pacman -S reflector --noconfirm
 reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist
+
+# remove reflector and any other packages (python) that are not dependant
 pacman -Rs reflector --noconfirm
 
 # sync package databases for pacman

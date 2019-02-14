@@ -1,1 +1,0 @@
-PowerShell -NoProfile -ExecutionPolicy RemoteSigned -Command "& './git-pull-recursive.ps1'"

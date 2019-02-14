@@ -14,8 +14,8 @@ echo "[info] Updating mirrorlist for pacman using reflector..."
 pacman -S reflector --noconfirm
 reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist
 
-# remove reflector and any other packages (python) that are not dependant
+echo "[info] Removing reflector and any other packages (python) that are not dependant..."
 pacman -Rs reflector --noconfirm
 
-# sync package databases for pacman
+echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 pacman -Syyu --noconfirm

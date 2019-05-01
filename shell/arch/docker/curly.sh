@@ -3,11 +3,13 @@
 
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
+readonly defaultConnectTimeout=5
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
 readonly defaultOutputFile="/tmp/curly-download"
 readonly defaultSilentMode="true"
 
+connect_timeout="${defaultConnectTimeout}"
 retry_count="${defaultRetryCount}"
 retry_wait="${defaultRetryWait}"
 output_file="${defaultOutputFile}"
@@ -29,7 +31,7 @@ function run_curl() {
 
 	while true; do
 
-		response_code=$(curl --continue-at - --connect-timeout 5 --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
+		response_code=$(curl --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
 		exit_code=$?
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then
@@ -72,6 +74,10 @@ Where:
 	-h or --help
 		Displays this text.
 
+	-ct or --connect-timeout <number>
+		Set the number of seconds to wait before connection timeout.
+		Defaults to '${defaultConnectTimeout}'.
+
 	-rc or --retry-count <number>
 		Set the number of retries before we give up.
 		Defaults to '${defaultRetryCount}'.
@@ -100,6 +106,10 @@ while [ "$#" != "0" ]
 do
 	case "$1"
 	in
+		-ct|--connect-timeout)
+			connect_timeout=$2
+			shift
+			;;
 		-rc|--retry-count)
 			retry_count=$2
 			shift

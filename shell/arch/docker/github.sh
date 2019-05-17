@@ -22,35 +22,29 @@ query_type="${defaultQueryType}"
 
 function github_release_version() {
 
-	if [[ -z "${download_branch}" ]]; then
+	echo -e "[info] Running function to identify latest release tag from GitHub..."
 
-		echo -e "[info] Running function to identify latest release tag from GitHub..."
+	# use github rest api to get app release info
+	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
-		# use github rest api to get app release info
-		github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
+	echo -e "[info] Identifying GitHub release..."
+	mkdir -p "${download_path}"
 
-		echo -e "[info] Identifying GitHub release..."
-		mkdir -p "${download_path}"
-
-		if [ "${query_type}" == "tags" ]; then
-			json_query=".[0].name"
-		else
-			json_query=".tag_name"
-		fi
-
-		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-		github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
-		rm -f "${download_path}/github_release"
-
-		echo -e "[info] GitHub release is ${github_release}"
-
+	if [ "${query_type}" == "tags" ]; then
+		json_query=".[0].name"
+	else
+		json_query=".tag_name"
 	fi
+
+	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
+	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
+	rm -f "${download_path}/github_release"
+
+	echo -e "[info] GitHub release is ${github_release}"
 
 }
 
 function github_downloader() {
-
-	github_release="${1}"
 
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
@@ -67,6 +61,7 @@ function github_downloader() {
 
 		else
 
+			github_release="${1}"
 			echo -e "[info] Downloading release source from GitHub..."
 			/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
@@ -77,6 +72,7 @@ function github_downloader() {
 		# loop over list of assets to download, space separated
 		all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
 		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
+		github_release="${1}"
 
 		if [[ -z "${match_asset_name}" ]]; then
 
@@ -288,20 +284,28 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-# if we dont define the tag/release then find out what it is
-if [[ -z "${github_release}" ]]; then
-	github_release_version
+# if we dont specify a branch then we assume release
+if [[ -z "${download_branch}" ]]; then
+	# if we dont define the tag/release then find out what it is
+	if [[ -z "${github_release}" ]]; then
+		github_release_version
+	fi
 fi
 
-# if we want to download the release artifact then do so, otherwise return release/tag only
-if [[ "${download_release}" == "true" ]]; then
-	github_downloader "${github_release}"
+# if we dont specify a branch then we assume release
+# if branch is specified then download without passing github release version
+if [[ -z "${download_branch}" ]]; then
+	# if we want to download the release artifact then do so, otherwise return release/tag only
+	if [[ "${download_release}" == "true" ]]; then
+		github_downloader "${github_release}"
+	else
+		echo "${github_release}"
+	fi
 else
-	echo "${github_release}"
+	github_downloader
 fi
 
 # if we need to compile source then install base-devel and run commands to compile
 if [[ -n "${compile_src}" ]]; then
 	github_compile_src
 fi
-

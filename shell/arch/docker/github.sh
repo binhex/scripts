@@ -22,31 +22,33 @@ query_type="${defaultQueryType}"
 
 function github_release_version() {
 
-	echo -e "[info] Running function to identify latest release tag from GitHub..."
+	if [[ -z "${download_branch}" ]]; then
 
-	# use github rest api to get app release info
-	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
+		echo -e "[info] Running function to identify latest release tag from GitHub..."
 
-	echo -e "[info] Identifying GitHub release..."
-	mkdir -p "${download_path}"
+		# use github rest api to get app release info
+		github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
-	if [ "${query_type}" == "tags" ]; then
-		json_query=".[0].name"
-	else
-		json_query=".tag_name"
+		echo -e "[info] Identifying GitHub release..."
+		mkdir -p "${download_path}"
+
+		if [ "${query_type}" == "tags" ]; then
+			json_query=".[0].name"
+		else
+			json_query=".tag_name"
+		fi
+
+		/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
+		github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
+		rm -f "${download_path}/github_release"
+
+		echo -e "[info] GitHub release is ${github_release}"
+
 	fi
-
-	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
-	rm -f "${download_path}/github_release"
-
-	echo -e "[info] GitHub release is ${github_release}"
 
 }
 
 function github_downloader() {
-
-	echo -e "[info] Running function to download latest release from GitHub..."
 
 	github_release="${1}"
 

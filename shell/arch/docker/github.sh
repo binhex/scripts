@@ -36,7 +36,7 @@ function github_release_version() {
 		json_query=".tag_name"
 	fi
 
-	/root/curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
+	curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
 	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
 	rm -f "${download_path}/github_release"
 
@@ -57,13 +57,13 @@ function github_downloader() {
 		if [[ ! -z "${download_branch}" ]]; then
 
 			echo -e "[info] Downloading latest commit on branch ${download_branch} from GitHub..."
-			/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+			curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
 
 		else
 
 			github_release="${1}"
 			echo -e "[info] Downloading release source from GitHub..."
-			/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+			curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
 		fi
 
@@ -86,7 +86,7 @@ function github_downloader() {
 		download_full_path="${download_path}/${match_asset_name}"
 
 		echo -e "[info] Downloading release asset from GitHub..."
-		/root/curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+		curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 
 	fi
 

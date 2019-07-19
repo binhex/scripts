@@ -20,8 +20,8 @@ if [[ ! -z "${arc_packages}" ]]; then
 
 		echo "[info] Attempting download for archive package '${arc_package_name}' ver ${arc_package_version}"
 		
-		echo "[info] /root/curly.sh -rc 6 -rw 10 -of /tmp/${arc_package_name}.tar.xz -url https://archive.archlinux.org/packages/${arc_package_name_first_letter}/${arc_package_name}/${arc_package_name}-${arc_package_version}.pkg.tar.xz"
-		/root/curly.sh -rc 6 -rw 10 -of "/tmp/${arc_package_name}.tar.xz" -url "https://archive.archlinux.org/packages/${arc_package_name_first_letter}/${arc_package_name}/${arc_package_name}-${arc_package_version}.pkg.tar.xz"
+		echo "[info] curly.sh -rc 6 -rw 10 -of /tmp/${arc_package_name}.tar.xz -url https://archive.archlinux.org/packages/${arc_package_name_first_letter}/${arc_package_name}/${arc_package_name}-${arc_package_version}.pkg.tar.xz"
+		curly.sh -rc 6 -rw 10 -of "/tmp/${arc_package_name}.tar.xz" -url "https://archive.archlinux.org/packages/${arc_package_name_first_letter}/${arc_package_name}/${arc_package_name}-${arc_package_version}.pkg.tar.xz"
 		pacman -U "/tmp/${arc_package_name}.tar.xz" --noconfirm
 
 	done

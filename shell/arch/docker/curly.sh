@@ -1,12 +1,13 @@
 #!/bin/bash
 # This script adds additional retry and response code checking for curl to verify the download is successful
+# Note this script can currently only cope with 'get' actions not 'post'
 
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultConnectTimeout=5
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
-readonly defaultOutputFile="/tmp/curly-download"
+readonly defaultOutputFile=""
 readonly defaultSilentMode="true"
 
 connect_timeout="${defaultConnectTimeout}"
@@ -22,16 +23,23 @@ function run_curl() {
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
-	# add in silent flag if enabled (default)
+	# add in silent flag if enabled (default is silent)
 	if [[ "${silent_mode}" == "true" ]]; then
 		silent_mode="-s"
 	else
 		silent_mode=""
 	fi
 
+	# save output if defined (default is dont save)
+	if [[ "${output_file}" != "" ]]; then
+		output_file="-o ${output_file}"
+	else
+		output_file=""
+	fi
+
 	while true; do
 
-		response_code=$(curl --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" -o "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
+		response_code=$(curl --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
 		exit_code=$?
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then
@@ -88,7 +96,7 @@ Where:
 
 	-of or --output-file <path+filename>
 		Path to filename to store result from curl.
-		Defaults to '${defaultOutputFile}'.
+		Defaults to '${defaultOutputFile}' i.e. do not save.
 
 	-sm or --silent-mode <true|false>
 		Define whether to run curl silently or not.

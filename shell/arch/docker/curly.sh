@@ -30,8 +30,12 @@ function run_curl() {
 		silent_mode=""
 	fi
 
-	# save output if defined (default is dont save)
-	output_file="-o ${output_file} -I"
+	# if no output required then get header only (-I)
+	if [[ "${output_file}" == "/dev/null" ]]; then
+		output_file="-o ${output_file} -I"
+	else
+		output_file="-o ${output_file}"
+	fi
 
 	while true; do
 

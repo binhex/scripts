@@ -7,7 +7,7 @@ readonly ourScriptName=$(basename -- "$0")
 readonly defaultConnectTimeout=5
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
-readonly defaultOutputFile=""
+readonly defaultOutputFile="/dev/null"
 readonly defaultSilentMode="true"
 
 connect_timeout="${defaultConnectTimeout}"
@@ -31,11 +31,7 @@ function run_curl() {
 	fi
 
 	# save output if defined (default is dont save)
-	if [[ "${output_file}" != "" ]]; then
-		output_file="-o ${output_file}"
-	else
-		output_file=""
-	fi
+	output_file="-o ${output_file}"
 
 	while true; do
 

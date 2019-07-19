@@ -39,7 +39,8 @@ function run_curl() {
 
 	while true; do
 
-		response_code=$(curl --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" "${output_file}" -L "${silent_mode}" -w "%{http_code}" "${url}")
+		# construct curl command, note do not single/double quote output_file variable
+		response_code=$(curl --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" ${output_file} -L "${silent_mode}" -w "%{http_code}" "${url}")
 		exit_code=$?
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then

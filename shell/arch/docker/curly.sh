@@ -31,7 +31,7 @@ function run_curl() {
 	fi
 
 	# save output if defined (default is dont save)
-	output_file="-o ${output_file}"
+	output_file="-o ${output_file} -I"
 
 	while true; do
 

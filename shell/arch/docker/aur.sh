@@ -69,6 +69,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
+	# if custom script defined then run
+	if [[ -n "${aur_custom_script}" ]]; then
+		eval "${aur_custom_script}"
+	fi
+
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
 

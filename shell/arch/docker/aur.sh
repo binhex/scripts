@@ -30,17 +30,20 @@ if [[ ! -z "${aur_packages}" ]]; then
 		return 1
 	fi
 
-	aur_options="--noconfirm"
-
-	if [[ -n "${aur_build_only}" ]]; then
-		aur_options="--buildonly ${aur_options}"
+	# if not defined then assume install package
+	if [[ -z "${aur_operations}" ]]; then
+		aur_operations="-S"
 	fi
 
-	if [[ -n "${aur_ignore_errors}" ]]; then
-		aur_options="--warn ${aur_options}"
+	# if not defined then assume no prompts for compile or install
+	if [[ -z "${aur_options}" ]]; then
+		aur_options="--noconfirm"
 	fi
 
-	eval "${aur_helper} -S ${aur_packages} ${aur_options}"
+	# change to /tmp prior to compile and install
+	cd /tmp
+
+	eval "${aur_helper} ${aur_operations} ${aur_options} ${aur_packages}"
 
 	helper_package_exit_code=$?
 
@@ -64,19 +67,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 		# set return code to 1 to denote failure to build env
 		return 1
-	fi
-
-	# if helper build only then use pacman to install compiled package
-	if [[ -n "${aur_build_only}" ]]; then
-
-		# split space separated string of packages into list
-		IFS=' ' read -ra aur_package_list <<< "${aur_packages}"
-
-		# process each package in the list
-		for aur_package_name in "${aur_package_list[@]}"; do
-			pacman -U "/var/cache/${aur_helper}/pkg/"*"${aur_package_name}"* --noconfirm
-		done
-
 	fi
 
 	# remove base devel excluding useful core packages

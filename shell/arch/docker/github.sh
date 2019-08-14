@@ -51,7 +51,6 @@ function github_downloader() {
 
 	if [ "${release_type}" == "source" ]; then
 
-		install_full_path="${install_path}/${download_filename}"
 		download_full_path="${download_path}/${download_filename}"
 
 		if [[ ! -z "${download_branch}" ]]; then
@@ -82,7 +81,6 @@ function github_downloader() {
 
 		fi
 
-		install_full_path="${install_path}/${match_asset_name}"
 		download_full_path="${download_path}/${match_asset_name}"
 
 		echo -e "[info] Downloading release asset from GitHub..."

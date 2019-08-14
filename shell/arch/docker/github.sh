@@ -99,27 +99,35 @@ function github_downloader() {
 		mkdir -p "${extract_path}"
 		unzip -o "${download_full_path}" -d "${extract_path}"
 
-		echo -e "[info] Moving from extraction path ${extract_path}/*/* to install path ${install_path} ..."
-		mkdir -p "${install_path}"
-		cp -R "${extract_path}"/*/* "${install_path}"
-
 		echo -e "[info] Removing source archive from ${download_full_path} ..."
 		rm -f "${download_full_path}"
 
-		echo -e "[info] Removing extract path ${extract_path} ..."
-		rm -rf "${extract_path}/"
+		if [[ ! -z "${install_path}" ]]; then
+
+			echo -e "[info] Moving from extraction path ${extract_path}/*/* to install path ${install_path} ..."
+			mkdir -p "${install_path}"
+			cp -R "${extract_path}"/*/* "${install_path}"
+
+			echo -e "[info] Removing extract path ${extract_path} ..."
+			rm -rf "${extract_path}/"
+
+		fi
 
 	else
 
-		echo -e "[info] Moving from download path ${download_full_path} to install path ${install_full_path} ..."
-		mkdir -p "${install_path}"
-		cp -R "${download_full_path}" "${install_full_path}"
+		if [[ ! -z "${install_path}" ]]; then
 
-		echo -e "[info] Removing source archive from ${download_full_path} ..."
-		rm -f "${download_full_path}"
+			echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
+			mkdir -p "${install_path}"
+			cp -R "${download_full_path}" "${install_path}"
 
-		echo -e "[info] Marking downloaded binary asset as executable..."
-		chmod +x "${install_full_path}"
+			echo -e "[info] Removing source archive from ${download_full_path} ..."
+			rm -f "${download_full_path}"
+
+			echo -e "[info] Marking downloaded binary asset as executable..."
+			chmod +x "${install_path}"
+
+		fi
 
 	fi
 }
@@ -264,13 +272,6 @@ do
 	 esac
 	 shift
 done
-
-# check we have mandatory parameters, else exit with warning
-if [[ -z "${install_path}" ]]; then
-	echo "[warning] Install path not defined via parameter -ip or --install-path, displaying help..."
-	show_help
-	exit 1
-fi
 
 if [[ -z "${github_owner}" ]]; then
 	echo "[warning] GitHub owner's name not defined via parameter -go or --github-owner, displaying help..."

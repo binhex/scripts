@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# exit script if return code != 0
-set -e
-
 # identify if base-devel package installed
 if pacman -Qg "base-devel" > /dev/null ; then
 

@@ -10,7 +10,7 @@ fi
 
 # general cleanup
 yes|pacman -Scc
- 2> /dev/null || true
+pacman --noconfirm -Rns $(pacman -Qtdq) 2> /dev/null || true
 rm -rf /usr/share/locale/*
 rm -rf /usr/share/man/*
 rm -rf /usr/share/gtk-doc/*

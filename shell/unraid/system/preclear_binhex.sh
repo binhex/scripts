@@ -69,8 +69,9 @@
 #                 Fix for dd so that pre and post read status show speed (incorrectly showing time).
 #                 Removed reference to 'strings' command as this is not present in unRAID v6.5.1, now using 'cat -v'
 # Version 1.17  - Remove rogue comments in script.
-#
-ver="1.16"
+# Version 1.18  - Rework script to be more Docker friendly by modifying paths to utilities.
+
+ver="1.18"
 
 progname=$0
 options=$*

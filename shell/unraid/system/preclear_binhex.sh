@@ -2304,6 +2304,7 @@ echo -e "$report_out" >/tmp/preclear_report_$d
 if [ "$save_report" = "y" ]
 then
     mkdir -p /config/preclear_reports
+    chmod -R 777 /config/preclear_reports
     dt=`date "+%Y-%m-%d"`
     if [ "$save_report_by_dev" = "yes" ]
     then

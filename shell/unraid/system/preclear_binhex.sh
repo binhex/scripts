@@ -35,7 +35,7 @@
 #               - added -W option to skip pre-read phase and start with "write" phase.
 #               - added -V option to skip pre-read and "clear" and only
 #                 perform the post-read verify.
-# Version 1.2   - fixed "-l" option to not exclude disks with only a "scsi-" entry in /dev/disk/by-id
+# Version 1.2   - fixed "-l" option to not exclude disks with only a "scsi-" entry in /unraid/disk/by-id
 # Version 1.3   - Added logic to read desired "default" Partition Type from /boot/config.
 #               - Added logic to save dated copies of the final preclear and SMART reports to a
 #                 "preclear_reports" subdirectory on the flash drive.
@@ -173,7 +173,7 @@ To list device names of drives not assigned to the unRAID array:
 
        -R     = supress the copy of the output reports to the flash drive
                 A dated output report, the start and finish SMART reports are saved
-                in a subdirectory named /boot/preclear_reports
+                in a subdirectory named /config/preclear_reports
                 if the "-R" is NOT given. (The reports are always available
                 in /tmp until you reboot, even if "-R" is specified)
        -S     = name the saved output reports by their linux device instead
@@ -205,7 +205,7 @@ list_d() {
 a=0
 
 # read the disk config file so we can tell what is assigned to the array
-exec </boot/config/disk.cfg
+exec </unraid/config/disk.cfg
 while read config
 do
     case $config in
@@ -227,7 +227,7 @@ do
        device=`ls /sys/devices/$id/block 2>/dev/null`
        if [ "$device" = "" ]
        then
-         device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /dev/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
+         device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /unraid/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
        fi
     fi
     dev[$a]="$device"
@@ -237,18 +237,18 @@ do
     esac
 done
 
-if [ -f /boot/config/super.dat ]
+if [ -f /unraid/config/super.dat ]
 then
-	cat -v /boot/config/super.dat | while read id
+	cat -v /unraid/config/super.dat | while read id
 	do
-           device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /dev/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
+           device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /unraid/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
            echo "${device}|C|$config" >>/tmp/preclear_assigned_disks1
 	done
 fi
 
-if [ -f /var/local/emhttp/disks.ini ]
+if [ -f /unraid/emhttp/disks.ini ]
 then
-exec </var/local/emhttp/disks.ini
+exec </unraid/emhttp/disks.ini
 while read ini
 do
     case $ini in
@@ -275,7 +275,7 @@ list_device_names() {
   rm /tmp/un_assigned_flag >/dev/null 2>&1
   cp /dev/null /tmp/preclear_candidates 2>&1
   list_d
-  ls --time-style='+%Y-%m-%d %I:%M%p' /dev/disk/by-id/* -l | grep -v -- "-part" | cut -c62- | while read a b disk
+  ls --time-style='+%Y-%m-%d %I:%M%p' /unraid/disk/by-id/* -l | grep -v -- "-part" | cut -c62- | while read a b disk
   do
     disk=`echo $disk | cut -c7-`
     grep "${disk}|" /tmp/preclear_assigned_disks1 >/dev/null 2>&1
@@ -392,7 +392,7 @@ done
 
 # if partition_64 not specified, use the default from how unRAID is configured.
 # Look in the disk.cfg file.
-default_format=`grep defaultFormat /boot/config/disk.cfg | sed -e "s/\([^=]*\)=\([^=]*\)/\2/" -e "s/\\r//" -e 's/"//g'`
+default_format=`grep defaultFormat /unraid/config/disk.cfg | sed -e "s/\([^=]*\)=\([^=]*\)/\2/" -e "s/\\r//" -e 's/"//g'`
 if [ "$default_format" != "" -a "$partition_64" = "" ]
 then
    case "$default_format" in
@@ -1184,7 +1184,7 @@ read_entire_disk( ) {
         fi
       fi
     else
-      read_speed=`/boot/readvz if=$1 bs=$units count=$bcount skip=$skip memcnt=50 2>>/tmp/postread_errors$disk_basename | awk '{ print $8,$9 }'`
+      read_speed=`readvz if=$1 bs=$units count=$bcount skip=$skip memcnt=50 2>>/tmp/postread_errors$disk_basename | awk '{ print $8,$9 }'`
       echo $read_speed >/tmp/read_speed$disk_basename
       if [ -s /tmp/postread_errors$disk_basename ]
       then
@@ -1300,8 +1300,8 @@ fi
 
 # read the disk config file to see if the disk is assigned to the array, just in case this
 # command is run with the array stopped.
-exec </boot/config/disk.cfg
-#cat /boot/config/disk.cfg | while read config
+exec </unraid/config/disk.cfg
+#cat /unraid/config/disk.cfg | while read config
 while read config
 do
         device=""
@@ -1319,7 +1319,7 @@ do
            device=`ls /sys/devices/$id/block 2>/dev/null`
            if [ "$device" = "" ]
            then
-             device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /dev/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
+             device=`ls --time-style='+%Y-%m-%d %I:%M%p' -ld /unraid/disk/by-id/*$id*  2>/dev/null | sed 1q |  awk '{ print substr($10,7,3) }'`
            fi
         fi
         ;;
@@ -1339,7 +1339,7 @@ exec </dev/tty
 # First, do some basic tests to ensure the disk  is not part of the arrray
 # and not mounted, and not in use in any way.
 #----------------------------------------------------------------------------------
-devices=`/root/mdcmd status | cat -v | grep rdevName | sed 's/\([^=]*\)=\([^=]\)/\/dev\/\2/'`
+devices=`/unraid/mdcmd status | cat -v | grep rdevName | sed 's/\([^=]*\)=\([^=]\)/\/dev\/\2/'`
 
 echo $devices | grep $theDisk >/dev/null 2>&1
 if [  $? = 0 ]
@@ -2303,17 +2303,17 @@ report_out+="===================================================================
 echo -e "$report_out" >/tmp/preclear_report_$d
 if [ "$save_report" = "y" ]
 then
-    mkdir -p /boot/preclear_reports
+    mkdir -p /config/preclear_reports
     dt=`date "+%Y-%m-%d"`
     if [ "$save_report_by_dev" = "yes" ]
     then
-      cp /tmp/preclear_report_$d /boot/preclear_reports/preclear_rpt_${d}_${dt}
-      cp /tmp/smart_start_$d /boot/preclear_reports/preclear_start_${d}_${dt}
-      cp /tmp/smart_finish_$d /boot/preclear_reports/preclear_finish_${d}_${dt}
+      cp /tmp/preclear_report_$d /config/preclear_reports/preclear_rpt_${d}_${dt}
+      cp /tmp/smart_start_$d /config/preclear_reports/preclear_start_${d}_${dt}
+      cp /tmp/smart_finish_$d /config/preclear_reports/preclear_finish_${d}_${dt}
     else # name the reports by their serial number
-      cp /tmp/preclear_report_$d "/boot/preclear_reports/preclear_rpt_${serial}_${dt}"
-      cp /tmp/smart_start_$d "/boot/preclear_reports/preclear_start_${serial}_${dt}"
-      cp /tmp/smart_finish_$d "/boot/preclear_reports/preclear_finish_${serial}_${dt}"
+      cp /tmp/preclear_report_$d "/config/preclear_reports/preclear_rpt_${serial}_${dt}"
+      cp /tmp/smart_start_$d "/config/preclear_reports/preclear_start_${serial}_${dt}"
+      cp /tmp/smart_finish_$d "/config/preclear_reports/preclear_finish_${serial}_${dt}"
     fi
 fi
 report_out+="============================================================================\n"

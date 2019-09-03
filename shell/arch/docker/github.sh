@@ -40,7 +40,7 @@ function github_release_version() {
 	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
 	rm -f "${download_path}/github_release"
 
-	echo -e "[info] GitHub release is ${github_release}"
+	echo -e "[info] GitHub release is '${github_release}'"
 
 }
 
@@ -55,7 +55,7 @@ function github_downloader() {
 
 		if [[ ! -z "${download_branch}" ]]; then
 
-			echo -e "[info] Downloading latest commit on branch ${download_branch} from GitHub..."
+			echo -e "[info] Downloading latest commit on branch '${download_branch}' from GitHub..."
 			curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
 
 		else
@@ -90,19 +90,19 @@ function github_downloader() {
 
 	if [ "${download_filename_ext}" == "zip" ]; then
 
-		echo -e "[info] Removing previous extract path ${extract_path} ..."
+		echo -e "[info] Removing previous extract path '${extract_path}' ..."
 		rm -rf "${extract_path}/"
 
-		echo -e "[info] Extracting to ${extract_path} ..."
+		echo -e "[info] Extracting to '${extract_path}' ..."
 		mkdir -p "${extract_path}"
 		unzip -o "${download_full_path}" -d "${extract_path}"
 
-		echo -e "[info] Removing source archive from ${download_full_path} ..."
+		echo -e "[info] Removing source archive from '${download_full_path}' ..."
 		rm -f "${download_full_path}"
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Moving from extraction path ${extract_path}/*/* to install path ${install_path} ..."
+			echo -e "[info] Moving from extraction path '${extract_path}/*/*' to install path '${install_path}' ..."
 			mkdir -p "${install_path}"
 			cp -R "${extract_path}"/*/* "${install_path}"
 
@@ -115,14 +115,14 @@ function github_downloader() {
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Moving from download path ${download_full_path} to install path ${install_path} ..."
+			echo -e "[info] Moving from download path '${download_full_path}' to install path '${install_path}' ..."
 			mkdir -p "${install_path}"
 			cp -R "${download_full_path}" "${install_path}"
 
-			echo -e "[info] Removing source archive from ${download_full_path} ..."
+			echo -e "[info] Removing source archive from '${download_full_path}' ..."
 			rm -f "${download_full_path}"
 
-			echo -e "[info] Marking downloaded binary asset as executable..."
+			echo -e "[info] Marking binary asset '${install_path}' as executable..."
 			chmod +x "${install_path}"
 
 		fi

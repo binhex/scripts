@@ -51,18 +51,16 @@ function github_downloader() {
 
 	if [ "${release_type}" == "source" ]; then
 
-		download_full_path="${download_path}/${download_filename}"
-
 		if [[ ! -z "${download_branch}" ]]; then
 
 			echo -e "[info] Downloading latest commit on branch '${download_branch}' from GitHub..."
-			curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
 
 		else
 
 			github_release="${1}"
 			echo -e "[info] Downloading release source from GitHub..."
-			curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
 		fi
 
@@ -81,10 +79,8 @@ function github_downloader() {
 
 		fi
 
-		download_full_path="${download_path}/${match_asset_name}"
-
 		echo -e "[info] Downloading release asset from GitHub..."
-		curly.sh -rc 6 -rw 10 -of "${download_full_path}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+		curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 
 	fi
 
@@ -95,14 +91,14 @@ function github_downloader() {
 
 		echo -e "[info] Extracting to '${extract_path}' ..."
 		mkdir -p "${extract_path}"
-		unzip -o "${download_full_path}" -d "${extract_path}"
+		unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
 
-		echo -e "[info] Removing source archive from '${download_full_path}' ..."
-		rm -f "${download_full_path}"
+		echo -e "[info] Removing source archive from '${download_path}/${match_asset_name}' ..."
+		rm -f "${download_path}/${match_asset_name}"
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Moving from extraction path '${extract_path}/*/*' to install path '${install_path}' ..."
+			echo -e "[info] Copying from extraction path '${extract_path}/*/*' to install path '${install_path}' ..."
 			mkdir -p "${install_path}"
 			cp -R "${extract_path}"/*/* "${install_path}"
 
@@ -115,15 +111,15 @@ function github_downloader() {
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Moving from download path '${download_full_path}' to install path '${install_path}' ..."
+			echo -e "[info] Copying from download path '${download_path}/${match_asset_name}' to install path '${install_path}/${match_asset_name}' ..."
 			mkdir -p "${install_path}"
-			cp -R "${download_full_path}" "${install_path}"
+			cp -R "${download_path}/${match_asset_name}" "${install_path}/${match_asset_name}"
 
-			echo -e "[info] Removing source archive from '${download_full_path}' ..."
-			rm -f "${download_full_path}"
+			echo -e "[info] Removing source archive from '${download_path}/${match_asset_name}' ..."
+			rm -f "${download_path}/${match_asset_name}"
 
-			echo -e "[info] Marking binary asset '${install_path}' as executable..."
-			chmod +x "${install_path}"
+			echo -e "[info] Marking binary asset '${install_path}/${match_asset_name}' as executable..."
+			chmod +x "${install_path}/${match_asset_name}"
 
 		fi
 

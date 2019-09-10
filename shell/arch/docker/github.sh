@@ -52,16 +52,16 @@ function github_downloader() {
 	download_filename_ext="${filename##*.}"
 
 	echo -e "[info] Downloading GitHub API releases for tag 'latest'..."
-	echo -e "[info] all_asset_names=$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest')"
+	echo -e "[info] github_api_releases_latest=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest')"
 	github_api_releases_latest=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest")
 
 	if [[ ! -z "${github_api_releases_latest}" ]]; then
 
 		echo -e "[infp] Finding all GitHub asset names..."
-		echo -e "[info] all_asset_names=$(echo '${github_api_releases_latest}' | jq -r '.assets[] | .name')"
+		echo -e "[info] all_asset_names=\$(echo '${github_api_releases_latest}' | jq -r '.assets[] | .name')"
 		all_asset_names=$(echo "${github_api_releases_latest}" | jq -r '.assets[] | .name')
 		echo -e "[info] Finding asset names that match the download filename we specified..."
-		echo -e "[info] match_asset_name=$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
+		echo -e "[info] match_asset_name=\$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
 		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
 
 		if [[ -z "${match_asset_name}" ]]; then

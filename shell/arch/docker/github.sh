@@ -96,25 +96,39 @@ function github_downloader() {
 			echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
 			rm -f "${download_path}/${match_asset_name}"
 
+			if [[ ! -z "${install_path}" ]]; then
+
+				echo -e "[info] Copying from extraction path to install path..."
+				echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
+				mkdir -p "${install_path}"
+				cp -R "${extract_path}"/*/* "${install_path}"
+
+				echo -e "[info] Removing extract path..."
+				echo -e "[info] rm -rf '${extract_path}/'"
+				rm -rf "${extract_path}/"
+
+			fi
+
+		else
+
+			if [[ ! -z "${install_path}" ]]; then
+
+				echo -e "[info] Copying from download path to install path..."
+				echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${match_asset_name}'"
+				mkdir -p "${install_path}"
+				cp -R "${download_path}/${match_asset_name}" "${install_path}/${match_asset_name}"
+
+				echo -e "[info] Removing source archive..."
+				echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
+				rm -f "${download_path}/${match_asset_name}"
+
+				echo -e "[info] Marking binary asset as executable..."
+				echo -e "[info] chmod +x '${install_path}/${match_asset_name}'"
+				chmod +x "${install_path}/${match_asset_name}"
+
+			fi
+
 		fi
-
-		if [[ ! -z "${install_path}" ]]; then
-
-			echo -e "[info] Copying from download path to install path..."
-			echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${match_asset_name}'"
-			mkdir -p "${install_path}"
-			cp -R "${download_path}/${match_asset_name}" "${install_path}/${match_asset_name}"
-
-			echo -e "[info] Removing source archive..."
-			echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
-			rm -f "${download_path}/${match_asset_name}"
-
-			echo -e "[info] Marking binary asset as executable..."
-			echo -e "[info] chmod +x '${install_path}/${match_asset_name}'"
-			chmod +x "${install_path}/${match_asset_name}"
-
-		fi
-
 
 	else
 
@@ -150,18 +164,33 @@ function github_downloader() {
 			echo -e "[info] rm -f '${download_path}/${download_filename}'"
 			rm -f "${download_path}/${download_filename}"
 
-		fi
+			if [[ ! -z "${install_path}" ]]; then
 
-		if [[ ! -z "${install_path}" ]]; then
+				echo -e "[info] Copying from extraction path to install path..."
+				echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
+				mkdir -p "${install_path}"
+				cp -R "${extract_path}"/*/* "${install_path}"
 
-			echo -e "[info] Copying from download path to install path..."
-			echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${download_filename}'"
-			mkdir -p "${install_path}"
-			cp -R "${download_path}/${download_filename}" "${install_path}/${download_filename}"
+				echo -e "[info] Removing extract path..."
+				echo -e "[info] rm -rf '${extract_path}/'"
+				rm -rf "${extract_path}/"
 
-			echo -e "[info] Removing source archive..."
-			echo -e "[info] rm -f '${download_path}/${download_filename}'"
-			rm -f "${download_path}/${download_filename}"
+			fi
+
+		else
+
+			if [[ ! -z "${install_path}" ]]; then
+
+				echo -e "[info] Copying from download path to install path..."
+				echo -e "[info] cp -R '${download_path}/${download_filename}' '${install_path}/${download_filename}'"
+				mkdir -p "${install_path}"
+				cp -R "${download_path}/${download_filename}" "${install_path}/${download_filename}"
+
+				echo -e "[info] Removing source archive..."
+				echo -e "[info] rm -f '${download_path}/${download_filename}'"
+				rm -f "${download_path}/${download_filename}"
+
+			fi
 
 		fi
 

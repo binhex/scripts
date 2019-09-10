@@ -195,7 +195,7 @@ function github_downloader() {
 		fi
 
 	fi
-	
+
 }
 
 function github_compile_src() {
@@ -227,7 +227,7 @@ Where:
 
 	-da or --download-assets <filename.ext>
 		Define name of the asset file(s) to download
-		Defaults to '${defaultDownloadAsset}'.
+		No default.
 
 	-dp or --download-path <path>
 		Define path to download to.

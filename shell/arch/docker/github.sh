@@ -48,89 +48,55 @@ function github_release_version() {
 
 function github_downloader() {
 
-	filename=$(basename "${download_filename}")
-	download_filename_ext="${filename##*.}"
-
-	echo -e "[infp] Finding all GitHub asset names..."
-	echo -e "[info] github_asset_names=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name' || true)"
-	github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name' || true)
-
-	if [[ ! -z "${github_asset_names}" ]]; then
-
-		echo -e "[info] Finding asset names that match the download filename we specified..."
-		echo -e "[info] match_asset_name=\$(echo '${github_asset_names}' | grep -P -o -m 1 '${download_filename}')"
-		match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_filename}")
-
-		if [[ -z "${match_asset_name}" ]]; then
-
-			echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
-			echo -e "[info] ${github_asset_names}"
-			echo -e "[info] Exiting script..." ; exit 1
-
-		fi
-
-	else
-
-		echo -e "[info] No assets present, assuming source code download only"
-		match_asset_name="${download_filename}"
-
-	fi
-
 	github_release="${1}"
 
-	if [ "${release_type}" == "source" ]; then
+	if [ "${release_type}" == "binary" ]; then
 
-		if [[ ! -z "${download_branch}" ]]; then
+		filename=$(basename "${download_assets}")
+		download_ext="${filename##*.}"
 
-			echo -e "[info] Downloading latest commit on specific branch '${download_branch}' from GitHub..."
-			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
-			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+		echo -e "[infp] Finding all GitHub asset names..."
+		echo -e "[info] github_asset_names=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name' || true)"
+		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name' || true)
 
-		else
+		if [[ ! -z "${github_asset_names}" ]]; then
 
-			echo -e "[info] Downloading latest release source from GitHub..."
-			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
-			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+			echo -e "[info] Finding asset names that match the download filename we specified..."
+			echo -e "[info] match_asset_name=\$(echo '${github_asset_names}' | grep -P -o -m 1 '${download_assets}')"
+			match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_assets}")
+
+			if [[ -z "${match_asset_name}" ]]; then
+
+				echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
+				echo -e "[info] ${github_asset_names}"
+				echo -e "[info] Exiting script..." ; exit 1
+
+			else
+
+				echo -e "[info] Downloading binary release asset from GitHub..."
+				echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}'"
+				curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+
+			fi
 
 		fi
 
-	else
+		if [ "${download_ext}" == "zip" ]; then
 
-		echo -e "[info] Downloading binary release asset from GitHub..."
-		echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}'"
-		curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-
-	fi
-
-	if [ "${download_filename_ext}" == "zip" ]; then
-
-		echo -e "[info] Removing previous extract path..."
-		echo -e "[info] rm -rf '${extract_path}/'"
-		rm -rf "${extract_path}/"
-
-		echo -e "[info] Extracting zip..."
-		echo -e "[info] unzip -o '${download_path}/${match_asset_name}' -d '${extract_path}'"
-		mkdir -p "${extract_path}"
-		unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
-
-		echo -e "[info] Removing source archive..."
-		echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
-		rm -f "${download_path}/${match_asset_name}"
-
-		if [[ ! -z "${install_path}" ]]; then
-
-			echo -e "[info] Copying from extraction path to install path..."
-			echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
-			mkdir -p "${install_path}"
-			cp -R "${extract_path}"/*/* "${install_path}"
-
-			echo -e "[info] Removing extract path..."
+			echo -e "[info] Removing previous extract path..."
 			echo -e "[info] rm -rf '${extract_path}/'"
 			rm -rf "${extract_path}/"
 
-		fi
+			echo -e "[info] Extracting zip..."
+			echo -e "[info] unzip -o '${download_path}/${match_asset_name}' -d '${extract_path}'"
+			mkdir -p "${extract_path}"
+			unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
 
-	else
+			echo -e "[info] Removing binary archive..."
+			echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
+			rm -f "${download_path}/${match_asset_name}"
+
+		fi
 
 		if [[ ! -z "${install_path}" ]]; then
 
@@ -149,7 +115,58 @@ function github_downloader() {
 
 		fi
 
+
+	else
+
+		filename=$(basename "${download_filename}")
+		download_ext="${filename##*.}"
+
+		if [[ ! -z "${download_branch}" ]]; then
+
+			echo -e "[info] Downloading latest commit on specific branch '${download_branch}' from GitHub..."
+			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
+			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+
+		else
+
+			echo -e "[info] Downloading latest release source from GitHub..."
+			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
+			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+
+		fi
+
+		if [ "${download_ext}" == "zip" ]; then
+
+			echo -e "[info] Removing previous extract path..."
+			echo -e "[info] rm -rf '${extract_path}/'"
+			rm -rf "${extract_path}/"
+
+			echo -e "[info] Extracting zip..."
+			echo -e "[info] unzip -o '${download_path}/${download_filename}' -d '${extract_path}'"
+			mkdir -p "${extract_path}"
+			unzip -o "${download_path}/${download_filename}" -d "${extract_path}"
+
+			echo -e "[info] Removing source archive..."
+			echo -e "[info] rm -f '${download_path}/${download_filename}'"
+			rm -f "${download_path}/${download_filename}"
+
+		fi
+
+		if [[ ! -z "${install_path}" ]]; then
+
+			echo -e "[info] Copying from download path to install path..."
+			echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${download_filename}'"
+			mkdir -p "${install_path}"
+			cp -R "${download_path}/${download_filename}" "${install_path}/${download_filename}"
+
+			echo -e "[info] Removing source archive..."
+			echo -e "[info] rm -f '${download_path}/${download_filename}'"
+			rm -f "${download_path}/${download_filename}"
+
+		fi
+
 	fi
+	
 }
 
 function github_compile_src() {
@@ -179,6 +196,10 @@ Where:
 		Define name of the downloaded file
 		Defaults to '${defaultDownloadFilename}'.
 
+	-da or --download-assets <filename.ext>
+		Define name of the asset file(s) to download
+		Defaults to '${defaultDownloadAsset}'.
+
 	-dp or --download-path <path>
 		Define path to download to.
 		Defaults to '${defaultDownloadPath}'.
@@ -189,7 +210,7 @@ Where:
 
 	-ep or --extract-path <path>
 		Define path to extract the download to.
-		Defaults to '${defaultExtractPath}'.
+		No default.
 
 	-ip or --install-path <path>
 		Define path to install to.
@@ -200,7 +221,7 @@ Where:
 		No default.
 
 	-rt or --release-type <binary|source>
-		Define whether to download binary artifacts or source from GitHub.
+		Define whether to download binary assets or source from GitHub.
 		Default to '${defaultReleaseType}'.
 
 	-qt or --query-type <release/latest|tags>
@@ -234,6 +255,10 @@ do
 	in
 		-df|--download-filename)
 			download_filename=$2
+			shift
+			;;
+		-da|--download-assets)
+			download_assets=$2
 			shift
 			;;
 		-dp| --download-path)

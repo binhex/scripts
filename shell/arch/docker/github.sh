@@ -25,6 +25,7 @@ function github_release_version() {
 	echo -e "[info] Running function to identify latest release tag from GitHub..."
 
 	# use github rest api to get app release info
+	echo -e "[info] github_release_url='https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}'"
 	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
 	echo -e "[info] Identifying GitHub release..."
@@ -36,11 +37,12 @@ function github_release_version() {
 		json_query=".tag_name"
 	fi
 
+	echo -e "[info] Performing query to find out GitHub release..."
+	echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/github_release' -url '${github_release_url}'"
 	curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
 	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
-	rm -f "${download_path}/github_release"
-
 	echo -e "[info] GitHub release is '${github_release}'"
+	rm -f "${download_path}/github_release"
 
 }
 
@@ -49,60 +51,74 @@ function github_downloader() {
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
+	# loop over list of assets to download, space separated
+	echo -e "[info] Finding all available asset names..."
+	echo -e "[info] all_asset_names=$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name')"
+	all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
+
+	echo -e "[info] Finding matching asset names..."
+	echo -e "[info] match_asset_name=$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
+	match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
+
+	github_release="${1}"
+
+	if [[ -z "${match_asset_name}" ]]; then
+
+		echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
+		echo -e "[info] ${all_asset_names}"
+		echo -e "[info] Exiting script..." ; exit 1
+
+	fi
+
 	if [ "${release_type}" == "source" ]; then
 
 		if [[ ! -z "${download_branch}" ]]; then
 
-			echo -e "[info] Downloading latest commit on branch '${download_branch}' from GitHub..."
+			echo -e "[info] Downloading latest commit on specific branch '${download_branch}' from GitHub..."
+			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
 
 		else
 
 			github_release="${1}"
-			echo -e "[info] Downloading release source from GitHub..."
+			echo -e "[info] Downloading latest release source from GitHub..."
+			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
 		fi
 
 	else
 
-		# loop over list of assets to download, space separated
-		all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
-		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
-		github_release="${1}"
-
-		if [[ -z "${match_asset_name}" ]]; then
-
-			echo -e "[warn] No assets matching pattern '${download_filename}' available for download, showing all available assets..."
-			echo -e "${all_asset_names}"
-			echo -e "[info] Exiting script..." ; exit 1
-
-		fi
-
-		echo -e "[info] Downloading release asset from GitHub..."
+		echo -e "[info] Downloading binary release asset from GitHub..."
+		echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}'"
 		curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 
 	fi
 
 	if [ "${download_filename_ext}" == "zip" ]; then
 
-		echo -e "[info] Removing previous extract path '${extract_path}' ..."
+		echo -e "[info] Removing previous extract path..."
+		echo -e "[info] rm -rf '${extract_path}/'"
 		rm -rf "${extract_path}/"
 
-		echo -e "[info] Extracting to '${extract_path}' ..."
+		echo -e "[info] Extracting zip..."
+		echo -e "[info] unzip -o '${download_path}/${match_asset_name}' -d '${extract_path}'"
 		mkdir -p "${extract_path}"
 		unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
 
-		echo -e "[info] Removing source archive from '${download_path}/${match_asset_name}' ..."
+		echo -e "[info] Removing source archive..."
+		echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
 		rm -f "${download_path}/${match_asset_name}"
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Copying from extraction path '${extract_path}/*/*' to install path '${install_path}' ..."
+			echo -e "[info] Copying from extraction path to install path..."
+			echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
 			mkdir -p "${install_path}"
 			cp -R "${extract_path}"/*/* "${install_path}"
 
-			echo -e "[info] Removing extract path ${extract_path} ..."
+			echo -e "[info] Removing extract path..."
+			echo -e "[info] rm -rf '${extract_path}/'"
 			rm -rf "${extract_path}/"
 
 		fi
@@ -111,14 +127,17 @@ function github_downloader() {
 
 		if [[ ! -z "${install_path}" ]]; then
 
-			echo -e "[info] Copying from download path '${download_path}/${match_asset_name}' to install path '${install_path}/${match_asset_name}' ..."
+			echo -e "[info] Copying from download path to install path..."
+			echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${match_asset_name}'"
 			mkdir -p "${install_path}"
 			cp -R "${download_path}/${match_asset_name}" "${install_path}/${match_asset_name}"
 
-			echo -e "[info] Removing source archive from '${download_path}/${match_asset_name}' ..."
+			echo -e "[info] Removing source archive..."
+			echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
 			rm -f "${download_path}/${match_asset_name}"
 
-			echo -e "[info] Marking binary asset '${install_path}/${match_asset_name}' as executable..."
+			echo -e "[info] Marking binary asset as executable..."
+			echo -e "[info] chmod +x '${install_path}/${match_asset_name}'"
 			chmod +x "${install_path}/${match_asset_name}"
 
 		fi
@@ -259,7 +278,7 @@ do
 			exit 0
 			;;
 		*)
-			echo "${ourScriptName}: ERROR: Unrecognised argument '$1'." >&2
+			echo "[warn] ${ourScriptName}: ERROR: Unrecognised argument '$1'." >&2
 			show_help
 			 exit 1
 			 ;;
@@ -268,13 +287,13 @@ do
 done
 
 if [[ -z "${github_owner}" ]]; then
-	echo "[warning] GitHub owner's name not defined via parameter -go or --github-owner, displaying help..."
+	echo "[warn] GitHub owner's name not defined via parameter -go or --github-owner, displaying help..."
 	show_help
 	exit 1
 fi
 
 if [[ -z "${github_repo}" ]]; then
-	echo "[warning] GitHub repo name not defined via parameter -gr --github-repo, displaying help..."
+	echo "[warn] GitHub repo name not defined via parameter -gr --github-repo, displaying help..."
 	show_help
 	exit 1
 fi

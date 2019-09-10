@@ -51,24 +51,35 @@ function github_downloader() {
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
-	# loop over list of assets to download, space separated
-	echo -e "[info] Finding all available asset names..."
-	echo -e "[info] all_asset_names=$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name')"
-	all_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name')
+	echo -e "[info] Downloading GitHub API releases for tag 'latest'..."
+	echo -e "[info] all_asset_names=$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest')"
+	github_api_releases_latest=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest")
 
-	echo -e "[info] Finding matching asset names..."
-	echo -e "[info] match_asset_name=$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
-	match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
+	if [[ ! -z "${github_api_releases_latest}" ]]; then
 
-	github_release="${1}"
+		echo -e "[infp] Finding all GitHub asset names..."
+		echo -e "[info] all_asset_names=$(echo '${github_api_releases_latest}' | jq -r '.assets[] | .name')"
+		all_asset_names=$(echo "${github_api_releases_latest}" | jq -r '.assets[] | .name')
+		echo -e "[info] Finding asset names that match the download filename we specified..."
+		echo -e "[info] match_asset_name=$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
+		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
 
-	if [[ -z "${match_asset_name}" ]]; then
+		if [[ -z "${match_asset_name}" ]]; then
 
-		echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
-		echo -e "[info] ${all_asset_names}"
-		echo -e "[info] Exiting script..." ; exit 1
+			echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
+			echo -e "[info] ${all_asset_names}"
+			echo -e "[info] Exiting script..." ; exit 1
+
+		fi
+
+	else
+
+		echo -e "[info] No assets present, assuming source code download only"
+		match_asset_name="${download_filename}"
 
 	fi
+
+	github_release="${1}"
 
 	if [ "${release_type}" == "source" ]; then
 
@@ -80,7 +91,6 @@ function github_downloader() {
 
 		else
 
-			github_release="${1}"
 			echo -e "[info] Downloading latest release source from GitHub..."
 			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"

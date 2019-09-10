@@ -51,23 +51,20 @@ function github_downloader() {
 	filename=$(basename "${download_filename}")
 	download_filename_ext="${filename##*.}"
 
-	echo -e "[info] Downloading GitHub API releases for tag 'latest'..."
-	echo -e "[info] github_api_releases_latest=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest')"
-	github_api_releases_latest=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest")
+	echo -e "[infp] Finding all GitHub asset names..."
+	echo -e "[info] github_asset_names=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name' || true)"
+	github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name' || true)
 
-	if [[ ! -z "${github_api_releases_latest}" ]]; then
+	if [[ ! -z "${github_asset_names}" ]]; then
 
-		echo -e "[infp] Finding all GitHub asset names..."
-		echo -e "[info] all_asset_names=\$(echo '${github_api_releases_latest}' | jq -r '.assets[] | .name')"
-		all_asset_names=$(echo "${github_api_releases_latest}" | jq -r '.assets[] | .name')
 		echo -e "[info] Finding asset names that match the download filename we specified..."
-		echo -e "[info] match_asset_name=\$(echo '${all_asset_names}' | grep -P -o -m 1 '${download_filename}')"
-		match_asset_name=$(echo "${all_asset_names}" | grep -P -o -m 1 "${download_filename}")
+		echo -e "[info] match_asset_name=\$(echo '${github_asset_names}' | grep -P -o -m 1 '${download_filename}')"
+		match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_filename}")
 
 		if [[ -z "${match_asset_name}" ]]; then
 
 			echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
-			echo -e "[info] ${all_asset_names}"
+			echo -e "[info] ${github_asset_names}"
 			echo -e "[info] Exiting script..." ; exit 1
 
 		fi

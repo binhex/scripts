@@ -157,7 +157,7 @@ To list device names of drives not assigned to the unRAID array:
        -v = print version of $progname
 
        -m email@somedomain.com = optional recipient address.  If blank and -M
-            option is used, it will default to default e-mail address of "root"
+            option is used, it will default to the dynamix 'Email recipients' email address.
 
        -M 1 = Will send an e-mail message at the end of the final results
               (default if -m is used, but no other -M option given)

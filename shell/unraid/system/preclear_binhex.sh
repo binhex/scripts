@@ -70,8 +70,9 @@
 #                 Removed reference to 'strings' command as this is not present in unRAID v6.5.1, now using 'cat -v'
 # Version 1.17  - Remove rogue comments in script.
 # Version 1.18  - Rework script to be more Docker friendly by modifying paths to utilities.
+# Version 1.19  - Read in dynamix.cfg for recipients email address, when -m not specified.
 
-ver="1.18"
+ver="1.19"
 
 progname=$0
 options=$*
@@ -607,7 +608,8 @@ fi
 
 if [ $use_mail -gt 0 -a -z "$mail_rcpt" ]
 then
-    mail_rcpt="root" #recipient was not specified, send to root.
+    # if -m (custom mail recipient) not defined then get recipients email address from dynamix.cfg
+    mail_rcpt=$(cat /unraid/dynamix.cfg | grep '^RcptTo' | grep -om 1 '".*')
 fi
 
 if [ ! -z "$mail_rcpt" -a $use_mail -eq 0 ]

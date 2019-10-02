@@ -71,7 +71,7 @@
 # Version 1.17  - Remove rogue comments in script.
 # Version 1.18  - Rework script to be more Docker friendly by modifying paths to utilities.
 # Version 1.19  - Read in dynamix.cfg for recipients email address, when -m not specified.
-#                 Switch to ssmtp and rework commands sent for notification.
+#                 Change default start sector from 1 to 64.
 
 ver="1.19"
 
@@ -139,12 +139,13 @@ To list device names of drives not assigned to the unRAID array:
 
        -z       = Zero the MBR (first 512 bytes) of the disk.  Do nothing else.
 
-       -a       = start partition on sector 63. (default when on unRAID 4.X)
+       -a       = start partition on sector 63. (default when on unRAID <= 4.6)
+	        The -a option is completely ignored on disks > 2.2TB as they use a GPT
+            partition that will always start on a 4k boundary (64).
+
        -A       = start partition on sector 64. (not compatible with unRAID 4.6 and prior)
-            On unRAID 4.7 and subsequent, the -a or -A default is set based on the value
-            set on the Settings page in the unRAID web-management console.
-            Both of these (-a and -A) are completely ignored on disks > 2.2TB as they
-            use a GPT partition that will always start on a 4k boundary.
+            If neither option (-a or -A) is specified then the default is set based on
+            the value set on the Settings page in the unRAID web-management console.
 
        -C 63    = convert an existing pre-cleared disk to use sector 63 as a
                   starting sector.
@@ -368,8 +369,8 @@ while getopts ":tnc:WM:m:hvDNw:r:b:AalC:VRDd:zsSfJ" opt; do
   d ) device_type="-d $OPTARG" ;;
   D ) device_type="" ;;
   A ) partition_64=y
-      default="(-A option elected, partition will start on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
-      vdefault="(-A option elected. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+      default="(-A option elected, partition will start on sector 64"
+      vdefault="(-A option elected. disk to be verified for partition starting on sector 64"
   ;;
   a ) partition_64=n
       default="(-a option elected, partition will start on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
@@ -404,8 +405,8 @@ then
         vdefault="(MBR unaligned set. disk to be verified for partition starting on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
    ;;
    2)   partition_64=y
-        default="(MBR 4k-aligned set. Partition will start on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
-        vdefault="(MBR 4k-aligned set. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+        default="(MBR 4k-aligned set. Partition will start on sector 64"
+        vdefault="(MBR 4k-aligned set. disk to be verified for partition starting on sector 64"
    ;;
    3)   partition_64=y
         default="(GPT 4k-aligned set. Protective MBR Partition will start on sector 64)"

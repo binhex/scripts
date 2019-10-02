@@ -610,8 +610,12 @@ fi
 
 if [ $use_mail -gt 0 -a -z "$mail_rcpt" ]
 then
-    # if -m (custom mail recipient) not defined then get recipients email address from dynamix.cfg
-    mail_rcpt=$(cat /unraid/config/plugins/dynamix/dynamix.cfg | grep '^RcptTo' | grep -om 1 '".*' | tr -d \")
+    if [ -f  '/unraid/config/plugins/dynamix/dynamix.cfg' ]; then
+        # if -m (custom mail recipient) not defined then get recipients email address from dynamix.cfg
+        mail_rcpt=$(cat '/unraid/config/plugins/dynamix/dynamix.cfg' | grep '^RcptTo' | grep -om 1 '".*' | tr -d \")
+    else
+        mail_rcpt="root"
+    fi
 fi
 
 if [ ! -z "$mail_rcpt" -a $use_mail -eq 0 ]

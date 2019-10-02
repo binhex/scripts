@@ -368,12 +368,12 @@ while getopts ":tnc:WM:m:hvDNw:r:b:AalC:VRDd:zsSfJ" opt; do
   d ) device_type="-d $OPTARG" ;;
   D ) device_type="" ;;
   A ) partition_64=y
-      default="(-A option elected, partition will start on sector 64 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
-      vdefault="(-A option elected. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
+      default="(-A option elected, partition will start on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+      vdefault="(-A option elected. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
   ;;
   a ) partition_64=n
-      default="(-a option elected, partition will start on sector 63 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
-      vdefault="(-a option elected. disk to be verified for partition starting on sector 63 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
+      default="(-a option elected, partition will start on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+      vdefault="(-a option elected. disk to be verified for partition starting on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
   ;;
   l ) list_drives=y ;;
   z ) zero_mbr_only=y ;;
@@ -400,16 +400,16 @@ if [ "$default_format" != "" -a "$partition_64" = "" ]
 then
    case "$default_format" in
    1)   partition_64=n
-        default="(MBR unaligned set. Partition will start on sector 63 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
-        vdefault="(MBR unaligned set. disk to be verified for partition starting on sector 63 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
+        default="(MBR unaligned set. Partition will start on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+        vdefault="(MBR unaligned set. disk to be verified for partition starting on sector 63 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
    ;;
    2)   partition_64=y
-        default="(MBR 4k-aligned set. Partition will start on sector 64 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
-        vdefault="(MBR 4k-aligned set. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 1 for disks > 2.2TB)"
+        default="(MBR 4k-aligned set. Partition will start on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
+        vdefault="(MBR 4k-aligned set. disk to be verified for partition starting on sector 64 for disks <= 2.2TB and sector 64 for disks > 2.2TB)"
    ;;
    3)   partition_64=y
-        default="(GPT 4k-aligned set. Protective MBR Partition will start on sector 1)"
-        vdefault="(GPT 4k-aligned set. disk to be verified for protective MBR partition starting on sector 1)"
+        default="(GPT 4k-aligned set. Protective MBR Partition will start on sector 64)"
+        vdefault="(GPT 4k-aligned set. disk to be verified for protective MBR partition starting on sector 64)"
    ;;
    esac
 fi
@@ -1429,7 +1429,7 @@ if [ "$over_mbr_size" = "y" ]
 then
     size1=`printf "%d" "0x00020000"`
     size2=`printf "%d" "0xFFFFFF00"`
-    partition_start=1
+    partition_start=64
     partition_size=`printf "%d" 0xFFFFFFFF`
 fi
 

@@ -18,7 +18,7 @@ dos2unix_stdout_file=$(mktemp /tmp/dos2unixstdout.XXXXXXXXX)
 dos2unix_source_file="${1}"
 
 # run conversion, creating new temp file
-dos2unix -v -n "${dos2unix_source_file}" "${dos2unix_temp_file}" > "${dos2unix_stdout_file}" 2>&1
+/usr/bin/dos2unix -v -n "${dos2unix_source_file}" "${dos2unix_temp_file}" > "${dos2unix_stdout_file}" 2>&1
 
 # if the file required conversion then overwrite (move with force) source file with converted temp file
 if ! cat "${dos2unix_stdout_file}" | grep -q 'Converted 0'; then

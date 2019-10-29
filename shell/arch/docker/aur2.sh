@@ -3,7 +3,7 @@
 # exit script if return code != 0
 set -e
 
-# path to makepkg
+# path to makepkg (shell script)
 makepkg_path="/usr/bin/makepkg"
 
 # check we have packages to install
@@ -29,21 +29,18 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# download tarball from aur
 		/usr/local/bin/curly.sh -rc 6 -rw 10 -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
 
-		# extract tarball
+		# extract downloaded tarball
 		cd '/tmp' && tar -xvf "${aur_package}.tar.gz"
 
-		# location of downloaded and extracted tarball from aur (using aur.sh script)
+		# change to location of extracted tarball
 		cd "./${aur_package}"
 
-		# compile package
+		# compile/build package
 		eval "${makepkg_path} ${makepkg_options}"
 
-		# install compiled package using pacman
+		# install package using pacman
 		pacman -U ${aur_package}*.tar.xz --noconfirm
 
 	done
-
-	# remove base devel excluding useful core packages
-	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
 
 fi

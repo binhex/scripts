@@ -33,7 +33,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		cd '/tmp' && tar -xvf "${aur_package}.tar.gz"
 
 		# location of downloaded and extracted tarball from aur (using aur.sh script)
-		cd "/tmp/${aur_package}"
+		cd "./${aur_package}"
 
 		# compile package
 		eval "${makepkg_path} ${makepkg_options}"
@@ -44,6 +44,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	done
 
 	# remove base devel excluding useful core packages
-	#pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
+	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
 
 fi

@@ -30,7 +30,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		/usr/local/bin/curly.sh -rc 6 -rw 10 -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
 
 		# extract tarball
-		tar -xvf "/tmp/${aur_package}.tar.gz"
+		cd '/tmp' && tar -xvf "${aur_package}.tar.gz"
 
 		# location of downloaded and extracted tarball from aur (using aur.sh script)
 		cd "/tmp/${aur_package}"

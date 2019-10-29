@@ -9,6 +9,11 @@ makepkg_path="/usr/bin/makepkg"
 # check we have packages to install
 if [[ ! -z "${aur_packages}" ]]; then
 
+	# check if build options not specified then use common options
+	if [[ -z "${makepkg_options}" ]]; then
+		makepkg_options="--install --noconfirm --syncdeps"
+	fi
+
 	# install required packages to compile
 	pacman -S base-devel --needed --noconfirm
 

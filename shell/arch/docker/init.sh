@@ -92,9 +92,23 @@ fi
 
 # CONFIG_PLACEHOLDER
 
-# cleanup of all files in /tmp, note this is non recursive to prevent potential data loss from users mapping media to /tmp
-rm -f /tmp/*
-rm -rf /tmp/tmux*
+# calculate disk usage for /tmp in bytes
+disk_usage_tmp=$(du -s /tmp | awk '{print $1}')
+
+# if disk usage of /tmp exceeds 1GB then do not clear down (could possibly be volume mount to media)
+if [ "${disk_usage_tmp}" -gt 1073741824 ]; then
+
+	echo "[warn] /tmp directory contains 1GB+ of data, skipping clear down as this maybe mounted media" | ts '%Y-%m-%d %H:%M:%.S'
+	echo "[info] Showing contents of /tmp..." | ts '%Y-%m-%d %H:%M:%.S'
+	ls -al /tmp
+
+else
+
+	echo "[info] Deleting files in /tmp (non recursive)..." | ts '%Y-%m-%d %H:%M:%.S'
+	rm -f /tmp/*
+	rm -rf /tmp/tmux*
+
+fi
 
 echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
 

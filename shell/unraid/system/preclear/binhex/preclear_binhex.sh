@@ -72,8 +72,9 @@
 # Version 1.18  - Rework script to be more Docker friendly by modifying paths to utilities.
 # Version 1.19  - Read in dynamix.cfg for recipients email address, when -m not specified.
 #                 Change default start sector from 1 to 64.
+# Version 1.20  - Cosmetic formatting fix of post read report sent via email.
 
-ver="1.19"
+ver="1.20"
 
 progname=$0
 options=$*
@@ -1054,7 +1055,7 @@ read_entire_disk( ) {
           then
               let report_percentage=($report_percentage + 25)
               report_out="Post Read in progress on $theDisk: ${percent_read}% complete.  \\n"
-              report_out+="( `format_number ${bytes_read}` of $tb_formatted bytes read )at ${read_speed}\\n"
+              report_out+="(`format_number ${bytes_read}` of $tb_formatted bytes read) at ${read_speed}\\n"
               report_out+=" `disk_temperature 1` \\n "
               report_out+="Using Block size of `format_number $units` Bytes\\n "
               report_out+="Next report at $report_percentage% \\n"

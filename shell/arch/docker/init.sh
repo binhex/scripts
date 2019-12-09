@@ -105,7 +105,7 @@ if [ "${disk_usage_tmp}" -gt 1073741824 ]; then
 else
 
 	echo "[info] Deleting files in /tmp (non recursive)..." | ts '%Y-%m-%d %H:%M:%.S'
-	rm -f /tmp/* || true
+	rm -f /tmp/* > /dev/null 2>&1 || true
 	rm -rf /tmp/tmux*
 
 fi

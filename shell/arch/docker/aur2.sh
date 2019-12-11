@@ -3,6 +3,36 @@
 # exit script if return code != 0
 set -e
 
+function compile_tarball {
+
+	aur_package="${1}"
+
+	# download tarball from aur
+	/usr/local/bin/curly.sh -rc 6 -rw 10 -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
+
+	# extract downloaded tarball
+	cd '/tmp' && tar -xvf "${aur_package}.tar.gz"
+
+	# change to location of extracted tarball
+	cd "./${aur_package}"
+
+	# compile/build package
+	eval "${makepkg_path} ${makepkg_options}"
+
+	# install package using pacman
+	pacman -U ${aur_package}*.tar.xz --noconfirm
+
+}
+
+function determine_dependencies {
+
+	aur_package="${1}"
+
+	# determine aur dependencies minus optional packages
+	aur_package_dependencies=$(curl -s "https://aur.archlinux.org/packages/${aur_package}/" | awk '/"pkgdepslist"/,/<\/ul>/' | grep -Po '\"/packages.*' | grep -v '.*optional.*' | grep -Po '"/packages.*?"' | grep -Po '[^/]+/"$' | grep -Po '[^/"]+' | xargs)
+
+}
+
 # path to makepkg (shell script)
 makepkg_path="/usr/bin/makepkg"
 
@@ -26,20 +56,18 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# process each package in the list
 	for aur_package in "${aur_packages_list[@]}"; do
 
-		# download tarball from aur
-		/usr/local/bin/curly.sh -rc 6 -rw 10 -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
+		# determine aur dependencies minus optional packages
+		determine_dependencies "${aur_package}"
 
-		# extract downloaded tarball
-		cd '/tmp' && tar -xvf "${aur_package}.tar.gz"
+		if [[ ! -z "${aur_package_dependencies}" ]]; then
 
-		# change to location of extracted tarball
-		cd "./${aur_package}"
+			# compile and install aur package dependencies
+			compile_tarball "${aur_package_dependencies}"
 
-		# compile/build package
-		eval "${makepkg_path} ${makepkg_options}"
+			# compile and install aur package
+			compile_tarball "${aur_package}"
 
-		# install package using pacman
-		pacman -U ${aur_package}*.tar.xz --noconfirm
+		fi
 
 	done
 

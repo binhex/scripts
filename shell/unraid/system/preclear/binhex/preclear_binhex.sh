@@ -73,8 +73,10 @@
 # Version 1.19  - Read in dynamix.cfg for recipients email address, when -m not specified.
 #                 Change default start sector from 1 to 64.
 # Version 1.20  - Cosmetic formatting fix of post read report sent via email.
+# Version 1.21  - Use blockdev command to set drive into read only mode, this is an attempt to prevent any further
+#                 writes after a preclear.
 
-ver="1.20"
+ver="1.21"
 
 progname=$0
 options=$*
@@ -420,8 +422,6 @@ if [ "$partition_64" = "" ]
 then
    partition_64="n"
 fi
-#exit
-
 
 shift $(($OPTIND - 1))
 
@@ -509,6 +509,13 @@ fi
 expand_number() {
   echo "$1" | sed -e 's/\([0-9]*\)[mM]$/\1000000/' -e 's/\([0-9]*\)[kK]$/\1000/'
 }
+
+theDisk=$1
+
+# this reverses the read only state of the disk after the preclear script
+# has been run on the drive (see blockdev further down), it may be a nop
+# if the script has not already been run on the drive since its been connected.
+blockdev --setrw $theDisk
 
 write_bs=`expand_number $write_bs`
 # validate the write block size
@@ -623,8 +630,6 @@ if [ ! -z "$mail_rcpt" -a $use_mail -eq 0 ]
 then
     use_mail=1
 fi
-
-theDisk=$1
 
 disk_basename=`basename $1`
 if [ -f "/tmp/postread_errors$disk_basename" ]
@@ -2350,3 +2355,8 @@ if [ $use_mail -ge 1 ]
 then
   echo -e "${report_out}" | mail -s "Preclear: PASS! Preclearing Disk $disk_basename Finished!!! Cycle $cc of $cycle_count" $mail_rcpt
 fi
+
+# an attempt to prevent the drive from being written
+# to once it has been precleared, leading to unraid
+# clearing again.
+blockdev --setro $theDisk

@@ -75,8 +75,9 @@
 # Version 1.20  - Cosmetic formatting fix of post read report sent via email.
 # Version 1.21  - Use blockdev command to set drive into read only mode, this is an attempt to prevent any further
 #                 writes after a preclear.
+# Version 1.22  - drives > 2.2TiB and with protective MBR partition starting on sector 64 failing signature verification - gfjardim
 
-ver="1.21"
+ver="1.22"
 
 progname=$0
 options=$*
@@ -1496,11 +1497,12 @@ verify_mbr() {
   sl=`printf "%d" "0x"$byte16h$byte15h$byte14h$byte13h`
 
   case "$sc" in
-  63)
-     let partition_size=($full_size - $sc)
-  ;;
-  64)
-     let partition_size=($full_size - $sc)
+  63|64)
+    if [ "$over_mbr_size" == "y" ]; then
+      partition_size=$(printf "%d" 0xFFFFFFFF)
+    else
+      let partition_size=($full_size - $sc)
+    fi
   ;;
   1)
      if [ "$over_mbr_size" != "y" ]

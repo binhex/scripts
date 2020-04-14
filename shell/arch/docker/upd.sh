@@ -20,5 +20,8 @@ cat /etc/pacman.d/mirrorlist
 echo "[info] Removing reflector and any other packages (python) that are not dependant..."
 pacman -Rs reflector --noconfirm
 
+# note overwrite required due to bug in missing soname link
+# see below for details:-
+# https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
-pacman -Syyu --noconfirm
+pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm

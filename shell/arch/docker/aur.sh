@@ -4,6 +4,9 @@
 aur_helper="apacman"
 aur_helper_version="3.1-1"
 
+# ensure we can write to /tmp as this is used when compiling packages
+chmod -R 777 /tmp
+
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
 

@@ -6,6 +6,9 @@ aur_helper="yay"
 # check we have aur packages to install
 if [[ ! -z "${aur_packages}" ]]; then
 
+	# install required packages to compile
+	pacman -S base-devel --needed --noconfirm
+
 	if ! which yay; then
 
 		# exit script if return code != 0, note need it at this location as which
@@ -45,9 +48,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	if [[ -z "${aur_operations}" ]]; then
 		aur_operations="-S"
 	fi
-
-	# install required packages to compile
-	pacman -S base-devel --needed --noconfirm
 
 	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
 	# also be called after compile via aur helper to install the package

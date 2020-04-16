@@ -39,9 +39,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
 
-	# force yay to store config in /tmp, as we do not need to keep it
-	export XDG_CONFIG_HOME="/tmp"
-
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
 		aur_options="--builddir=/tmp --save --noconfirm"
@@ -54,7 +51,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
 	# also be called after compile via aur helper to install the package
-	su nobody -c "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	su nobody -c "export XDG_CONFIG_HOME=/tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm

@@ -4,9 +4,6 @@
 aur_helper="apacman"
 aur_helper_version="3.1-1"
 
-# set umask to ensure we can write to newly created directories during build
-umask 022
-
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
 

@@ -1,33 +1,47 @@
 #!/bin/bash
 
-# define aur helper and ver
-aur_helper="apacman"
-aur_helper_version="3.1-1"
+# define aur helper
+aur_helper="yay"
 
-# install aur helper from github and then install app using helper
+# check we have aur packages to install
 if [[ ! -z "${aur_packages}" ]]; then
 
-	pacman -S jshon base-devel --needed --noconfirm
+	# install required packages to compile
+	pacman -S base-devel --needed --noconfirm
 
-	# remove existing aur helper if it exists to prevent curl 416 error
-	rm -f "/tmp/${aur_helper}-any.pkg.tar.xz"
+	if ! which yay; then
 
-	curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper}-any.pkg.tar.xz" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
-	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
+		# exit script if return code != 0, note need it at this location as which
+		# yay may return non zero exit code
+		set -e
 
-	# unset failing build on non zero exit code (required as apacman can have exit code of 1 if systemd ref in install)
-	set +e
+		# install git, used to pull down aur helper from github
+		pacman -S git sudo --noconfirm
 
-	# check aur helper is functional and then use
-	"${aur_helper}" -V
-	helper_check_exit_code=$?
+		# strip out restriction to not allow make as user root, used during make of aur helper
+		sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 
-	# reset flag to force failed build on non zero exit code
-	set -e
+		# download and install aur helper
+		cd /tmp
+		git clone https://aur.archlinux.org/yay-bin.git
+		cd yay-bin
+		makepkg -sri --noconfirm
+		cd ..
+		rm -fr /tmp/yay-bin
 
-	if (( ${helper_check_exit_code} != 0 )); then
-		echo "${aur_helper} check returned exit code ${helper_check_exit_code}, exiting script..."
-		return 1
+	fi
+
+	# set permissions for /tmp, used to store build and compiled
+	# packages
+	chmod -R 777 '/tmp'
+
+	# prevent sudo prompt for password when installing compiled
+	# package via pacman
+	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
+
+	# check if aur_options not specified then use common options
+	if [[ -z "${aur_options}" ]]; then
+		aur_options="--builddir=/tmp --save --noconfirm"
 	fi
 
 	# if not defined then assume install package
@@ -35,44 +49,9 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_operations="-S"
 	fi
 
-	# if not defined then assume no prompts for compile or install
-	if [[ -z "${aur_options}" ]]; then
-		aur_options="--noconfirm"
-	fi
-
-	# change to /tmp prior to compile and install
-	cd /tmp
-
-	eval "${aur_helper} ${aur_operations} ${aur_options} ${aur_packages}"
-
-	helper_package_exit_code=$?
-
-	if (( ${helper_package_exit_code} != 0 && ${helper_package_exit_code} != 1 )); then
-
-		echo "${aur_helper} returned exit code ${helper_package_exit_code} (exit code 1 ignored), showing man for exit codes:-"
-		echo "0   Success"
-		echo "1   Miscellaneous errors"
-		echo "2   Invalid parameters"
-		echo "3   Fatal errors, not warnings"
-		echo "4   No package matches found"
-		echo "5   Package does not exist"
-		echo "6   No internet connection"
-		echo "7   No free space in tmpfs"
-		echo "8   One or more package(s) failed to build, keep going"
-		echo "9   One package failed to build, do not continue"
-		echo "10  Permission problem −− fakeroot"
-		echo "11  Permission problem −− root user"
-		echo "12  Permission problem −− sudo"
-		echo "13  Permission problem −− su"
-
-		# set return code to 1 to denote failure to build env
-		return 1
-	fi
-
-	# if custom script defined then run
-	if [[ -n "${aur_custom_script}" ]]; then
-		eval "${aur_custom_script}"
-	fi
+	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
+	# also be called after compile via aur helper to install the package
+	su nobody -c "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
@@ -80,8 +59,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# remove cached aur packages
 	rm -rf "/var/cache/${aur_helper}/" || true
 
+	# remove aur helper
+	pacman -Ru yay-bin --noconfirm
+
 else
 
-	return 0
+	echo "[info] No AUR packages defined for installation"
 
 fi

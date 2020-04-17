@@ -18,9 +18,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# install git, used to pull down aur helper from github
 		pacman -S git sudo --noconfirm
 
-		# strip out restriction to not allow make as user root, used during make of aur helper
-		sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
-
 		aur_helper_package_name="yay-bin.tar.xz"
 
 		# download compiled libtorrent-ps (used by rtorrent-ps)
@@ -29,6 +26,8 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# install aur helper
 		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm
 
+		# strip out restriction to not allow make as user root, used during make of aur helper
+		#sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 		# download and install aur helper
 		#cd /tmp
 		#git clone https://aur.archlinux.org/yay-bin.git
@@ -60,12 +59,12 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
 	# also be called after compile via aur helper to install the package
-	sudo -u nobody bash << EOF
-	cd /tmp
-	eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
-	whoami
-EOF
-	#su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	#sudo -u nobody bash << EOF
+	#cd /tmp
+	#eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	#whoami
+	#EOF
+	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm

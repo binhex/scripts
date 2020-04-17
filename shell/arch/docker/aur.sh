@@ -17,6 +17,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	chmod -R 777 '/tmp'
 
 	cd '/tmp'
+	export AURDEST=/tmp
 
 	if ! which yay; then
 
@@ -69,7 +70,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	#eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 	#whoami
 	#EOF
-	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	su nobody -c "cd /tmp && export AURDEST=/tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm

@@ -9,6 +9,13 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# install required packages to compile
 	pacman -S base-devel --needed --noconfirm
 
+	# set build directory, used for output for makepkg
+	sed -i -e 's~#BUILDDIR=/tmp/makepkg~BUILDDIR=/tmp/makepkg~g' "/etc/makepkg.conf"
+
+	# set permissions for /tmp, used to store build and compiled
+	# packages
+	chmod -R 777 '/tmp'
+
 	if ! which yay; then
 
 		# exit script if return code != 0, note need it at this location as which
@@ -35,10 +42,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 		#makepkg -sri --noconfirm
 
 	fi
-
-	# set permissions for /tmp, used to store build and compiled
-	# packages
-	chmod -R 777 '/tmp'
 
 	# ensure we are owner for cache and config folders used by aur_helper
 	chown -R nobody:users /home/nobody/.cache /home/nobody/.config

@@ -16,9 +16,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# packages
 	chmod -R 777 '/tmp'
 
-	cd '/tmp'
-	export AURDEST=/tmp
-
 	if ! which yay; then
 
 		# exit script if return code != 0, note need it at this location as which
@@ -55,7 +52,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
-		aur_options="--builddir=/tmp/makepkg --save --noconfirm"
+		aur_options="--builddir=/tmp/makepkg --mflags '--config /etc/makepkg.conf' --save --noconfirm"
 	fi
 
 	# if not defined then assume install package

@@ -21,18 +21,28 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# strip out restriction to not allow make as user root, used during make of aur helper
 		sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 
+		aur_helper_package_name="yay-bin.tar.xz"
+
+		# download compiled libtorrent-ps (used by rtorrent-ps)
+		curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper_package_name}" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper_package_name}"
+
+		# install aur helper
+		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm
+
 		# download and install aur helper
-		cd /tmp
-		git clone https://aur.archlinux.org/yay-bin.git
-		cd yay-bin
-		makepkg -sri --noconfirm
-		rm -fr /tmp/yay-bin
+		#cd /tmp
+		#git clone https://aur.archlinux.org/yay-bin.git
+		#cd yay-bin
+		#makepkg -sri --noconfirm
 
 	fi
 
 	# set permissions for /tmp, used to store build and compiled
 	# packages
 	chmod -R 777 '/tmp'
+
+	# ensure we are owner for cache and config folders used by aur_helper
+	chown -R nobody:users /home/nobody/.cache /home/nobody/.config
 
 	# prevent sudo prompt for password when installing compiled
 	# package via pacman

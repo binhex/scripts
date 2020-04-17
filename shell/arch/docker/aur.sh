@@ -60,16 +60,18 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
 	# also be called after compile via aur helper to install the package
-	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	sudo -u nobody bash << EOF
+	cd /tmp
+	eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	whoami
+EOF
+	#su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
 
-	# remove cached aur packages
-	rm -rf "/var/cache/${aur_helper}/" || true
-
-	# remove aur helper
-	pacman -Ru yay-bin --noconfirm
+	# remove aur helper and git
+	pacman -Ru git yay-bin --noconfirm
 
 else
 

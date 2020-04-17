@@ -11,6 +11,7 @@ fi
 # general cleanup
 yes|pacman -Scc
 pacman --noconfirm -Rns $(pacman -Qtdq) 2> /dev/null || true
+rm -rf /var/cache/*
 rm -rf /var/empty/.cache/*
 rm -rf /usr/share/locale/*
 rm -rf /usr/share/man/*

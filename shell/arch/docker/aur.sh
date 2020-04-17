@@ -43,8 +43,15 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	fi
 
-	# ensure we are owner for cache and config folders used by aur_helper
-	chown -R nobody:users /home/nobody/.cache /home/nobody/.config
+	if [[ -d /home/nobody/.cache ]]; then
+		# ensure we are owner for cache and config folders used by aur_helper
+		chown -R nobody:users /home/nobody/.cache
+	fi
+
+	if [[ -d /home/nobody/.config ]]; then
+		# ensure we are owner for cache and config folders used by aur_helper
+		chown -R nobody:users /home/nobody/.config
+	fi
 
 	# prevent sudo prompt for password when installing compiled
 	# package via pacman
@@ -67,7 +74,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	#eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 	#whoami
 	#EOF
-	su nobody -c "cd /tmp && export AURDEST=/tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# remove base devel excluding useful core packages
 	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm

@@ -54,16 +54,19 @@ pacman -Rs reflector --noconfirm
 if [[ ! -z "${pacman_ignore_packages}" ]]; then
 
 	echo "[info] Ignoring package(s) '${pacman_ignore_packages}' from upgrade/install"
-	sed -i -e 's~^#IgnorePkg.*~IgnorePkg = "${pacman_ignore_packages}"~g' "/etc/pacman.conf"
+	sed -i -e "s~^#IgnorePkg.*~IgnorePkg = ${pacman_ignore_packages}~g" "/etc/pacman.conf"
 
 fi
 
 if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
 
 	echo "[info] Ignoring package group(s) '${pacman_ignore_group_packages}' from upgrade/install"
-	sed -i -e 's~^#IgnoreGroup.*~IgnoreGroup = "${pacman_ignore_group_packages}"~g' "/etc/pacman.conf"
+	sed -i -e "s~^#IgnoreGroup.*~IgnoreGroup = ${pacman_ignore_group_packages}~g" "/etc/pacman.conf"
 
 fi
+
+echo "[info] Showing pacman configuration file '/etc/pacman.conf'..."
+cat "/etc/pacman.conf"
 
 # note overwrite required due to bug in missing soname link
 # see below for details:-

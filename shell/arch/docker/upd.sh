@@ -62,7 +62,7 @@ if [[ ! -z "${pacman_packages}" ]]; then
 	if [[ ! -z "${pacman_ignore_packages}" ]]; then
 
 		echo "[info] Installing pacman package(s) '${pacman_packages}' with ignore package(s) of '${pacman_ignore_packages}'"
-		pacman -S --needed "${pacman_packages}" --ignore="${pacman_ignore_packages}" --noconfirm
+		pacman -S --needed "${pacman_packages}" --ignoregroup="${pacman_ignore_packages}" --noconfirm
 
 	else
 

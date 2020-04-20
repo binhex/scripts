@@ -56,3 +56,19 @@ pacman -Rs reflector --noconfirm
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
+
+if [[ ! -z "${pacman_packages}" ]]; then
+
+	if [[ ! -z "${pacman_ignore_packages}" ]]; then
+
+		echo "[info] Installing pacman package(s) '${pacman_packages}' with ignore package(s) of '${pacman_ignore_packages}'"
+		pacman -S --needed "${pacman_packages}" --ignore="${pacman_ignore_packages}" --noconfirm
+
+	else
+
+		echo "[info] Installing pacman package(s) '${pacman_packages}'"
+		pacman -S --needed "${pacman_packages}" --noconfirm
+
+	fi
+
+fi

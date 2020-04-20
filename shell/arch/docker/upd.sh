@@ -51,6 +51,20 @@ cat /etc/pacman.d/mirrorlist
 echo "[info] Removing reflector and any other packages (python) that are not dependant..."
 pacman -Rs reflector --noconfirm
 
+if [[ ! -z "${pacman_ignore_packages}" ]]; then
+
+	echo "[info] Ignoring package(s) '${pacman_ignore_packages}' from upgrade/install"
+	sed -i -e 's~^#IgnorePkg.*~IgnorePkg = "${pacman_ignore_packages}"~g' "/etc/pacman.conf"
+
+fi
+
+if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
+
+	echo "[info] Ignoring package group(s) '${pacman_ignore_group_packages}' from upgrade/install"
+	sed -i -e 's~^#IgnoreGroup.*~IgnoreGroup = "${pacman_ignore_group_packages}"~g' "/etc/pacman.conf"
+
+fi
+
 # note overwrite required due to bug in missing soname link
 # see below for details:-
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
@@ -59,17 +73,7 @@ pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
 
 if [[ ! -z "${pacman_packages}" ]]; then
 
-	if [[ ! -z "${pacman_ignore_packages}" ]]; then
-
-		echo "[info] Installing pacman package(s) '${pacman_packages}' with ignore package(s) of '${pacman_ignore_packages}'"
-		sed -i -e 's~^#IgnorePkg.*~IgnorePkg = "${pacman_ignore_packages}"~g' "/etc/pacman.conf"
-
-	else
-
-		echo "[info] Installing pacman package(s) '${pacman_packages}'"	
-
-	fi
-
+	echo "[info] Installing pacman package(s) '${pacman_packages}'"	
 	pacman -S --needed "${pacman_packages}" --noconfirm
 
 fi

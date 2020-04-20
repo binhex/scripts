@@ -62,13 +62,14 @@ if [[ ! -z "${pacman_packages}" ]]; then
 	if [[ ! -z "${pacman_ignore_packages}" ]]; then
 
 		echo "[info] Installing pacman package(s) '${pacman_packages}' with ignore package(s) of '${pacman_ignore_packages}'"
-		pacman -S --needed "${pacman_packages}" --ignoregroup="${pacman_ignore_packages}" --noconfirm
+		sed -i -e 's~^#IgnorePkg.*~IgnorePkg = "${pacman_ignore_packages}"~g' "/etc/pacman.conf"
 
 	else
 
-		echo "[info] Installing pacman package(s) '${pacman_packages}'"
-		pacman -S --needed "${pacman_packages}" --noconfirm
+		echo "[info] Installing pacman package(s) '${pacman_packages}'"	
 
 	fi
+
+	pacman -S --needed "${pacman_packages}" --noconfirm
 
 fi

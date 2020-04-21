@@ -3,6 +3,11 @@
 # exit script if return code != 0
 set -e
 
+# delme once fixed!!
+# do not update coreutils - fixes permission denied issue when building on docker hub
+# https://github.com/archlinux/archlinux-docker/issues/32
+pacman_ignore_packages="coreutils"
+
 pacman -S reflector --noconfirm
 
 # use reflector to overwriting existing mirrorlist, args explained below
@@ -73,10 +78,3 @@ cat "/etc/pacman.conf"
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
-
-if [[ ! -z "${pacman_packages}" ]]; then
-
-	echo "[info] Installing pacman package(s) '${pacman_packages}'"	
-	pacman -S --needed "${pacman_packages}" --noconfirm
-
-fi

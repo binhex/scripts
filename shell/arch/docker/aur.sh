@@ -27,12 +27,13 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 		aur_helper_package_name="yay-bin.tar.xz"
 
-		# download compiled libtorrent-ps (used by rtorrent-ps)
+		# download compiled aur helper
 		curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper_package_name}" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper_package_name}"
 
 		# install aur helper
 		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm
 
+		# compile and install aur helper
 		# strip out restriction to not allow make as user root, used during make of aur helper
 		#sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 		# download and install aur helper

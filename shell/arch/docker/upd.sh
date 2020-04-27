@@ -53,9 +53,6 @@ done
 echo "[info] Show contents of reflector generated mirrorlist for pacman..."
 cat /etc/pacman.d/mirrorlist
 
-echo "[info] Removing reflector and any other packages (python) that are not dependant..."
-pacman -Rs reflector --noconfirm
-
 if [[ ! -z "${pacman_ignore_packages}" ]]; then
 
 	echo "[info] Ignoring package(s) '${pacman_ignore_packages}' from upgrade/install"

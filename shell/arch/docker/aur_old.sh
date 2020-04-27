@@ -74,9 +74,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 		eval "${aur_custom_script}"
 	fi
 
-	# remove base devel excluding useful core packages
-	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
-
 	# remove cached aur packages
 	rm -rf "/var/cache/${aur_helper}/" || true
 

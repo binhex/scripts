@@ -206,9 +206,6 @@ function github_compile_src() {
 	# run commands to compile
 	/bin/bash -c "${compile_src}"
 
-	# remove base devel excluding useful core packages
-	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
-
 }
 
 function show_help() {

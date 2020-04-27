@@ -8,6 +8,9 @@ if pacman -Qg "base-devel" > /dev/null ; then
 
 fi
 
+# remove any build tools that maybe present from the build
+pacman -Ru dotnet-sdk yarn git yay-bin --noconfirm || true
+
 # general cleanup
 yes|pacman -Scc
 pacman --noconfirm -Rns $(pacman -Qtdq) 2> /dev/null || true

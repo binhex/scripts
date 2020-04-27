@@ -77,12 +77,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	#EOF
 	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
-	# remove base devel excluding useful core packages
-	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
-
-	# remove aur helper and git
-	pacman -Ru git yay-bin --noconfirm
-
 else
 
 	echo "[info] No AUR packages defined for installation"

@@ -68,13 +68,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_operations="-S"
 	fi
 
-	# switch to user 'nobody' and run aur helper to compile package, 'pacman' will
-	# also be called after compile via aur helper to install the package
-	#sudo -u nobody bash << EOF
-	#cd /tmp
-	#eval "${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
-	#whoami
-	#EOF
+	# switch to user 'nobody' and run aur helper to compile package
 	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 else

@@ -14,9 +14,9 @@ pacman -Ru dotnet-sdk yarn git yay-bin reflector gcc binutils --noconfirm 2> /de
 # general cleanup
 yes|pacman -Scc
 pacman --noconfirm -Rns $(pacman -Qtdq) 2> /dev/null || true
-rm -rf /var/cache/*
-rm -rf /var/empty/.cache/*
-rm -rf /usr/share/locale/*
-rm -rf /usr/share/man/*
-rm -rf /usr/share/gtk-doc/*
-rm -rf /tmp/*
+rm -rf /var/cache/* \
+/var/empty/.cache/* \
+/usr/share/locale/* \
+/usr/share/man/* \
+/usr/share/gtk-doc/* \
+/tmp/*

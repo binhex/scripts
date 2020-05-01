@@ -2,7 +2,6 @@
 
 # define aur helper and ver
 aur_helper="apacman"
-aur_helper_version="3.1-1"
 
 # install aur helper from github and then install app using helper
 if [[ ! -z "${aur_packages}" ]]; then
@@ -12,7 +11,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# remove existing aur helper if it exists to prevent curl 416 error
 	rm -f "/tmp/${aur_helper}-any.pkg.tar.xz"
 
-	curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper}-any.pkg.tar.xz" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${OS_ARCH}/${aur_helper}-${aur_helper_version}-any.pkg.tar.xz"
+	curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper}-any.pkg.tar.xz" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${OS_ARCH}/${aur_helper}.tar.xz"
 	pacman -U "/tmp/${aur_helper}-any.pkg.tar.xz" --noconfirm
 
 	# unset failing build on non zero exit code (required as apacman can have exit code of 1 if systemd ref in install)

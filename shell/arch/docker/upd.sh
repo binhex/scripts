@@ -3,11 +3,6 @@
 # exit script if return code != 0
 set -e
 
-# delme once fixed!!
-# do not update coreutils - fixes permission denied issue when building on docker hub
-# https://github.com/archlinux/archlinux-docker/issues/32
-pacman_ignore_packages="coreutils"
-
 pacman -S reflector --noconfirm
 
 # use reflector to overwriting existing mirrorlist, args explained below

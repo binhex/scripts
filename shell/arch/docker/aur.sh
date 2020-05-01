@@ -28,7 +28,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_helper_package_name="yay-bin.tar.xz"
 
 		# download compiled aur helper
-		curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper_package_name}" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${aur_helper_package_name}"
+		curly.sh -rc 6 -rw 10 -of "/tmp/${aur_helper_package_name}" -url "https://github.com/binhex/arch-packages/raw/master/compiled/${OS_ARCH}/${aur_helper_package_name}"
 
 		# install aur helper
 		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm

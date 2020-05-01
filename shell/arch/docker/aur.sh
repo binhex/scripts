@@ -41,6 +41,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		#git clone https://aur.archlinux.org/yay-bin.git
 		#cd yay-bin
 		#makepkg -sri --noconfirm
+		#cd /tmp
 
 	fi
 

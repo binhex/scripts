@@ -23,13 +23,26 @@ function check_response_code() {
 
 	while true; do
 
-		# construct curl command, note do not single/double quote output_file variable
-		response_code=$(curl --head --location --silent --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" "${url}" | tac | grep -m 1 'HTTP.*' | awk {'print $2'})
+		# check github return code is ok before we attempt download
+		header=$(curl --head --location --silent --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" "${url}")
 		exit_code=$?
+
+		response_code=$(echo "${header}" | tac | grep -m 1 'HTTP.*' | awk {'print $2'})
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then
 
 			return 0
+
+		# github assets do not permit head requests so we look at 302 codes only (confirm it exists)
+		elif [[ "${response_code}" -ge "403" ]]; then
+
+			response_code=$(echo "${header}" | grep -m 1 'HTTP.*' | awk {'print $2'})
+
+			if [[ "${response_code}" -eq "302" ]]; then
+
+				return 0
+
+			fi
 
 		else
 
@@ -50,10 +63,11 @@ function check_response_code() {
 					fi
 
 					echo "[info] ${retry_count} retries left"
-					echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+					echo "[info] Retrying in ${retry_wait} secs..."
 
 				fi
 
+				sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 
 			fi
@@ -112,10 +126,11 @@ function get_response_body() {
 					echo -e "[warn] Exit code '${exit_code}' from curl != 0 or no response body received"
 
 					echo "[info] ${retry_count} retries left"
-					echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+					echo "[info] Retrying in ${retry_wait} secs..."
 
 				fi
 
+				sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 
 			fi

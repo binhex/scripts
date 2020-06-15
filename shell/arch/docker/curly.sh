@@ -18,8 +18,6 @@ silent_mode="${defaultSilentMode}"
 
 function check_response_code() {
 
-	echo -e "[info] Attempting to curl ${url}..."
-
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
@@ -31,7 +29,6 @@ function check_response_code() {
 
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then
 
-			echo -e "[info] Curl successful for ${url}, response code ${response_code}"
 			return 0
 
 		else
@@ -43,14 +40,20 @@ function check_response_code() {
 
 			else
 
-				echo -e "[warn] Response code ${response_code} from curl != 2xx"
+				# if output file specified then log warning, else if stdout then do not log warning
+				if [[ -n "${output_file}" ]]; then
 
-				if [[ "${exit_code}" -ge "1" ]]; then
-					echo -e "[warn] Exit code ${exit_code} from curl != 0"
+					echo -e "[warn] Response code ${response_code} from curl != 2xx"
+
+					if [[ "${exit_code}" -ge "1" ]]; then
+						echo -e "[warn] Exit code ${exit_code} from curl != 0"
+					fi
+
+					echo "[info] ${retry_count} retries left"
+					echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+
 				fi
 
-				echo "[info] ${retry_count} retries left"
-				echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
 				retry_count=$((retry_count-1))
 
 			fi
@@ -62,8 +65,6 @@ function check_response_code() {
 }
 
 function get_response_body() {
-
-	echo -e "[info] Attempting to curl ${url}..."
 
 	local _resultvar="${1}"
 	shift
@@ -105,10 +106,16 @@ function get_response_body() {
 
 			else
 
-				echo -e "[warn] Exit code '${exit_code}' from curl != 0 or no response body received"
+				# if output file specified then log warning, else if stdout then do not log warning
+				if [[ -n "${output_file}" ]]; then
 
-				echo "[info] ${retry_count} retries left"
-				echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+					echo -e "[warn] Exit code '${exit_code}' from curl != 0 or no response body received"
+
+					echo "[info] ${retry_count} retries left"
+					echo "[info] Retrying in ${retry_wait} secs..."; sleep "${retry_wait}"
+
+				fi
+
 				retry_count=$((retry_count-1))
 
 			fi
@@ -117,12 +124,10 @@ function get_response_body() {
 
 			if [[ -n "${output_file}" ]]; then
 
-				echo -e "[info] Curl successful for ${url}"
 				_resultvar=0; break
 
 			else
 
-				echo -e "[info] Curl successful for ${url}"
 				_resultvar="${response_body}"; break
 
 			fi
@@ -224,8 +229,6 @@ check_response_code "${retry_count}" "${retry_wait}" "${url}"
 
 if [[ "${?}" -eq 0 ]]; then
 
-	echo "[info] Response code OK, proceeding to download body..."
-
 	get_response_body "${response_body_result}" "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"
 
 	if [[ -z "${output_file}" ]]; then
@@ -245,7 +248,6 @@ if [[ "${?}" -eq 0 ]]; then
 
 		if [[ "${response_body_result}" -eq 0 ]]; then
 
-			echo "[info] Successfully downloaded file from url '${url}'"
 			exit 0
 
 		else

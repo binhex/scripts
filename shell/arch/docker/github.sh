@@ -206,7 +206,7 @@ function archive_extractor() {
 function copy_to_install_path() {
 
 	echo -e "[info] Running copy to install path..."
-	
+
 	local extract_path="${1}"
 	shift
 	local install_path="${1}"
@@ -239,7 +239,7 @@ function copy_to_install_path() {
 		echo -e "[info] cp -R ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
-	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] )&& [[ "${release_type}" == "binary" ]]; then
+	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ "${release_type}" == "binary" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"

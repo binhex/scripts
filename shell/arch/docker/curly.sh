@@ -29,6 +29,13 @@ function check_response_code() {
 
 		response_code=$(echo "${header}" | tac | grep -m 1 'HTTP.*' | awk {'print $2'})
 
+		# if response code is not an integer then we cannot identify response (non github url?)
+		if [[ ! "${response_code}" == ?(-)+([0-9]) ]]; then
+
+			return 0
+
+		fi
+
 		if [[ "${response_code}" -ge "200" ]] && [[ "${response_code}" -le "299" ]]; then
 
 			return 0

@@ -18,6 +18,15 @@ silent_mode="${defaultSilentMode}"
 
 function check_response_code() {
 
+	local output_file="${1}"
+	shift
+	local retry_count="${1}"
+	shift
+	local retry_wait="${1}"
+	shift
+	local url="${1}"
+	shift
+
 	# construct retry max time from count and wait
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
@@ -27,6 +36,7 @@ function check_response_code() {
 		header=$(curl --head --location --silent --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" "${url}")
 		exit_code=$?
 
+		# get response code from header, in reverse to get last code in case of redirections (tac) with regex and awk to extract code
 		response_code=$(echo "${header}" | tac | grep -m 1 'HTTP.*' | awk {'print $2'})
 
 		# if response code is not an integer then we cannot identify response (non github url?)
@@ -51,35 +61,29 @@ function check_response_code() {
 
 			fi
 
-		else
+		fi
 
-			if [[ "${retry_count}" -eq "0" ]]; then
+		if [[ "${retry_count}" -eq "0" ]]; then
 
-				echo -e "[warn] Response code ${response_code} from curl != 2xx, exhausted retries"
-				return 1
+			echo -e "[warn] Response code ${response_code} from curl for url '${url}' != 2xx, exhausted retries"
+			return 1
 
-			else
+		# if output file specified then log warning, else if stdout then do not log warning
+		elif [[ -n "${output_file}" ]]; then
 
-				# if output file specified then log warning, else if stdout then do not log warning
-				if [[ -n "${output_file}" ]]; then
+			echo -e "[warn] Response code ${response_code} from curl for url '${url}' != 2xx"
 
-					echo -e "[warn] Response code ${response_code} from curl != 2xx"
-
-					if [[ "${exit_code}" -ge "1" ]]; then
-						echo -e "[warn] Exit code ${exit_code} from curl != 0"
-					fi
-
-					echo "[info] ${retry_count} retries left"
-					echo "[info] Retrying in ${retry_wait} secs..."
-
-				fi
-
-				sleep "${retry_wait}"
-				retry_count=$((retry_count-1))
-
+			if [[ "${exit_code}" -ge "1" ]]; then
+				echo -e "[warn] Exit code ${exit_code} from curl != 0"
 			fi
 
+			echo "[info] ${retry_count} retries left"
+			echo "[info] Retrying in ${retry_wait} secs..."
+
 		fi
+
+		sleep "${retry_wait}"
+		retry_count=$((retry_count-1))
 
 	done
 
@@ -88,6 +92,16 @@ function check_response_code() {
 function get_response_body() {
 
 	local _resultvar="${1}"
+	shift
+	local retry_count="${1}"
+	shift
+	local retry_wait="${1}"
+	shift
+	local output_file="${1}"
+	shift
+	local silent_mode="${1}"
+	shift
+	local url="${1}"
 	shift
 
 	# construct retry max time from count and wait
@@ -247,7 +261,7 @@ if [[ -z "${url}" ]]; then
 
 fi
 
-check_response_code "${retry_count}" "${retry_wait}" "${url}"
+check_response_code "${output_file}" "${retry_count}" "${retry_wait}" "${url}"
 
 if [[ "${?}" -eq 0 ]]; then
 

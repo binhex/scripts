@@ -1,9 +1,6 @@
 #!/bin/bash
 # This script downloads github source releases in zipped format, it also has basic support for binary assets.
 
-# exit script if return code != 0
-set -e
-
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-source.zip"
@@ -20,120 +17,109 @@ extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 query_type="${defaultQueryType}"
 
-function github_release_version() {
+function identify_github_release_or_tag_name() {
 
-	echo -e "[info] Running function to identify latest release tag from GitHub..."
+	echo -e "[info] Running GitHub release/tag name identifier..."
 
-	# use github rest api to get app release info
-	echo -e "[info] github_release_url='https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}'"
+	local _resultvar="${1}"
+	shift
+	local github_owner="${1}"
+	shift
+	local github_repo="${1}"
+	shift
+	local query_type="${1}"
+	shift
+	local download_path="${1}"
+	shift
+
+	echo -e "[info] Running function to identify name of ${query_type} from GitHub..."
 	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
-	echo -e "[info] Identifying GitHub release..."
 	mkdir -p "${download_path}"
 
 	if [ "${query_type}" == "tags" ]; then
-		json_query=".[0].name"
+		json_query=".[].name"
 	else
 		json_query=".tag_name"
 	fi
 
-	echo -e "[info] Performing query to find out GitHub release..."
-	echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/github_release' -url '${github_release_url}'"
-	curly.sh -rc 6 -rw 10 -of "${download_path}/github_release" -url "${github_release_url}"
-	github_release=$(cat "${download_path}/github_release" | jq -r "${json_query}")
-	echo -e "[info] GitHub release is '${github_release}'"
-	rm -f "${download_path}/github_release"
+	echo -e "[info] Performing query to find out GitHub ${query_type}..."
+	github_release_or_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
+
+	if [ $? -ne 0 ]; then
+		echo -e "[info] Unable to find name for '${query_type}' trying all 'releases'..."
+		github_release_or_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].tag_name' 2> /dev/null)
+	fi
+
+	if [[ -z "${github_release_or_tag_name}" ]]; then
+		echo "[warn] Unable to identify GitHub ${query_type}"
+		return 1
+	fi
+
+	echo -e "[info] GitHub ${query_type} name is '${github_release_or_tag_name}'"
+	rm -f "${download_path}/github_release_or_tag_name"
+	eval "$_resultvar=${github_release_or_tag_name}"
 
 }
 
 function github_downloader() {
 
-	github_release="${1}"
+	echo -e "[info] Running GitHub downloader..."
+
+	local _resultvar="${1}"
+	shift
+	local github_release="${1}"
+	shift
+	local github_owner="${1}"
+	shift
+	local github_repo="${1}"
+	shift
+	local query_type="${1}"
+	shift
+	local release_type="${1}"
+	shift
+	local download_assets="${1}"
+	shift
+	local download_branch="${1}"
+	shift
+	local download_filename="${1}"
+	shift
 
 	if [ "${release_type}" == "binary" ]; then
+
+		echo -e "[info] Finding all GitHub asset names..."
+		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r '.assets[] | .name' 2> /dev/null)
+
+		if [ $? -ne 0 ]; then
+			echo -e "[info] Unable to find any assets for '${query_type}' trying all 'releases'..."
+			github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].assets[] | .name' 2> /dev/null)
+		fi
+
+		if [ $? -ne 0 ]; then
+			echo -e "[info] Unable to identify assets available"
+			return 1
+		fi
+
+		echo -e "[info] Finding asset names that match the download filename we specified..."
+		match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_assets}")
+
+		if [[ -z "${match_asset_name}" ]]; then
+
+			echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
+			echo -e "[info] ${github_asset_names}"
+			echo -e "[info] Exiting script..." ; exit 1
+
+		else
+
+			echo -e "[info] Downloading binary release asset '${match_asset_name}' from GitHub..."
+			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+
+		fi
 
 		filename=$(basename "${download_assets}")
 		download_ext="${filename##*.}"
 
-		echo -e "[infp] Finding all GitHub asset names..."
-		echo -e "[info] github_asset_names=\$(curl -s 'https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest' | jq -r '.assets[] | .name' || true)"
-		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases/latest" | jq -r '.assets[] | .name' || true)
-
-		if [[ ! -z "${github_asset_names}" ]]; then
-
-			echo -e "[info] Finding asset names that match the download filename we specified..."
-			echo -e "[info] match_asset_name=\$(echo '${github_asset_names}' | grep -P -o -m 1 '${download_assets}')"
-			match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_assets}")
-
-			if [[ -z "${match_asset_name}" ]]; then
-
-				echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
-				echo -e "[info] ${github_asset_names}"
-				echo -e "[info] Exiting script..." ; exit 1
-
-			else
-
-				echo -e "[info] Downloading binary release asset from GitHub..."
-				echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${match_asset_name}' -url 'https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}'"
-				curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-
-			fi
-
-		fi
-
-		if [ "${download_ext}" == "zip" ]; then
-
-			echo -e "[info] Removing previous extract path..."
-			echo -e "[info] rm -rf '${extract_path}/'"
-			rm -rf "${extract_path}/"
-
-			echo -e "[info] Extracting zip..."
-			echo -e "[info] unzip -o '${download_path}/${match_asset_name}' -d '${extract_path}'"
-			mkdir -p "${extract_path}"
-			unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
-
-			echo -e "[info] Removing binary archive..."
-			echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
-			rm -f "${download_path}/${match_asset_name}"
-
-			if [[ ! -z "${install_path}" ]]; then
-
-				echo -e "[info] Copying from extraction path to install path..."
-				echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
-				mkdir -p "${install_path}"
-				cp -R "${extract_path}"/*/* "${install_path}"
-
-				echo -e "[info] Removing extract path..."
-				echo -e "[info] rm -rf '${extract_path}/'"
-				rm -rf "${extract_path}/"
-
-			fi
-
-		else
-
-			if [[ ! -z "${install_path}" ]]; then
-
-				echo -e "[info] Copying from download path to install path..."
-				echo -e "[info] cp -R '${download_path}/${match_asset_name}' '${install_path}/${match_asset_name}'"
-				mkdir -p "${install_path}"
-				cp -R "${download_path}/${match_asset_name}" "${install_path}/${match_asset_name}"
-
-				echo -e "[info] Removing source archive..."
-				echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
-				rm -f "${download_path}/${match_asset_name}"
-
-				echo -e "[info] Marking binary asset as executable..."
-				echo -e "[info] chmod +x '${install_path}/${match_asset_name}'"
-				chmod +x "${install_path}/${match_asset_name}"
-
-			fi
-
-		fi
-
 	else
-
-		filename=$(basename "${download_filename}")
-		download_ext="${filename##*.}"
 
 		if [[ ! -z "${download_branch}" ]]; then
 
@@ -149,56 +135,178 @@ function github_downloader() {
 
 		fi
 
-		if [ "${download_ext}" == "zip" ]; then
+		filename=$(basename "${download_filename}")
+		download_ext="${filename##*.}"
 
-			echo -e "[info] Removing previous extract path..."
-			echo -e "[info] rm -rf '${extract_path}/'"
-			rm -rf "${extract_path}/"
+	fi
 
-			echo -e "[info] Extracting zip..."
-			echo -e "[info] unzip -o '${download_path}/${download_filename}' -d '${extract_path}'"
-			mkdir -p "${extract_path}"
-			unzip -o "${download_path}/${download_filename}" -d "${extract_path}"
+	_resultvar="${download_ext}"
 
-			echo -e "[info] Removing source archive..."
-			echo -e "[info] rm -f '${download_path}/${download_filename}'"
-			rm -f "${download_path}/${download_filename}"
+}
 
-			if [[ ! -z "${install_path}" ]]; then
+function archive_extractor() {
 
-				echo -e "[info] Copying from extraction path to install path..."
-				echo -e "[info] cp -R '${extract_path}/*/*' '${install_path}'"
-				mkdir -p "${install_path}"
-				cp -R "${extract_path}"/*/* "${install_path}"
+	echo -e "[info] Running archive extractor..."
 
-				echo -e "[info] Removing extract path..."
-				echo -e "[info] rm -rf '${extract_path}/'"
-				rm -rf "${extract_path}/"
+	local download_ext="${1}"
+	shift
+	local download_assets="${1}"
+	shift
+	local download_filename="${1}"
+	shift
+	local extract_path="${1}"
+	shift
 
-			fi
+	if [ -z "${download_ext}" ]; then
+		echo -e "[warn] Download extension not found"
+		return 1
+	fi
 
+	if [ -z "${extract_path}" ]; then
+		echo -e "[warn] Extraction path not specified"
+		return 1
+	fi
+
+	echo -e "[info] Download extension is '${download_ext}'"
+	echo -e "[info] Removing previous extract path..."
+	echo -e "[info] rm -rf '${extract_path}/'"
+	rm -rf "${extract_path}/"
+	mkdir -p "${extract_path}"
+
+	if [ "${download_ext}" == "zip" ]; then
+
+		echo -e "[info] Extracting zip..."
+
+		if [[ -n "${download_assets}" ]]; then
+			unzip -o "${download_path}/${download_assets}" -d "${extract_path}"
 		else
-
-			if [[ ! -z "${install_path}" ]]; then
-
-				echo -e "[info] Copying from download path to install path..."
-				echo -e "[info] cp -R '${download_path}/${download_filename}' '${install_path}/${download_filename}'"
-				mkdir -p "${install_path}"
-				cp -R "${download_path}/${download_filename}" "${install_path}/${download_filename}"
-
-				echo -e "[info] Removing source archive..."
-				echo -e "[info] rm -f '${download_path}/${download_filename}'"
-				rm -f "${download_path}/${download_filename}"
-
-			fi
-
+			unzip -o "${download_path}/${download_filename}" -d "${extract_path}"
 		fi
+
+	elif [ "${download_ext}" == "gz" ]; then
+
+		echo -e "[info] Extracting gz..."
+		cd "${extract_path}"
+
+		if [[ -n "${download_assets}" ]]; then
+			tar -xvf "${download_path}/${download_assets}"
+		else
+			tar -xvf "${download_path}/${download_filename}"
+		fi
+
+	else
+
+		echo -e "[warn] File extension '${download_ext}' not known as an archive"
+		return 1
+
+	fi
+
+}
+
+function copy_to_install_path() {
+
+	echo -e "[info] Running copy to install path..."
+	
+	local extract_path="${1}"
+	shift
+	local install_path="${1}"
+	shift
+	local download_ext="${1}"
+	shift
+	local download_path="${1}"
+	shift
+	local download_assets="${1}"
+	shift
+
+	if [ -z "${install_path}" ]; then
+		echo -e "[warn] Install path not specified"
+		return 1
+	fi
+
+	echo -e "[info] Removing previous install path..."
+	echo -e "[info] rm -rf ${install_path}/"
+	rm -rf "${install_path}/"
+	mkdir -p "${install_path}"
+
+	if [[ "${download_ext}" == "zip" ]] && [[ "${release_type}" == "source" ]]; then
+
+		if [ -z "${extract_path}" ]; then
+			echo -e "[warn] Extraction path not found"
+			return 1
+		fi
+
+		echo -e "[info] Copying source from extraction path to install path..."
+		echo -e "[info] cp -R ${extract_path}/*/* ${install_path}"
+		cp -R "${extract_path}"/*/* "${install_path}"
+
+	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] )&& [[ "${release_type}" == "binary" ]]; then
+
+		if [ -z "${extract_path}" ]; then
+			echo -e "[warn] Extraction path not found"
+			return 1
+		fi
+
+		echo -e "[info] Copying binary asset from extraction path to install path..."
+		echo -e "[info] cp -R ${extract_path}/* ${install_path}"
+		cp -R "${extract_path}"/* "${install_path}"
+
+	else
+
+		echo -e "[info] Copying binary asset from downloaded path to install path..."
+		echo -e "[info] cp -R ${download_path}/${download_assets} ${install_path}"
+		cp -R "${download_path}/${download_assets}" "${install_path}"
+
+	fi
+
+}
+
+function cleanup() {
+
+	echo -e "[info] Running cleanup..."
+
+	local download_ext="${1}"
+	shift
+	local download_assets="${1}"
+	shift
+	local download_filename="${1}"
+	shift
+	local download_path="${1}"
+	shift
+	local extract_path="${1}"
+	shift
+
+	if [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]]; then
+
+		if [ -z "${extract_path}" ]; then
+			echo -e "[warn] Extraction path not found"
+			return 1
+		fi
+
+		echo -e "[info] Removing temporary extraction path..."
+		echo -e "[info] rm -rf '${extract_path}'"
+		rm -rf "${extract_path}"
+
+	fi
+
+	if [[ -n "${download_assets}" ]]; then
+
+		echo -e "[info] Removing binary assets..."
+		echo -e "[info] rm -f '${download_path}/${download_assets}'"
+		rm -f "${download_path}/${download_assets}"
+
+	else
+
+		echo -e "[info] Removing source archive..."
+		echo -e "[info] rm -f '${download_path}/${download_filename}'"
+		rm -f "${download_path}/${download_filename}"
 
 	fi
 
 }
 
 function github_compile_src() {
+
+	echo -e "[info] Running compile source..."
 
 	# install compilation tooling
 	pacman -S --needed base-devel --noconfirm
@@ -344,6 +452,7 @@ do
 	 shift
 done
 
+echo "[info] Checking we have all required parameters before proceeding..."
 if [[ -z "${github_owner}" ]]; then
 	echo "[warn] GitHub owner's name not defined via parameter -go or --github-owner, displaying help..."
 	show_help
@@ -351,33 +460,57 @@ if [[ -z "${github_owner}" ]]; then
 fi
 
 if [[ -z "${github_repo}" ]]; then
-	echo "[warn] GitHub repo name not defined via parameter -gr --github-repo, displaying help..."
+	echo "[warn] GitHub repo name not defined via parameter -gr or --github-repo, displaying help..."
 	show_help
 	exit 1
 fi
 
-# if we dont specify a branch then we assume release
-if [[ -z "${download_branch}" ]]; then
-	# if we dont define the tag/release then find out what it is
-	if [[ -z "${github_release}" ]]; then
-		github_release_version
+if [[ -z "${extract_path}" ]]; then
+	echo "[warn] GitHub extraction path not defined via parameter -ep or --extract-path, displaying help..."
+	show_help
+	exit 1
+fi
+
+if [[ -z "${install_path}" ]]; then
+	echo "[warn] GitHub installation path not defined via parameter -ip or --install-path, displaying help..."
+	show_help
+	exit 1
+fi
+
+if [ "${release_type}" == "binary" ]; then
+	if [[ -z "${download_assets}" ]]; then
+		echo "[warn] GitHub asset name not defined via parameter -da or --download-assets, displaying help..."
+		show_help
+		exit 1
 	fi
 fi
 
-# if we dont specify a branch then we assume release
-# if branch is specified then download without passing github release version
+echo "[info] Running GitHub script..."
 if [[ -z "${download_branch}" ]]; then
-	# if we want to download the release artifact then do so, otherwise return release/tag only
-	if [[ "${download_release}" == "true" ]]; then
-		github_downloader "${github_release}"
-	else
-		echo "${github_release}"
+	echo "[info] GitHub branch not specified via parameter -db or --download-branch, assuming GitHub 'release' or 'tag'"
+
+	if [[ -z "${github_release}" ]]; then
+		identify_github_release_or_tag_name "github_release_or_tag_name" "${github_owner}" "${github_repo}" "${query_type}" "${download_path}"
 	fi
-else
-	github_downloader
 fi
+
+# change to sane path - only required in case of rm -rf for extracted folder
+cd '/tmp'
+
+# download source or binary assets
+github_downloader "download_ext" "${github_release_or_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
+
+# extract any compressed source or binary assets
+archive_extractor "${download_ext}" "${download_assets}" "${download_filename}" "${extract_path}"
+
+# copy extracted source/binary to specified install path
+copy_to_install_path "${extract_path}" "${install_path}" "${download_ext}" "${download_path}" "${download_assets}"
+
+# delete any compressed source or binary assets
+cleanup "${download_ext}" "${download_assets}" "${download_filename}" "${download_path}" "${extract_path}"
 
 # if we need to compile source then install base-devel and run commands to compile
 if [[ -n "${compile_src}" ]]; then
 	github_compile_src
 fi
+echo "[info] GitHub script finished"

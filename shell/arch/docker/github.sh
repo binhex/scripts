@@ -223,9 +223,6 @@ function copy_to_install_path() {
 		return 1
 	fi
 
-	echo -e "[info] Removing previous install path..."
-	echo -e "[info] rm -rf ${install_path}/"
-	rm -rf "${install_path}/"
 	mkdir -p "${install_path}"
 
 	if [[ "${download_ext}" == "zip" ]] && [[ "${release_type}" == "source" ]]; then
@@ -236,7 +233,7 @@ function copy_to_install_path() {
 		fi
 
 		echo -e "[info] Copying source from extraction path to install path..."
-		echo -e "[info] cp -R ${extract_path}/*/* ${install_path}"
+		echo -e "[info] cp -rf ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
 	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ "${release_type}" == "binary" ]]; then
@@ -247,13 +244,13 @@ function copy_to_install_path() {
 		fi
 
 		echo -e "[info] Copying binary asset from extraction path to install path..."
-		echo -e "[info] cp -R ${extract_path}/* ${install_path}"
+		echo -e "[info] cp -rf ${extract_path}/* ${install_path}"
 		cp -R "${extract_path}"/* "${install_path}"
 
 	else
 
 		echo -e "[info] Copying binary asset from downloaded path to install path..."
-		echo -e "[info] cp -R ${download_path}/${download_assets} ${install_path}"
+		echo -e "[info] cp -rf ${download_path}/${download_assets} ${install_path}"
 		cp -R "${download_path}/${download_assets}" "${install_path}"
 
 	fi
@@ -379,7 +376,7 @@ Where:
 		Default is not defined.
 
 Example:
-	./github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
+	github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
 ENDHELP
 }
 
@@ -453,26 +450,31 @@ do
 done
 
 echo "[info] Checking we have all required parameters before proceeding..."
+
 if [[ -z "${github_owner}" ]]; then
 	echo "[warn] GitHub owner's name not defined via parameter -go or --github-owner, displaying help..."
+	echo ""
 	show_help
 	exit 1
 fi
 
 if [[ -z "${github_repo}" ]]; then
 	echo "[warn] GitHub repo name not defined via parameter -gr or --github-repo, displaying help..."
+	echo ""
 	show_help
 	exit 1
 fi
 
 if [[ -z "${extract_path}" ]]; then
 	echo "[warn] GitHub extraction path not defined via parameter -ep or --extract-path, displaying help..."
+	echo ""
 	show_help
 	exit 1
 fi
 
 if [[ -z "${install_path}" ]]; then
 	echo "[warn] GitHub installation path not defined via parameter -ip or --install-path, displaying help..."
+	echo ""
 	show_help
 	exit 1
 fi
@@ -480,6 +482,7 @@ fi
 if [ "${release_type}" == "binary" ]; then
 	if [[ -z "${download_assets}" ]]; then
 		echo "[warn] GitHub asset name not defined via parameter -da or --download-assets, displaying help..."
+		echo ""
 		show_help
 		exit 1
 	fi

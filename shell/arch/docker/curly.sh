@@ -91,8 +91,6 @@ function check_response_code() {
 
 function get_response_body() {
 
-	local _resultvar="${1}"
-	shift
 	local retry_count="${1}"
 	shift
 	local retry_wait="${1}"
@@ -137,7 +135,7 @@ function get_response_body() {
 			if [[ "${retry_count}" -eq "0" ]]; then
 
 				echo -e "[warn] Exit code '${exit_code}' from curl != 0 or no response body received, exhausted retries"
-				_resultvar=1; break
+				response_body_result=1; break
 
 			else
 
@@ -160,11 +158,11 @@ function get_response_body() {
 
 			if [[ -n "${output_file}" ]]; then
 
-				_resultvar=0; break
+				response_body_result=0; break
 
 			else
 
-				_resultvar="${response_body}"; break
+				response_body_result="${response_body}"; break
 
 			fi
 
@@ -265,13 +263,13 @@ check_response_code "${output_file}" "${retry_count}" "${retry_wait}" "${url}"
 
 if [[ "${?}" -eq 0 ]]; then
 
-	get_response_body "${response_body_result}" "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"
+	get_response_body "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"
 
 	if [[ -z "${output_file}" ]]; then
 
-		if [[ -n "${response_body}" ]]; then
+		if [[ -n "${response_body_result}" ]]; then
 
-			echo "${response_body}"
+			echo "${response_body_result}"
 			exit 0
 
 		else

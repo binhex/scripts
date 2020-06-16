@@ -66,8 +66,6 @@ function github_downloader() {
 
 	echo -e "[info] Running GitHub downloader..."
 
-	local _resultvar="${1}"
-	shift
 	local github_release="${1}"
 	shift
 	local github_owner="${1}"
@@ -139,8 +137,6 @@ function github_downloader() {
 		download_ext="${filename##*.}"
 
 	fi
-
-	_resultvar="${download_ext}"
 
 }
 
@@ -501,7 +497,7 @@ fi
 cd '/tmp'
 
 # download source or binary assets
-github_downloader "download_ext" "${github_release_or_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
+github_downloader "${github_release_or_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
 
 # extract any compressed source or binary assets
 archive_extractor "${download_ext}" "${download_assets}" "${download_filename}" "${extract_path}"

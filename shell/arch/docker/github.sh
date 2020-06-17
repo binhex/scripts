@@ -17,48 +17,42 @@ extract_path="${defaultExtractPath}"
 release_type="${defaultReleaseType}"
 query_type="${defaultQueryType}"
 
-function identify_github_release_or_tag_name() {
+function identify_github_release_tag_name() {
 
 	echo -e "[info] Running GitHub release/tag name identifier..."
 
-	local _resultvar="${1}"
-	shift
 	local github_owner="${1}"
 	shift
 	local github_repo="${1}"
 	shift
 	local query_type="${1}"
 	shift
-	local download_path="${1}"
-	shift
 
 	echo -e "[info] Running function to identify name of ${query_type} from GitHub..."
 	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
-	mkdir -p "${download_path}"
-
 	if [ "${query_type}" == "tags" ]; then
 		json_query=".[].name"
-	else
+	elif [ "${query_type}" == "release/latest" ]; then
 		json_query=".tag_name"
 	fi
 
 	echo -e "[info] Performing query to find out GitHub ${query_type}..."
-	github_release_or_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
 
-	if [ $? -ne 0 ]; then
-		echo -e "[info] Unable to find name for '${query_type}' trying all 'releases'..."
-		github_release_or_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].tag_name' 2> /dev/null)
+	if [ "${query_type}" == "pre-release" ]; then
+		echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/releases | jq -r '.[0].tag_name' 2> /dev/null"
+		github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].tag_name' 2> /dev/null)
+	else
+		echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r ${json_query} 2> /dev/null"
+		github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
 	fi
 
-	if [[ -z "${github_release_or_tag_name}" ]]; then
-		echo "[warn] Unable to identify GitHub ${query_type}"
-		return 1
+	if [[ -z "${github_release_tag_name}" ]]; then
+		echo "[warn] Unable to identify GitHub ${query_type} name, exiting script..."
+		exit 1
 	fi
 
-	echo -e "[info] GitHub ${query_type} name is '${github_release_or_tag_name}'"
-	rm -f "${download_path}/github_release_or_tag_name"
-	eval "$_resultvar=${github_release_or_tag_name}"
+	echo -e "[info] GitHub ${query_type} name is '${github_release_tag_name}'"
 
 }
 
@@ -86,32 +80,42 @@ function github_downloader() {
 	if [ "${release_type}" == "binary" ]; then
 
 		echo -e "[info] Finding all GitHub asset names..."
-		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r '.assets[] | .name' 2> /dev/null)
 
-		if [ $? -ne 0 ]; then
-			echo -e "[info] Unable to find any assets for '${query_type}' trying all 'releases'..."
+		if [ "${query_type}" == "pre-release" ]; then
+			echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/releases | jq -r '.[0].assets[] | .name' 2> /dev/null"
 			github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].assets[] | .name' 2> /dev/null)
+		else
+			echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r '.assets[] | .name' 2> /dev/null"
+			github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r '.assets[] | .name' 2> /dev/null)
 		fi
 
-		if [ $? -ne 0 ]; then
-			echo -e "[info] Unable to identify assets available"
-			return 1
+		if [[ -z "${github_asset_names}" ]]; then
+			echo -e "[info] Unable to identify binary assets available, exiting script..."
+			exit 1
 		fi
 
-		echo -e "[info] Finding asset names that match the download filename we specified..."
+		echo -e "[info] Finding binary asset names that match '${download_assets}'..."
+
 		match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_assets}")
 
 		if [[ -z "${match_asset_name}" ]]; then
 
-			echo -e "[warn] No assets matching pattern available for download, showing all available assets..."
+			echo -e "[warn] No binary assets matching pattern available for download, showing all available assets..."
 			echo -e "[info] ${github_asset_names}"
 			echo -e "[info] Exiting script..." ; exit 1
 
 		else
 
-			echo -e "[info] Downloading binary release asset '${match_asset_name}' from GitHub..."
+			echo -e "[info] Asset name matches, downloading binary asset '${match_asset_name}' from GitHub..."
+
+			echo -e "[info] curly.sh -rc 6 -rw 10 -of ${download_path}/${match_asset_name} -url https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 
+		fi
+
+		if [ $? -ne 0 ]; then
+			echo -e "[info] Unable to download binary asset, exiting script..."
+			exit 1
 		fi
 
 		filename=$(basename "${download_assets}")
@@ -119,7 +123,7 @@ function github_downloader() {
 
 	else
 
-		if [[ ! -z "${download_branch}" ]]; then
+		if [[ "${query_type}" == "branch" ]]; then
 
 			echo -e "[info] Downloading latest commit on specific branch '${download_branch}' from GitHub..."
 			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
@@ -131,6 +135,11 @@ function github_downloader() {
 			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
+		fi
+
+		if [ $? -ne 0 ]; then
+			echo -e "[info] Unable to download source, exiting script..."
+			exit 1
 		fi
 
 		filename=$(basename "${download_filename}")
@@ -164,12 +173,12 @@ function archive_extractor() {
 	fi
 
 	echo -e "[info] Download extension is '${download_ext}'"
-	echo -e "[info] Removing previous extract path..."
-	echo -e "[info] rm -rf '${extract_path}/'"
-	rm -rf "${extract_path}/"
-	mkdir -p "${extract_path}"
 
 	if [ "${download_ext}" == "zip" ]; then
+
+		echo -e "[info] Removing previous extract path..."
+		rm -rf "${extract_path}/"
+		mkdir -p "${extract_path}"
 
 		echo -e "[info] Extracting zip..."
 
@@ -180,6 +189,10 @@ function archive_extractor() {
 		fi
 
 	elif [ "${download_ext}" == "gz" ]; then
+
+		echo -e "[info] Removing previous extract path..."
+		rm -rf "${extract_path}/"
+		mkdir -p "${extract_path}"
 
 		echo -e "[info] Extracting gz..."
 		cd "${extract_path}"
@@ -351,7 +364,7 @@ Where:
 		Define whether to download binary assets or source from GitHub.
 		Default to '${defaultReleaseType}'.
 
-	-qt or --query-type <release/latest|tags>
+	-qt or --query-type <release|pre-release|tag|branch>
 		Define GitHub api query type for release or tags from GitHub.
 		Default to '${defaultQueryType}'.
 
@@ -484,20 +497,31 @@ if [ "${release_type}" == "binary" ]; then
 	fi
 fi
 
-echo "[info] Running GitHub script..."
-if [[ -z "${download_branch}" ]]; then
-	echo "[info] GitHub branch not specified via parameter -db or --download-branch, assuming GitHub 'release' or 'tag'"
-
-	if [[ -z "${github_release}" ]]; then
-		identify_github_release_or_tag_name "github_release_or_tag_name" "${github_owner}" "${github_repo}" "${query_type}" "${download_path}"
+if [ "${query_type}" == "branch" ]; then
+	if [[ -z "${download_branch}" ]]; then
+		echo "[warn] GitHub branch name not defined via parameter -db or --download-branch, defaulting to 'master'"
+		download_branch="master"
 	fi
 fi
 
-# change to sane path - only required in case of rm -rf for extracted folder
-cd '/tmp'
+# change friendly name to correct name used in api call
+if [ "${query_type}" == "release" ]; then
+	query_type="release/latest"
+fi
+
+echo "[info] Running GitHub script..."
+
+# identify release or tag name
+if [[ ! "${query_type}" == "branch" ]]; then
+	identify_github_release_tag_name "${github_owner}" "${github_repo}" "${query_type}"
+	if [ -z "${github_release_tag_name}" ]; then
+		echo "[warn] Unable to identify GitHub release or tag name, exiting script..."
+		exit 1
+	fi
+fi
 
 # download source or binary assets
-github_downloader "${github_release_or_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
+github_downloader "${github_release_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
 
 # extract any compressed source or binary assets
 archive_extractor "${download_ext}" "${download_assets}" "${download_filename}" "${extract_path}"

@@ -353,10 +353,6 @@ Where:
 		Define GitHub owners name.
 		No default.
 
-	-rt or --release-type <binary|source>
-		Define whether to download binary assets or source from GitHub.
-		Default to '${defaultReleaseType}'.
-
 	-qt or --query-type <release|pre-release|tags|branch>
 		Define GitHub api query type for release or tags from GitHub.
 		Default to '${defaultQueryType}'.

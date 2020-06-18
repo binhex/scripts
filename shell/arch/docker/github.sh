@@ -5,16 +5,13 @@
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-source.zip"
 readonly defaultDownloadPath="/tmp"
-readonly defaultDownloadRelease="true"
 readonly defaultExtractPath="/tmp/extracted"
-readonly defaultReleaseType="source"
 readonly defaultQueryType="releases/latest"
+readonly defaultDownloadBranch="master"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
-download_release="${defaultDownloadRelease}"
 extract_path="${defaultExtractPath}"
-release_type="${defaultReleaseType}"
 query_type="${defaultQueryType}"
 
 function identify_github_release_tag_name() {
@@ -32,20 +29,18 @@ function identify_github_release_tag_name() {
 	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
 	if [ "${query_type}" == "tags" ]; then
-		json_query=".[].name"
-	elif [ "${query_type}" == "release/latest" ]; then
-		json_query=".tag_name"
+		local json_query=".[0].name"
+	elif [ "${query_type}" == "pre-release" ]; then
+		local json_query=".[0].tag_name"
+		local query_type="releases"
+	elif [ "${query_type}" == "releases/latest" ]; then
+		local json_query=".tag_name"
 	fi
 
 	echo -e "[info] Performing query to find out GitHub ${query_type}..."
 
-	if [ "${query_type}" == "pre-release" ]; then
-		echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/releases | jq -r '.[0].tag_name' 2> /dev/null"
-		github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].tag_name' 2> /dev/null)
-	else
-		echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r ${json_query} 2> /dev/null"
-		github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
-	fi
+	echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r ${json_query} 2> /dev/null"
+	github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
 
 	if [[ -z "${github_release_tag_name}" ]]; then
 		echo "[warn] Unable to identify GitHub ${query_type} name, exiting script..."
@@ -68,8 +63,6 @@ function github_downloader() {
 	shift
 	local query_type="${1}"
 	shift
-	local release_type="${1}"
-	shift
 	local download_assets="${1}"
 	shift
 	local download_branch="${1}"
@@ -77,7 +70,7 @@ function github_downloader() {
 	local download_filename="${1}"
 	shift
 
-	if [ "${release_type}" == "binary" ]; then
+	if [ -n "${download_assets}" ]; then
 
 		echo -e "[info] Finding all GitHub asset names..."
 
@@ -131,7 +124,7 @@ function github_downloader() {
 
 		else
 
-			echo -e "[info] Downloading latest release source from GitHub..."
+			echo -e "[info] Downloading ${query_type} source from GitHub..."
 			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
 			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
@@ -234,7 +227,7 @@ function copy_to_install_path() {
 
 	mkdir -p "${install_path}"
 
-	if [[ "${download_ext}" == "zip" ]] && [[ "${release_type}" == "source" ]]; then
+	if [[ "${download_ext}" == "zip" ]] && [[ -z "${download_assets}" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"
@@ -245,7 +238,7 @@ function copy_to_install_path() {
 		echo -e "[info] cp -rf ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
-	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ "${release_type}" == "binary" ]]; then
+	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ -n "${download_assets}" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"
@@ -346,7 +339,7 @@ Where:
 
 	-db or --download-branch <branch name>
 		Define GitHub branch to download.
-		No default.
+		Defaults to '${defaultDownloadBranch}'.
 
 	-ep or --extract-path <path>
 		Define path to extract the download to.
@@ -364,7 +357,7 @@ Where:
 		Define whether to download binary assets or source from GitHub.
 		Default to '${defaultReleaseType}'.
 
-	-qt or --query-type <release|pre-release|tag|branch>
+	-qt or --query-type <release|pre-release|tags|branch>
 		Define GitHub api query type for release or tags from GitHub.
 		Default to '${defaultQueryType}'.
 
@@ -376,16 +369,26 @@ Where:
 		Define GitHub release name.
 		If not defined then latest release will be used.
 
-	-dr or --download-release <true|false>
-		Define whether to download the GitHub release artifact.
-		Default to '${defaultDownloadRelease}'.
-
 	-cs or --compile-src <commands to execute>
 		Define commands to execute to compile source code.
 		Default is not defined.
 
 Example:
-	github.sh -df github-download.zip -dp /tmp -ep /tmp/extracted -ip /opt/binhex/deluge -go binhex -rt source -gr arch-deluge
+	GitHub release source download:
+		github.sh --install-path /opt/binhex/deluge --github-owner binhex --github-repo arch-deluge --query-type release
+
+	GitHub tags source download:
+		github.sh --install-path /opt/binhex/deluge --github-owner binhex --github-repo arch-deluge --query-type tags
+
+	GitHub master branch source download:
+		github.sh --install-path /opt/binhex/deluge --github-owner binhex --github-repo arch-deluge --query-type branch --download-branch master
+
+	GitHub release binary asset download:
+		github.sh --install-path /usr/bin --github-owner yudai --github-repo gotty --download-assets gotty_linux_arm.tar.gz --query-type release
+
+	GitHub pre-release binary asset download:
+		github.sh --install-path /usr/bin --github-owner yudai --github-repo gotty --download-assets gotty_2.0.0-alpha.3_linux_amd64.tar.gz --query-type pre-release
+
 ENDHELP
 }
 
@@ -429,16 +432,8 @@ do
 			github_release=$2
 			shift
 			;;
-		-rt|--release-type)
-			release_type=$2
-			shift
-			;;
 		-qt|--query-type)
 			query_type=$2
-			shift
-			;;
-		-dr|--download-release)
-			download_release=$2
 			shift
 			;;
 		-cs|--compile-src)
@@ -488,25 +483,9 @@ if [[ -z "${install_path}" ]]; then
 	exit 1
 fi
 
-if [ "${release_type}" == "binary" ]; then
-	if [[ -z "${download_assets}" ]]; then
-		echo "[warn] GitHub asset name not defined via parameter -da or --download-assets, displaying help..."
-		echo ""
-		show_help
-		exit 1
-	fi
-fi
-
-if [ "${query_type}" == "branch" ]; then
-	if [[ -z "${download_branch}" ]]; then
-		echo "[warn] GitHub branch name not defined via parameter -db or --download-branch, defaulting to 'master'"
-		download_branch="master"
-	fi
-fi
-
 # change friendly name to correct name used in api call
 if [ "${query_type}" == "release" ]; then
-	query_type="release/latest"
+	query_type="releases/latest"
 fi
 
 echo "[info] Running GitHub script..."
@@ -521,7 +500,7 @@ if [[ ! "${query_type}" == "branch" ]]; then
 fi
 
 # download source or binary assets
-github_downloader "${github_release_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${release_type}" "${download_assets}" "${download_branch}" "${download_filename}"
+github_downloader "${github_release_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${download_assets}" "${download_branch}" "${download_filename}"
 
 # extract any compressed source or binary assets
 archive_extractor "${download_ext}" "${download_assets}" "${download_filename}" "${extract_path}"

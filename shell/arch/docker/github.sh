@@ -111,7 +111,7 @@ function github_downloader() {
 			exit 1
 		fi
 
-		filename=$(basename "${download_assets}")
+		filename=$(basename "${match_asset_name}")
 		download_ext="${filename##*.}"
 
 	else
@@ -148,7 +148,7 @@ function archive_extractor() {
 
 	local download_ext="${1}"
 	shift
-	local download_assets="${1}"
+	local match_asset_name="${1}"
 	shift
 	local download_filename="${1}"
 	shift
@@ -175,8 +175,8 @@ function archive_extractor() {
 
 		echo -e "[info] Extracting zip..."
 
-		if [[ -n "${download_assets}" ]]; then
-			unzip -o "${download_path}/${download_assets}" -d "${extract_path}"
+		if [[ -n "${match_asset_name}" ]]; then
+			unzip -o "${download_path}/${match_asset_name}" -d "${extract_path}"
 		else
 			unzip -o "${download_path}/${download_filename}" -d "${extract_path}"
 		fi
@@ -190,8 +190,8 @@ function archive_extractor() {
 		echo -e "[info] Extracting gz..."
 		cd "${extract_path}"
 
-		if [[ -n "${download_assets}" ]]; then
-			tar -xvf "${download_path}/${download_assets}"
+		if [[ -n "${match_asset_name}" ]]; then
+			tar -xvf "${download_path}/${match_asset_name}"
 		else
 			tar -xvf "${download_path}/${download_filename}"
 		fi
@@ -217,7 +217,7 @@ function copy_to_install_path() {
 	shift
 	local download_path="${1}"
 	shift
-	local download_assets="${1}"
+	local match_asset_name="${1}"
 	shift
 
 	if [ -z "${install_path}" ]; then
@@ -227,7 +227,7 @@ function copy_to_install_path() {
 
 	mkdir -p "${install_path}"
 
-	if [[ "${download_ext}" == "zip" ]] && [[ -z "${download_assets}" ]]; then
+	if [[ "${download_ext}" == "zip" ]] && [[ -z "${match_asset_name}" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"
@@ -238,7 +238,7 @@ function copy_to_install_path() {
 		echo -e "[info] cp -rf ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
-	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ -n "${download_assets}" ]]; then
+	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ -n "${match_asset_name}" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"
@@ -252,8 +252,8 @@ function copy_to_install_path() {
 	else
 
 		echo -e "[info] Copying binary asset from downloaded path to install path..."
-		echo -e "[info] cp -rf ${download_path}/${download_assets} ${install_path}"
-		cp -R "${download_path}/${download_assets}" "${install_path}"
+		echo -e "[info] cp -rf ${download_path}/${match_asset_name} ${install_path}"
+		cp -R "${download_path}/${match_asset_name}" "${install_path}"
 
 	fi
 
@@ -265,7 +265,7 @@ function cleanup() {
 
 	local download_ext="${1}"
 	shift
-	local download_assets="${1}"
+	local match_asset_name="${1}"
 	shift
 	local download_filename="${1}"
 	shift
@@ -287,11 +287,11 @@ function cleanup() {
 
 	fi
 
-	if [[ -n "${download_assets}" ]]; then
+	if [[ -n "${match_asset_name}" ]]; then
 
 		echo -e "[info] Removing binary assets..."
-		echo -e "[info] rm -f '${download_path}/${download_assets}'"
-		rm -f "${download_path}/${download_assets}"
+		echo -e "[info] rm -f '${download_path}/${match_asset_name}'"
+		rm -f "${download_path}/${match_asset_name}"
 
 	else
 
@@ -332,8 +332,8 @@ Where:
 		Define name of the downloaded file
 		Defaults to '${defaultDownloadFilename}'.
 
-	-da or --download-assets <filename.ext>
-		Define name of the asset file(s) to download
+	-da or --download-assets <asset name>
+		Define name of the asset file(s) to download, asset name can use regex.
 		No default.
 
 	-dp or --download-path <path>
@@ -346,7 +346,7 @@ Where:
 
 	-ep or --extract-path <path>
 		Define path to extract the download to.
-		No default.
+		Defaults to '${defaultExtractPath}'.
 
 	-ip or --install-path <path>
 		Define path to install to.
@@ -468,13 +468,6 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-if [[ -z "${extract_path}" ]]; then
-	echo "[warn] GitHub extraction path not defined via parameter -ep or --extract-path, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
 if [[ -z "${install_path}" ]]; then
 	echo "[warn] GitHub installation path not defined via parameter -ip or --install-path, displaying help..."
 	echo ""
@@ -502,13 +495,13 @@ fi
 github_downloader "${github_release_tag_name}" "${github_owner}" "${github_repo}" "${query_type}" "${download_assets}" "${download_branch}" "${download_filename}"
 
 # extract any compressed source or binary assets
-archive_extractor "${download_ext}" "${download_assets}" "${download_filename}" "${extract_path}"
+archive_extractor "${download_ext}" "${match_asset_name}" "${download_filename}" "${extract_path}"
 
 # copy extracted source/binary to specified install path
-copy_to_install_path "${extract_path}" "${install_path}" "${download_ext}" "${download_path}" "${download_assets}"
+copy_to_install_path "${extract_path}" "${install_path}" "${download_ext}" "${download_path}" "${match_asset_name}"
 
 # delete any compressed source or binary assets
-cleanup "${download_ext}" "${download_assets}" "${download_filename}" "${download_path}" "${extract_path}"
+cleanup "${download_ext}" "${match_asset_name}" "${download_filename}" "${download_path}" "${extract_path}"
 
 # if we need to compile source then install base-devel and run commands to compile
 if [[ -n "${compile_src}" ]]; then

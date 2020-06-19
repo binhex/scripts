@@ -8,13 +8,15 @@ readonly defaultConnectTimeout=5
 readonly defaultRetryCount=5
 readonly defaultRetryWait="10"
 readonly defaultOutputFile=""
-readonly defaultSilentMode="true"
+readonly defaultNoProgress="true"
+readonly defaultNoOutput="false"
 
 connect_timeout="${defaultConnectTimeout}"
 retry_count="${defaultRetryCount}"
 retry_wait="${defaultRetryWait}"
 output_file="${defaultOutputFile}"
-silent_mode="${defaultSilentMode}"
+no_progress="${defaultNoProgress}"
+no_output="${defaultNoOutput}"
 
 function check_response_code() {
 
@@ -97,7 +99,9 @@ function get_response_body() {
 	shift
 	local output_file="${1}"
 	shift
-	local silent_mode="${1}"
+	local no_progress="${1}"
+	shift
+	local no_output="${1}"
 	shift
 	local url="${1}"
 	shift
@@ -106,10 +110,10 @@ function get_response_body() {
 	retry_max_time=$((${retry_count}*${retry_wait}))
 
 	# add in silent flag if enabled (default is silent)
-	if [[ "${silent_mode}" == "true" ]]; then
-		silent_mode="--silent"
-	else
-		silent_mode=""
+	if [[ "${no_progress}" == "true" ]]; then
+
+		no_progress="--silent"
+
 	fi
 
 	# if output file specified then specify curl option
@@ -117,17 +121,23 @@ function get_response_body() {
 
 		# if output filename already exists then delete
 		if [ -f "${output_file}" ]; then
+
 			rm -f "${output_file}"
+
 		fi
 
 		output_file="--output ${output_file}"
+
+	elif [[ "${no_output}" == "true" ]]; then
+
+		output_file="--output /dev/null"
 
 	fi
 
 	while true; do
 
 		# construct curl command, note do not single/double quote output_file variable
-		response_body=$(curl --location --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" ${output_file} "${silent_mode}" "${url}")
+		response_body=$(curl --location --continue-at - --connect-timeout "${connect_timeout}" --max-time 600 --retry "${retry_count}" --retry-delay "${retry_wait}" --retry-max-time "${retry_max_time}" ${output_file} "${no_progress}" "${url}")
 		exit_code=$?
 
 		if [[ "${exit_code}" -ge "1" ]] || ( [[ -z "${output_file}" ]] && [[ -z "${response_body}" ]] ); then
@@ -197,15 +207,19 @@ Where:
 		Path to filename to store result from curl.
 		Defaults to '${defaultOutputFile}' i.e. do not save.
 
-	-sm or --silent-mode <true|false>
-		Define whether to run curl silently or not.
-		Defaults to '${defaultSilentMode}'.
+	-np or --no-progress <true|false>
+		Define whether to show curl download progress bar.
+		Defaults to '${defaultNoProgress}'.
+
+	-no or --no-output <true|false>
+		Define whether to show curl downloaded output if no output file specified.
+		Defaults to '${defaultNoOutput}'.
 
 	-url or --url <url>
 		URL that curl will process.
 		No default.
 Example:
-	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -sm true -url http://www.google.co.uk
+	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -np true -url http://www.google.co.uk
 ENDHELP
 }
 
@@ -229,8 +243,12 @@ do
 			output_file=$2
 			shift
 			;;
-		-sm|--silent-mode)
-			silent_mode=$2
+		-np|no-progress)
+			no_progress=$2
+			shift
+			;;
+		-no|no-output)
+			no_output=$2
 			shift
 			;;
 		-url|--url)
@@ -263,7 +281,7 @@ check_response_code "${output_file}" "${retry_count}" "${retry_wait}" "${url}"
 
 if [[ "${?}" -eq 0 ]]; then
 
-	get_response_body "${retry_count}" "${retry_wait}" "${output_file}" "${silent_mode}" "${url}"
+	get_response_body "${retry_count}" "${retry_wait}" "${output_file}" "${no_progress}" "${no_output}" "${url}"
 
 	if [[ -z "${output_file}" ]]; then
 

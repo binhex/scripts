@@ -8,7 +8,7 @@ function compile_tarball {
 	aur_package="${1}"
 
 	# download tarball from aur
-	/usr/local/bin/curly.sh -rc 6 -rw 10 -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
+	/usr/local/bin/curly.sh -of "/tmp/${aur_package}.tar.gz" -url "https://aur.archlinux.org/cgit/aur.git/snapshot/${aur_package}.tar.gz"
 
 	# extract downloaded tarball
 	cd '/tmp' && tar -xvf "${aur_package}.tar.gz"

@@ -39,8 +39,8 @@ function identify_github_release_tag_name() {
 
 	echo -e "[info] Performing query to find out GitHub ${query_type}..."
 
-	echo -e "[info] curly.sh -rc 6 -rw 10 -url https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r ${json_query} 2> /dev/null"
-	github_release_tag_name=$(curly.sh -rc 6 -rw 10 -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
+	echo -e "[info] curly.sh -url https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r ${json_query} 2> /dev/null"
+	github_release_tag_name=$(curly.sh -url "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
 
 	if [[ -z "${github_release_tag_name}" ]]; then
 		echo "[warn] Unable to identify GitHub ${query_type} name, exiting script..."
@@ -101,8 +101,8 @@ function github_downloader() {
 
 			echo -e "[info] Asset name matches, downloading binary asset '${match_asset_name}' from GitHub..."
 
-			echo -e "[info] curly.sh -rc 6 -rw 10 -of ${download_path}/${match_asset_name} -url https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-			curly.sh -rc 6 -rw 10 -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+			echo -e "[info] curly.sh -of ${download_path}/${match_asset_name} -url https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+			curly.sh -of "${download_path}/${match_asset_name}" -url "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
 
 		fi
 
@@ -119,14 +119,14 @@ function github_downloader() {
 		if [[ "${query_type}" == "branch" ]]; then
 
 			echo -e "[info] Downloading latest commit on specific branch '${download_branch}' from GitHub..."
-			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
-			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
+			echo -e "[info] curly.sh -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip'"
+			curly.sh -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${download_branch}.zip"
 
 		else
 
 			echo -e "[info] Downloading ${query_type} source from GitHub..."
-			echo -e "[info] curly.sh -rc 6 -rw 10 -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
-			curly.sh -rc 6 -rw 10 -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+			echo -e "[info] curly.sh -of '${download_path}/${download_filename}' -url 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
+			curly.sh -of "${download_path}/${download_filename}" -url "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
 
 		fi
 

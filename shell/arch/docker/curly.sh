@@ -219,7 +219,7 @@ Where:
 		URL that curl will process.
 		No default.
 Example:
-	curly.sh -rc 6 -rw 10 -of /tmp/curly_output -np true -url http://www.google.co.uk
+	curly.sh -of /tmp/curly_output -np true -url http://www.google.co.uk
 ENDHELP
 }
 

@@ -243,11 +243,11 @@ do
 			output_file=$2
 			shift
 			;;
-		-np|no-progress)
+		-np|--no-progress)
 			no_progress=$2
 			shift
 			;;
-		-no|no-output)
+		-no|--no-output)
 			no_output=$2
 			shift
 			;;

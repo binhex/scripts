@@ -32,8 +32,8 @@ function process_files() {
 		chattr_cmd="chattr -i"
 	fi
 
-	# get all disks in the array
-	all_disks=$(ls -d /mnt/disk* | xargs)
+	# get all disks in the array, -v sorts numbers in natural order
+	all_disks=$(ls -dv /mnt/disk* | xargs)
 
 	# split space separated disks in the array
 	IFS=' ' read -ra all_disks_list <<< "${all_disks}"

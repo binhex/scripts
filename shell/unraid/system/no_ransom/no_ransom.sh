@@ -138,6 +138,7 @@ function show_help() {
 	cat <<ENDHELP
 Description:
 	A simple bash script to make selected media read only, to prevent any possible Ransomware attacks.
+	Created by binhex.
 Syntax:
 	${ourScriptName} [args]
 Where:

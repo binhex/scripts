@@ -23,17 +23,18 @@ exclude_extensions="${defaultExcludeExtensions}"
 exclude_folders="${defaultExcludeFolders}"
 debug="{defaultDebug}"
 
-function process_files() {
+# fail fast if we dont have 'chattr' installed
+command -v chattr >/dev/null 2>&1 || { echo >&2 "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."; exit 1; }
 
-	# if read only then set chattr else undo read only
-	if [[ "${lock_files}" == "yes" ]]; then
-		chattr_cmd="chattr +i"
-	else
-		chattr_cmd="chattr -i"
-	fi
+function process_files() {
 
 	# get all disks in the array, -v sorts numbers in natural order
 	all_disks=$(ls -dv /mnt/disk* | xargs)
+
+	# check that disks exists
+	if [[ -z "${all_disks}" ]]; then
+		echo "[warn] No disks found when issuing command 'ls -dv /mnt/disk*', array may not be accessible or host is not running UNRAID, exiting script..."; exit 1
+	fi
 
 	# split space separated disks in the array
 	IFS=' ' read -ra all_disks_list <<< "${all_disks}"
@@ -97,6 +98,13 @@ function process_files() {
 
 		done
 
+	fi
+
+	# if lock files then set chattr to +i
+	if [[ "${lock_files}" == "yes" ]]; then
+		chattr_cmd="chattr +i"
+	else
+		chattr_cmd="chattr -i"
 	fi
 
 	# loop over list of disk shares looking for top level user share matches

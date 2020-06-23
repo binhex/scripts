@@ -149,7 +149,7 @@ Where:
 		Defaults to '${defaultLockFiles}'.
 
 	-ms or --media-shares <comma seperated list of user shares>
-		Define the list of user sharews to make read only.
+		Define the list of user shares to make read only.
 		No default.
 
 	-ie or --include-extensions <comma seperated list of extensions>

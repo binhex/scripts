@@ -179,13 +179,13 @@ Where:
 
 Examples:
 	Make all files in a user share read only with no exclusions and debug turned on:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*' --debug 'yes'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --debug 'yes'
 
 	Make all files in a user share read only with excluded file extensions:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png'
 
 	Make all files in a user share read only with excluded file extensions and excluded folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --exclude-folders 'temp,downloaded'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --exclude-folders 'temp,downloaded'
 
 ENDHELP
 }

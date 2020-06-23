@@ -15,11 +15,13 @@ readonly defaultLockFiles="no"
 readonly defaultInlcudeExtensions="*.*"
 readonly defaultExcludeExtensions=""
 readonly defaultExcludeFolders=""
+readonly defaultDebug="no"
 
 lock_files="${defaultLockFiles}"
 include_extensions="${defaultInlcudeExtensions}"
 exclude_extensions="${defaultExcludeExtensions}"
 exclude_folders="${defaultExcludeFolders}"
+debug="{defaultDebug}"
 
 function process_files() {
 
@@ -61,7 +63,9 @@ function process_files() {
 
 	done
 
-	include_extensions_cmd="\( ${include_extensions_cmd} \)"
+	if [[ -n "${include_extensions_cmd}" ]]; then
+		include_extensions_cmd="\( ${include_extensions_cmd} \)"
+	fi
 
 	exclude_extensions_cmd=""
 
@@ -76,7 +80,9 @@ function process_files() {
 
 	done
 
-	exclude_extensions_cmd="\( ${exclude_extensions_cmd} \)"
+	if [[ -n "${exclude_extensions_cmd}" ]]; then
+		exclude_extensions_cmd="\( ${exclude_extensions_cmd} \)"
+	fi
 
 	exclude_folders_cmd=""
 
@@ -99,20 +105,24 @@ function process_files() {
 		# loop over list of media share names looking for media share names that match what we want
 		for media_shares_item in "${media_shares_list[@]}"; do
 
-			echo "[info] Finding share that matches '${media_shares_item}' for disk '${all_disks_item}'..."
-			echo "[info] find ${all_disks_item} -maxdepth 1 -type d -name ${media_shares_item}"
+			echo "[info] Finding share that match '${media_shares_item}' on disk '${all_disks_item}'..."
+			if [[ "${debug}" == "yes" ]]; then
+				echo "[debug] find ${all_disks_item} -maxdepth 1 -type d -name ${media_shares_item}"
+			fi
 			media_shares_match=$(find "${all_disks_item}" -maxdepth 1 -type d -name "${media_shares_item}")
 
 			# if a match then process with chattr
 			if [[ -n "${media_shares_match}" ]]; then
 
-				echo "[info] Locking media share '${media_shares_match}' using 'chattr' recursively for all files..."
-				echo "[debug] find ${media_shares_match} -type f ${exclude_folders_cmd} ${include_extensions_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+				echo "[info] Share found, processing media share '${media_shares_match}' using 'chattr' recursively..."
+				if [[ "${debug}" == "yes" ]]; then
+					echo "[debug] find ${media_shares_match} -type f ${exclude_folders_cmd} ${include_extensions_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+				fi
 				eval "find ${media_shares_match} -type f ${exclude_folders_cmd} ${include_extensions_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 
 			else
 
-				echo "[info] No matching media share for disk '${all_disks_item}'"
+				echo "[debug] No matching media share for disk '${all_disks_item}'"
 
 			fi
 
@@ -154,9 +164,13 @@ Where:
 		Define the list of folders to exclude from making read only.
 		Defaults to '${defaultExcludeFolders}'.
 
+	--debug <yes|no>
+		Define whether debug is turned on or not.
+		Defaults to '${defaultDebug}'.
+
 Examples:
-	Make all files in a user share read only with no exclusions:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*'
+	Make all files in a user share read only with no exclusions and debug turned on:
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*' --debug 'yes'
 
 	Make all files in a user share read only with excluded file extensions:
 		${ourScriptName} --lock-files 'yes' --media-shares 'Movies, TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png'
@@ -189,6 +203,10 @@ do
 			;;
 		-ef|--exclude-folders)
 			exclude_folders=$2
+			shift
+			;;
+		--debug)
+			debug=$2
 			shift
 			;;
 		-h|--help)

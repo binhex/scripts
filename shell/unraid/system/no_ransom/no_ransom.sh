@@ -9,17 +9,20 @@
 # This script is inspired by this post (thanks BRiT):-
 # https://forums.unraid.net/topic/46256-ransomware-resistance/?do=findComment&comment=603455
 
-# setup default values
+# script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly defaultLockFiles="no"
+readonly ourScriptVersion="v1.0.0"
+
+# setup default values
 readonly defaultInlcudeExtensions="*.*"
 readonly defaultExcludeExtensions=""
+readonly defaultIncludeFolders=""
 readonly defaultExcludeFolders=""
 readonly defaultDebug="no"
 
-lock_files="${defaultLockFiles}"
 include_extensions="${defaultInlcudeExtensions}"
 exclude_extensions="${defaultExcludeExtensions}"
+include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
 debug="{defaultDebug}"
 
@@ -47,6 +50,9 @@ function process_files() {
 
 	# split comma separated exclude file extensions
 	IFS=',' read -ra exclude_extensions_list <<< "${exclude_extensions}"
+
+	# split comma separated include folders
+	IFS=',' read -ra include_folders_list <<< "${include_folders}"
 
 	# split comma separated exclude folders
 	IFS=',' read -ra exclude_folders_list <<< "${exclude_folders}"
@@ -85,6 +91,28 @@ function process_files() {
 		exclude_extensions_cmd="\( ${exclude_extensions_cmd} \)"
 	fi
 
+	include_folders_cmd=""
+
+	if [[ -n "${include_folders}" ]]; then
+
+		# loop over list of folders to include
+		for include_folders_item in "${include_folders_list[@]}"; do
+
+			if [[ -z "${include_folders_cmd}" ]]; then
+
+				include_folders_cmd+="-path \"*/${include_folders_item}/*\""
+			else
+				include_folders_cmd+=" -o -path \"*/${include_folders_item}/*\""
+			fi
+
+		done
+
+	fi
+
+	if [[ -n "${include_folders_cmd}" ]]; then
+		include_folders_cmd="\( ${include_folders_cmd} \)"
+	fi
+
 	exclude_folders_cmd=""
 
 	if [[ -n "${exclude_folders}" ]]; then
@@ -93,11 +121,18 @@ function process_files() {
 		for exclude_folders_item in "${exclude_folders_list[@]}"; do
 
 			if [[ -z "${exclude_folders_cmd}" ]]; then
-				exclude_folders_cmd+="-not -path \"*/${exclude_folders_item}/*\""
+
+				exclude_folders_cmd+="! -path \"*/${exclude_folders_item}/*\""
+			else
+				exclude_folders_cmd+=" ! -path \"*/${exclude_folders_item}/*\""
 			fi
 
 		done
 
+	fi
+
+	if [[ -n "${exclude_folders_cmd}" ]]; then
+		exclude_folders_cmd="\( ${exclude_folders_cmd} \)"
 	fi
 
 	# if lock files then set chattr to +i
@@ -124,9 +159,9 @@ function process_files() {
 
 				echo "[info] Share found, processing media share '${media_shares_match}' using 'chattr' recursively..."
 				if [[ "${debug}" == "yes" ]]; then
-					echo "[debug] find ${media_shares_match} -type f ${exclude_folders_cmd} ${include_extensions_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+					echo "[debug] find ${media_shares_match} -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 				fi
-				eval "find ${media_shares_match} -type f ${exclude_folders_cmd} ${include_extensions_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+				eval "find ${media_shares_match} -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 
 			else
 
@@ -146,7 +181,7 @@ function show_help() {
 	cat <<ENDHELP
 Description:
 	A simple bash script to make selected media read only, to prevent any possible Ransomware attacks.
-	Created by binhex.
+	${ourScriptName} ${ourScriptVersion} - Created by binhex.
 Syntax:
 	${ourScriptName} [args]
 Where:
@@ -155,23 +190,27 @@ Where:
 
 	-lf or --lock-files <yes|no>
 		Define whether to make media read only or not.
-		Defaults to '${defaultLockFiles}'.
+		No default.
 
 	-ms or --media-shares <comma seperated list of user shares>
-		Define the list of user shares to make read only.
+		Define the list of user share names to process.
 		No default.
 
 	-ie or --include-extensions <comma seperated list of extensions>
-		Define the list of file extensions to make read only.
+		Define the list of file extensions to process.
 		Defaults to '${defaultInlcudeExtensions}'.
 
 	-ee or --exclude-extensions <comma seperated list of extensions>
-		Define the list of file extensions to exclude from making read only.
-		Defaults to '${defaultExcludeExtensions}'.
+		Define the list of file extensions to exclude from processing.
+		Defaults to no exclusions.
+
+	-if or --include-folders <comma seperated list of folders>
+		Define the list of folders to include (recursive) in processing.
+		Defaults to include all folders.
 
 	-ef or --exclude-folders <comma seperated list of folders>
-		Define the list of folders to exclude from making read only.
-		Defaults to '${defaultExcludeFolders}'.
+		Define the list of folders to exclude (recursive) from processing.
+		Defaults to no excluded folders.
 
 	--debug <yes|no>
 		Define whether debug is turned on or not.
@@ -179,13 +218,19 @@ Where:
 
 Examples:
 	Make all files in a user share read only with no exclusions and debug turned on:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --debug 'yes'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --debug 'yes'
+		
+	Make all files in a user share writeable with no exclusions and debug turned on:
+		${ourScriptName} --lock-files 'no' --media-shares 'Movies,TV' --debug 'yes'
 
-	Make all files in a user share read only with excluded file extensions:
+	Make files in a user share read only with excluded file extensions:
 		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png'
 
-	Make all files in a user share read only with excluded file extensions and excluded folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --exclude-folders 'temp,downloaded'
+	Make files in a user share read only with excluded file extensions and specific included folders:
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
+
+	Make files in a user share read only with excluded file extensions and excluded folders:
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
 
 ENDHELP
 }
@@ -208,6 +253,10 @@ do
 			;;
 		-ee| --exclude-extensions)
 			exclude_extensions=$2
+			shift
+			;;
+		-if|--include-folders)
+			include_folders=$2
 			shift
 			;;
 		-ef|--exclude-folders)
@@ -235,6 +284,13 @@ done
 echo "[info] Running ${ourScriptName} script..."
 
 echo "[info] Checking we have all required parameters before running..."
+
+if [[ -z "${lock_files}" ]]; then
+	echo "[warn] Lock files not defined via parameter -lf or --lock-files, displaying help..."
+	echo ""
+	show_help
+	exit 1
+fi
 
 if [[ -z "${media_shares}" ]]; then
 	echo "[warn] Array user shares not defined via parameter -ms or --media-shares, displaying help..."

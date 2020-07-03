@@ -71,7 +71,7 @@ cat "/etc/pacman.conf"
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 
 if [[ "${pacman_confirm}" == "yes" ]]; then
-	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
+	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so
 else
 	pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
 fi

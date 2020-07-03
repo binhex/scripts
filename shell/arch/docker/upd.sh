@@ -70,7 +70,7 @@ cat "/etc/pacman.conf"
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 
-if [[ "${pacman_confirm}" == 'yes' ]]; then
+if [[ "${pacman_confirm}" == "yes" ]]; then
 	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
 else
 	pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm

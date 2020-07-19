@@ -80,6 +80,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 else
 
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>', exiting script..."
-	exit 1
+	exit 0
 
 fi

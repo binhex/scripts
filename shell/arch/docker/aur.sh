@@ -71,6 +71,11 @@ if [[ ! -z "${aur_packages}" ]]; then
 
 	# switch to user 'nobody' and run aur helper to compile package
 	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
+	
+	# if custom script defined then run
+	if [[ -n "${aur_custom_script}" ]]; then
+		eval "${aur_custom_script}"
+	fi
 
 else
 

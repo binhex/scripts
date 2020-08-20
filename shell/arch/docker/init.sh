@@ -123,10 +123,6 @@ else
 
 fi
 
-# set stack size from unlimited to prevent pgrep allocation memory bug
-# see here for details on the bug (open) https://gitlab.com/procps-ng/procps/issues/152
-ulimit -s 8192
-
 echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
 
 # restore file descriptors to prevent duplicate stdout & stderr to supervisord.log

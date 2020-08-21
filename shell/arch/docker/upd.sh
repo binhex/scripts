@@ -17,7 +17,10 @@ echo "[info] Updating mirrorlist for pacman using reflector..."
 retry_count=5
 while true; do
 
+	# required, as this script is sourced in and thus picks up set -e
+	set +e
 	reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist
+	set -e
 	exit_code=$?
 
 	if [[ "${exit_code}" -ne "0" ]]; then

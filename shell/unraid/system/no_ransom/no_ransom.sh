@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v1.0.0"
+readonly ourScriptVersion="v1.0.1"
 
 # setup default values
 readonly defaultInlcudeExtensions="*.*"
@@ -80,9 +80,9 @@ function process_files() {
 	for exclude_extensions_item in "${exclude_extensions_list[@]}"; do
 
 		if [[ -z "${exclude_extensions_cmd}" ]]; then
-			exclude_extensions_cmd+="-not -name \"${exclude_extensions_item}\""
+			exclude_extensions_cmd+="! -name \"${exclude_extensions_item}\""
 		else
-			exclude_extensions_cmd+=" -o -not -name \"${exclude_extensions_item}\""
+			exclude_extensions_cmd+=" ! -name \"${exclude_extensions_item}\""
 		fi
 
 	done
@@ -165,7 +165,9 @@ function process_files() {
 
 			else
 
-				echo "[debug] No matching media share for disk '${all_disks_item}'"
+				if [[ "${debug}" == "yes" ]]; then
+					echo "[debug] No matching media share for disk '${all_disks_item}'"
+				fi
 
 			fi
 

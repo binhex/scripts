@@ -99,12 +99,6 @@ else
 
 fi
 
-# ENVVARS_PLACEHOLDER
-
-# PERMISSIONS_PLACEHOLDER
-
-# CONFIG_PLACEHOLDER
-
 # calculate disk usage for /tmp in bytes
 disk_usage_tmp=$(du -s /tmp | awk '{print $1}')
 
@@ -122,6 +116,12 @@ else
 	rm -rf /tmp/tmux*
 
 fi
+
+# ENVVARS_PLACEHOLDER
+
+# PERMISSIONS_PLACEHOLDER
+
+# CONFIG_PLACEHOLDER
 
 echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
 

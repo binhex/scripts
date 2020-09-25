@@ -21,17 +21,21 @@ function get_http_status_code() {
 	# construct curl command to get http status code
 	curl_command_status_code="curl --head --location --silent --output /dev/null --write-out %{http_code} ${url}"
 
-	# evulate string and run curl o get http status code from header
+	# evaluate string and run curl to get http status code from header
 	curl_http_code=$(eval "${curl_command_status_code}")
 
 	# if response code is not an integer then we cannot identify response, assume ok
 	if [[ ! "${curl_http_code}" == ?(-)+([0-9]) ]]; then
 		return 0
+
 	else
+
+		retry_count="${retry}"
+		retry_wait="${retry_delay}"
 
 		while true; do
 
-			if [[ "${retry}" -eq "0" ]]; then
+			if [[ "${retry_count}" -eq "0" ]]; then
 				echo -e "[warn] Exhausted retries, exiting script..."
 				return 1
 			fi
@@ -40,14 +44,13 @@ function get_http_status_code() {
 			if [[ "${curl_http_code}" -ge "100" ]] && [[ "${curl_http_code}" -le "399" ]]; then
 				return 0
 			else
-				echo -e "[warn] HTTP status code ${curl_http_code} from curl for url '${url}' != 2xx"
+				echo -e "[warn] HTTP status code ${curl_http_code} indicates failure to curl URL '${url}'."
 			fi
 
-			echo "[info] ${retry} retries left"
-			echo "[info] Retrying in ${retry_delay} secs..."
-
-			sleep "${retry_delay}"s
-			local retry=$((retry-1))
+			retry_count=$((retry_count-1))
+			echo "[info] ${retry_count} retries left"
+			echo "[info] Retrying in ${retry_wait} secs..."
+			sleep "${retry_wait}"s
 
 		done
 	fi
@@ -83,7 +86,7 @@ function build_curl_command() {
 
 }
 
-function get_body() {
+function run_curl_command() {
 
 	curl_command="${curl_command} ${curl_user_options}"
 	eval "${curl_command}"
@@ -102,12 +105,12 @@ curl_user_options="${@}"
 # find out http status code from header before attempting download of body
 get_http_status_code
 
-# set any defaults that arent specified via user parameters
-build_curl_command
-
-# if http status code is ok then evaluate the command line and run curl
 if [ "${?}" -eq 0 ]; then
-	get_body
+	# build curl command with defaults and/or user options
+	build_curl_command
+
+	# evaluate and run curl command to get/put body
+	run_curl_command
 else
 	echo -e "[warn] Exiting ${ourScriptName} due to bad HTTP status code '${curl_http_code}'"
 fi

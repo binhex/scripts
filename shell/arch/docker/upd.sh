@@ -20,11 +20,11 @@ while true; do
 	# required, as this script is sourced in and thus picks up set -e
 	set +e
 	reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist
-	echo "[info] reflector exit code is '${?}'"
 	set -e
 	exit_code=$?
+	echo "[info] reflector exit code is '${exit_code}'"
 
-	if [[ "${exit_code}" != "0" ]]; then
+	if [ "${exit_code}" -ne 0 ]; then
 
 		retry_count=$((retry_count-1))
 

@@ -23,7 +23,7 @@ while true; do
 	set -e
 	exit_code=$?
 
-	if [[ "${exit_code}" -ne "0" ]]; then
+	if [[ "${exit_code}" != "0" ]]; then
 
 		retry_count=$((retry_count-1))
 

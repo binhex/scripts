@@ -19,7 +19,7 @@ while true; do
 
 	# required, as this script is sourced in and thus picks up set -e
 	set +e
-	reflector_output=$(reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist)
+	reflector_output=$(reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
 	set -e
 	exit_code=$?
 

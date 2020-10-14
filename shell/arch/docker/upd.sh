@@ -23,7 +23,9 @@ while true; do
 	set -e
 	exit_code=$?
 
+	echo "[info] reflector output is '${reflector_output}'"
 	echo "[info] reflector exit code is '${exit_code}'"
+
 	if [[ "${reflector_output}" == *"error"* || "${exit_code}" != "0" ]]; then
 
 		retry_count=$((retry_count-1))

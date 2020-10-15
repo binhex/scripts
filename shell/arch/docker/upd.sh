@@ -14,7 +14,9 @@ pacman -S reflector --noconfirm
 # mirrorlist does not always populate, retry if exit code not 0
 
 echo "[info] Updating mirrorlist for pacman using reflector..."
-retry_count=5
+retry_count=10
+sleep_period_secs=60
+
 while true; do
 
 	# required, as this script is sourced in and thus picks up set -e
@@ -36,11 +38,11 @@ while true; do
 
 		else
 
-			echo '[warn] Failed to download mirrorlist, sleeping for 60 seconds before retrying...'
+			echo '[warn] Failed to download mirrorlist, sleeping for ${sleep_period_secs} seconds before retrying...'
 
 		fi
 
-		sleep 60s
+		sleep "${sleep_period_secs}s"
 
 	else
 

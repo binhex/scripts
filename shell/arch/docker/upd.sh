@@ -21,14 +21,17 @@ while true; do
 
 	# required, as this script is sourced in and thus picks up set -e
 	set +e
-	reflector_output=$(reflector --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
+	reflector_stderr=$(reflector --completion-percent=90 --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
 	set -e
 	exit_code=$?
 
-	echo "[info] reflector output is '${reflector_output}'"
+	if [[ ! -z "${reflector_stderr}" ]]; then
+		echo "[info] reflector stderr is '${reflector_stderr}'"
+	fi
+
 	echo "[info] reflector exit code is '${exit_code}'"
 
-	if [[ "${reflector_output}" == *"error"* || "${exit_code}" != "0" ]]; then
+	if [[ "${reflector_stderr}" == *"error"* || "${exit_code}" != "0" ]]; then
 
 		retry_count=$((retry_count-1))
 

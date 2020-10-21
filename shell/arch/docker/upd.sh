@@ -16,12 +16,13 @@ pacman -S reflector --noconfirm
 echo "[info] Updating mirrorlist for pacman using reflector..."
 retry_count=10
 sleep_period_secs=60
+completion_percent=100
 
 while true; do
 
 	# required, as this script is sourced in and thus picks up set -e
 	set +e
-	reflector_stderr=$(reflector --completion-percent=98 --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
+	reflector_stderr=$(reflector --completion-percent="${completion_percent}" --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
 	set -e
 	exit_code=$?
 
@@ -34,6 +35,7 @@ while true; do
 	if [[ "${reflector_stderr}" == *"error"* || "${exit_code}" != "0" ]]; then
 
 		retry_count=$((retry_count-1))
+		completion_percent=$((completion_percent-1))
 
 		if [ "${retry_count}" -eq "0" ]; then
 
@@ -41,7 +43,9 @@ while true; do
 
 		else
 
-			echo '[warn] Failed to download mirrorlist, sleeping for ${sleep_period_secs} seconds before retrying...'
+			echo "[warn] Failed to download mirrorlist, ${retry_count} retries left"
+			echo "[info] Reducing completion percentage to ${completion_percent}%"
+			echo "[info] Sleeping for ${sleep_period_secs} seconds..."
 
 		fi
 

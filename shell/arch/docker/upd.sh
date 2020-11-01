@@ -3,6 +3,18 @@
 # exit script if return code != 0
 set -e
 
+function create_static_mirrorlist() {
+
+cat <<'EOF' > /etc/pacman.d/mirrorlist
+Server = https://arch.mirror.constant.com/$repo/os/$arch
+Server = https://arch.mirror.square-r00t.net/$repo/os/$arch
+Server = http://arch.mirror.square-r00t.net/$repo/os/$arch
+Server = rsync://arch.mirror.constant.com/archlinux/$repo/os/$arch
+Server = rsync://arch.mirror.square-r00t.net/arch/$repo/os/$arch
+EOF
+
+]
+
 pacman -S reflector --noconfirm
 
 # use reflector to overwriting existing mirrorlist, args explained below
@@ -39,7 +51,9 @@ while true; do
 
 		if [ "${retry_count}" -eq "0" ]; then
 
-			echo "[crit] Failed to download mirrorlist, too many retries" ; exit 1
+			echo "[warn] Failed to download mirrorlist, too many retries, falling back to static list"
+			create_static_mirrorlist
+			break
 
 		else
 

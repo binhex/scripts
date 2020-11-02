@@ -13,7 +13,7 @@ Server = rsync://arch.mirror.constant.com/archlinux/$repo/os/$arch
 Server = rsync://arch.mirror.square-r00t.net/arch/$repo/os/$arch
 EOF
 
-]
+}
 
 pacman -S reflector --noconfirm
 

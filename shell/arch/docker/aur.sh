@@ -62,6 +62,8 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
 		aur_options="--builddir=/tmp/makepkg --mflags '--config /etc/makepkg.conf' --save --noconfirm"
+		echo "[info] No AUR options defined via 'export aur_options=<aur helper options>' using the defaults '${aur_options}'"
+
 	fi
 
 	# if not defined then assume install package

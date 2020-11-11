@@ -13,16 +13,14 @@ retry="${defaultRetry}"
 retry_delay="${defaultRetryDelay}"
 max_time="${defaultMaxTime}"
 
+# this function checks the header statuc code before we actually attempt download
 function get_http_status_code() {
 
 	# get last space separated field using awk 'NF' to give us the url
 	url=$(echo "${curl_user_options}" | awk '{print $NF }')
 
 	# construct curl command to get http status code
-	curl_command_status_code="curl --head --location --silent --output /dev/null --write-out %{http_code} ${url}"
-
-	# evaluate string and run curl to get http status code from header
-	curl_http_code=$(eval "${curl_command_status_code}")
+	curl_http_code="$(curl --dump-header - --location --silent --output /dev/null --write-out %{http_code} ${url} | grep -P -m 1 '^[0-9]+')"
 
 	# if response code is not an integer then we cannot identify response, assume ok
 	if [[ ! "${curl_http_code}" == ?(-)+([0-9]) ]]; then

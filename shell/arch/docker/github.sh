@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script downloads github source releases in zipped format, it also has basic support for binary assets.
-set -x
+
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-source.zip"

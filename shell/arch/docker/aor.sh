@@ -14,7 +14,7 @@ if [[ ! -z "${aor_packages}" ]]; then
 		echo "[info] attempting download for aor package ${aor_package_name}"
 		
 		# get repo and arch from aor using api (json format)
-		curly.sh -of "/tmp/aor_json_${aor_package_name}" -url "https://www.archlinux.org/packages/search/json/?q=${aor_package_name}&repo=Community&repo=Core&repo=Extra&repo=Multilib&arch=any&arch=x86_64"
+		rcurl.sh -o "/tmp/aor_json_${aor_package_name}" "https://www.archlinux.org/packages/search/json/?q=${aor_package_name}&repo=Community&repo=Core&repo=Extra&repo=Multilib&arch=any&arch=x86_64"
 
 		echo "[info] display output of aor json file /tmp/aor_json_${aor_package_name}..."
 		cat "/tmp/aor_json_${aor_package_name}"
@@ -63,8 +63,8 @@ if [[ ! -z "${aor_packages}" ]]; then
 		# get latest compiled package from aor (required due to the fact we use archive snapshot)
 		if [[ ! -z "${aor_package_repo}" && ! -z "${aor_package_arch}" ]]; then
 
-			echo "[info] curly.sh -of /tmp/${aor_package_name}.tar.xz -url https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
-			curly.sh -of "/tmp/${aor_package_name}.tar.xz" -url "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
+			echo "[info] rcurl.sh -o /tmp/${aor_package_name}.tar.xz https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
+			rcurl.sh -o "/tmp/${aor_package_name}.tar.xz" "https://www.archlinux.org/packages/${aor_package_repo}/${aor_package_arch}/${aor_package_name}/download/"
 			pacman -U "/tmp/${aor_package_name}.tar.xz" --noconfirm
 
 		else

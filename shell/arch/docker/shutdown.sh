@@ -51,7 +51,9 @@ function kill_process(){
 		if [[ "${DEBUG}" == "true" ]]; then
 			echo "[info] Sending signal '${signal}' to pids '${pids}' ..."
 		fi
-		kill -${signal} ${pids}
+		while kill -${signal} ${pids} 2> /dev/null; do
+			sleep 0.1s
+		done
 	fi
 	exit 0
 }

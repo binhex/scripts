@@ -14,7 +14,7 @@ readonly ourScriptName=$(basename -- "$0")
 readonly ourScriptVersion="v1.0.1"
 
 # setup default values
-readonly defaultInlcudeExtensions="*.*"
+readonly defaultInlcudeExtensions="*"
 readonly defaultExcludeExtensions=""
 readonly defaultIncludeFolders=""
 readonly defaultExcludeFolders=""
@@ -159,9 +159,9 @@ function process_files() {
 
 				echo "[info] Share found, processing media share '${media_shares_match}' using 'chattr' recursively..."
 				if [[ "${debug}" == "yes" ]]; then
-					echo "[debug] find ${media_shares_match} -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+					echo "[debug] find '${media_shares_match}' -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 				fi
-				eval "find ${media_shares_match} -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+				eval "find '${media_shares_match}' -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 
 			else
 
@@ -225,14 +225,17 @@ Examples:
 	Make all files in a user share writeable with no exclusions and debug turned on:
 		${ourScriptName} --lock-files 'no' --media-shares 'Movies,TV' --debug 'yes'
 
+	Make files in a user share read only with specific included file extensions:
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.mkv,*.mp4'
+
 	Make files in a user share read only with excluded file extensions:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png'
 
 	Make files in a user share read only with excluded file extensions and specific included folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
 
 	Make files in a user share read only with excluded file extensions and excluded folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.*' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
+		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
 
 ENDHELP
 }

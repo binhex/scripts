@@ -1,8 +1,10 @@
 #! /bin/bash
 
 # script to send signal to child processes started by bash scripts,
-# as bash does NOT forward signals to child processes. Example
-# call to this script using supervisor shown below:-
+# as bash does NOT forward signals to child processes.
+#
+# example call to this script using supervisor shown below:-
+#
 #[program:shutdown-script]
 #autorestart = false
 #startsecs = 0
@@ -25,15 +27,16 @@ fi
 # split comma separated string into list from process_list
 IFS=',' read -ra process_list <<< "${process}"
 
-# if signal not defined then default to 15 (SIGTERM - terminate whenever/soft kill, typically sends SIGHUP as well)
+# if signal not defined then default to '15' (SIGTERM - terminate whenever/soft kill, typically sends SIGHUP as well)
 if [ -z "${signal}" ]; then
 	if [[ "${DEBUG}" == "true" ]]; then
-		echo "[info] Signal not specified as parameter 2, assuming signal '15' (term)"
+		echo "[info] Signal not specified as parameter 2, assuming signal '15' (sigterm)"
 	fi
 	signal=15
-fi
-if [[ "${DEBUG}" == "true" ]]; then
-	echo "[info] Signal is '${signal}'"
+else
+	if [[ "${DEBUG}" == "true" ]]; then
+		echo "[info] Signal is '${signal}'"
+	fi
 fi
 
 # if owner not defined then default to 'nobody'
@@ -42,9 +45,10 @@ if [ -z "${owner}" ]; then
 		echo "[info] Process owner not specified as parameter 3, assuming owner 'nobody'"
 	fi
 	owner="nobody"
-fi
-if [[ "${DEBUG}" == "true" ]]; then
-	echo "[info] Process owner is '${owner}'"
+else
+	if [[ "${DEBUG}" == "true" ]]; then
+		echo "[info] Process owner is '${owner}'"
+	fi
 fi
 
 function get_pid(){

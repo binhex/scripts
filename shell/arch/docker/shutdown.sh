@@ -12,6 +12,7 @@
 
 process="${1}"
 signal="${2}"
+owner="${3}"
 
 # if process not defined then exit
 if [ -z "${process}" ]; then
@@ -27,16 +28,27 @@ IFS=',' read -ra process_list <<< "${process}"
 # if signal not defined then default to 15 (SIGTERM - terminate whenever/soft kill, typically sends SIGHUP as well)
 if [ -z "${signal}" ]; then
 	if [[ "${DEBUG}" == "true" ]]; then
-		echo "[info] signal not specified as parameter 2, assuming signal '15' (term)"
+		echo "[info] Signal not specified as parameter 2, assuming signal '15' (term)"
 	fi
 	signal=15
 fi
 if [[ "${DEBUG}" == "true" ]]; then
-	echo "[info] signal is '${signal}'"
+	echo "[info] Signal is '${signal}'"
+fi
+
+# if owner not defined then default to 'nobody'
+if [ -z "${owner}" ]; then
+	if [[ "${DEBUG}" == "true" ]]; then
+		echo "[info] Process owner not specified as parameter 3, assuming owner 'nobody'"
+	fi
+	owner="nobody"
+fi
+if [[ "${DEBUG}" == "true" ]]; then
+	echo "[info] Process owner is '${owner}'"
 fi
 
 function get_pid(){
-	pid=$(pgrep -f "${process_item}")
+	pid=$(pgrep -fu "${owner}" "${process_item}")
 	if [[ "${DEBUG}" == "true" ]]; then
 		if [ -z "${pid}" ]; then
 			echo "[info] pid does not exist for process '${process_item}', process not running yet?"

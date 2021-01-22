@@ -4,7 +4,7 @@
 if pacman -Qg "base-devel" > /dev/null ; then
 
 	# remove base devel excluding useful core packages
-	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which) --noconfirm
+	pacman -Ru $(pacman -Qgq base-devel | grep -v awk | grep -v pacman | grep -v sed | grep -v grep | grep -v gzip | grep -v which | grep -v patch) --noconfirm
 
 fi
 

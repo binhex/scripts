@@ -383,10 +383,10 @@ Examples:
 		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'branch' --download-branch 'master'
 
 	GitHub release binary asset download:
-		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty_linux_arm.tar.gz' --query-type 'release'
+		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --query-type 'release'
 
 	GitHub pre-release binary asset download:
-		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty_2.0.0-alpha.3_linux_amd64.tar.gz' --query-type 'pre-release'
+		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*linux_amd64.tar.gz' --query-type 'pre-release'
 
 ENDHELP
 }
@@ -411,7 +411,7 @@ do
 			download_branch=$2
 			shift
 			;;
-		-ep|extract-path)
+		-ep|--extract-path)
 			extract_path=$2
 			shift
 			;;

@@ -18,7 +18,7 @@ ___.   .__       .__
 
 EOF
 
-if [[ "${HOST_OS}" == "unRAID" ]]; then
+if [[ "${HOST_OS,,}" == "unraid" ]]; then
 	echo "[info] Host is running unRAID" | ts '%Y-%m-%d %H:%M:%.S'
 fi
 

@@ -41,7 +41,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		aur_helper_package_name="yay-bin.tar.xz"
 
 		# download compiled aur helper
-		rcurl.sh -o "/tmp/${aur_helper_package_name}" "https://github.com/binhex/arch-packages/raw/master/compiled/${OS_ARCH}/${aur_helper_package_name}"
+		rcurl.sh -o "/tmp/${aur_helper_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${OS_ARCH}/${aur_helper_package_name}"
 
 		# install aur helper
 		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm

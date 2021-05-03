@@ -108,6 +108,6 @@ fi
 # delme once fixed!!
 # force downgrade of coreutils - fixes permission denied issue when building on docker hub
 # https://github.com/archlinux/archlinux-docker/issues/32
-curl --connect-timeout 5 --max-time 600 --retry 5 --retry-delay 0 --retry-max-time 60 -o /tmp/coreutils.tar.xz -L "https://github.com/binhex/arch-packages/raw/master/compiled/x86-64/coreutils.tar.xz"
+curl --connect-timeout 5 --max-time 600 --retry 5 --retry-delay 0 --retry-max-time 60 -o /tmp/coreutils.tar.xz -L "https://github.com/binhex/packages/raw/master/compiled/x86-64/coreutils.tar.xz"
 pacman -U '/tmp/coreutils.tar.xz' --noconfirm
 # /delme once fixed!!

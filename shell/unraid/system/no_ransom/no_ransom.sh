@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v1.0.1"
+readonly ourScriptVersion="v1.0.2"
 
 # setup default values
 readonly defaultInlcudeExtensions="*"
@@ -19,17 +19,83 @@ readonly defaultExcludeExtensions=""
 readonly defaultIncludeFolders=""
 readonly defaultExcludeFolders=""
 readonly defaultDebug="no"
+readonly defaultSecureChattr="yes"
 
 include_extensions="${defaultInlcudeExtensions}"
 exclude_extensions="${defaultExcludeExtensions}"
 include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
+secure_chattr="${defaultSecureChattr}"
 debug="{defaultDebug}"
 
-# fail fast if we dont have 'chattr' installed
-command -v chattr >/dev/null 2>&1 || { echo >&2 "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."; exit 1; }
+if [[ ! -f '/usr/bin/chattr' && ! -f '/usr/bin/rttahc' ]]; then
+	echo "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."
+	exit 1
+fi
+
+function lock_chattr(){
+
+	if [ -f '/usr/bin/chattr' ]; then
+
+		# identify user running this script
+		user_id=$(id -u)
+
+		# if not root then we cannot lock chattr
+		if [[ "${user_id}" == "0" ]]; then
+
+			if [[ "${debug}" == "yes" ]]; then
+				echo "[debug] Locking chattr..."
+			fi
+
+			# remove execute permissions (all users) to prevent execution by ransomware
+			chmod -x '/usr/bin/chattr'
+
+			# rename chattr to make it harder for ransomware to run
+			mv '/usr/bin/chattr' '/usr/bin/rttahc'
+
+		else
+
+			echo "[warn] User ID '${user_id}' is not 'root', skipping locking of chattr"
+
+		fi
+
+	fi
+}
+
+function unlock_chattr(){
+
+	if [ -f '/usr/bin/rttahc' ]; then
+
+		# identify user running this script
+		user_id=$(id -u)
+
+		# if not root then we cannot lock chattr
+		if [[ "${user_id}" == "0" ]]; then
+
+			if [[ "${debug}" == "yes" ]]; then
+				echo "[debug] Unlocking chattr..."
+			fi
+
+			# reset permissions to correct values
+			chmod 755 '/usr/bin/rttahc'
+
+			# rename chattr back to correct name
+			mv '/usr/bin/rttahc' '/usr/bin/chattr'
+
+		else
+
+			echo "[warn] User ID '${user_id}' is not 'root', skipping unlocking of chattr"
+
+		fi
+
+	fi
+
+}
 
 function process_files() {
+
+	# unlock chattr by resetting permissions and renaming
+	unlock_chattr
 
 	# get all disks in the array, -v sorts numbers in natural order
 	all_disks=$(ls -dv /mnt/disk* | xargs)
@@ -177,6 +243,12 @@ function process_files() {
 		done
 
 	done
+
+	if [[ "${secure_chattr}" == "yes" ]]; then
+		# lock chattr by removing execute permissions and renaming
+		lock_chattr
+	fi
+
 }
 
 function show_help() {
@@ -213,6 +285,10 @@ Where:
 	-ef or --exclude-folders <comma seperated list of folders>
 		Define the list of folders to exclude (recursive) from processing.
 		Defaults to no excluded folders.
+
+	-sc or --secure-chattr <yes|no>
+		Define whether you want to remove execution permissions and rename chattr to prevent it being run.
+		Defaults to '${defaultSecureChattr}'.
 
 	--debug <yes|no>
 		Define whether debug is turned on or not.
@@ -266,6 +342,10 @@ do
 			;;
 		-ef|--exclude-folders)
 			exclude_folders=$2
+			shift
+			;;
+		-sc|--secure-chattr)
+			secure_chattr=$2
 			shift
 			;;
 		--debug)

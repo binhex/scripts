@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v1.0.2"
+readonly ourScriptVersion="v1.0.3"
 
 # setup default values
 readonly defaultInlcudeExtensions="*"
@@ -20,15 +20,17 @@ readonly defaultIncludeFolders=""
 readonly defaultExcludeFolders=""
 readonly defaultDebug="no"
 readonly defaultSecureChattr="yes"
+readonly defaultSecureChattrRename="rttahc"
 
 include_extensions="${defaultInlcudeExtensions}"
 exclude_extensions="${defaultExcludeExtensions}"
 include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
 secure_chattr="${defaultSecureChattr}"
+secure_chattr_rename="${defaultSecureChattrRename}"
 debug="{defaultDebug}"
 
-if [[ ! -f '/usr/bin/chattr' && ! -f '/usr/bin/rttahc' ]]; then
+if [[ ! -f '/usr/bin/chattr' && ! -f "/usr/bin/${secure_chattr_rename}" ]]; then
 	echo "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."
 	exit 1
 fi
@@ -51,7 +53,7 @@ function lock_chattr(){
 			chmod -x '/usr/bin/chattr'
 
 			# rename chattr to make it harder for ransomware to run
-			mv '/usr/bin/chattr' '/usr/bin/rttahc'
+			mv '/usr/bin/chattr' "/usr/bin/${secure_chattr_rename}"
 
 		else
 
@@ -64,7 +66,7 @@ function lock_chattr(){
 
 function unlock_chattr(){
 
-	if [ -f '/usr/bin/rttahc' ]; then
+	if [ -f "/usr/bin/${secure_chattr_rename}" ]; then
 
 		# identify user running this script
 		user_id=$(id -u)
@@ -77,10 +79,10 @@ function unlock_chattr(){
 			fi
 
 			# reset permissions to correct values
-			chmod 755 '/usr/bin/rttahc'
+			chmod 755 "/usr/bin/${secure_chattr_rename}"
 
 			# rename chattr back to correct name
-			mv '/usr/bin/rttahc' '/usr/bin/chattr'
+			mv "/usr/bin/${secure_chattr_rename}" '/usr/bin/chattr'
 
 		else
 

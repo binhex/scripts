@@ -38,7 +38,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# install git, used to pull down aur helper from github
 		pacman -S git sudo --noconfirm
 
-		aur_helper_package_name="yay-bin.tar.xz"
+		aur_helper_package_name="yay-x86_64.tar.zst"
 
 		# download compiled aur helper
 		rcurl.sh -o "/tmp/${aur_helper_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${OS_ARCH}/${aur_helper_package_name}"

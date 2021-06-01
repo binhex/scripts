@@ -72,9 +72,12 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
 
+	build_dir='/tmp/makepkg'
+	mkdir -p "${build_dir}"
+
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
-		aur_options="--builddir=/tmp/makepkg --mflags '--config /etc/makepkg.conf' --save --noconfirm"
+		aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --noconfirm"
 		echo "[info] No AUR options defined via 'export aur_options=<aur helper options>' using the defaults '${aur_options}'"
 
 	fi

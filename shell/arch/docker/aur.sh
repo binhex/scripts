@@ -22,11 +22,14 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# install required packages to compile
 	pacman -S base-devel --needed --noconfirm
 
-	# set build directory, used for output for makepkg
-	sed -i -e 's~#BUILDDIR=/tmp/makepkg~BUILDDIR=/tmp/makepkg~g' "/etc/makepkg.conf"
+	# define build directory
+	build_dir='/tmp/makepkg'
 
-	# set permissions for /tmp, used to store build and compiled
-	# packages
+	# set build directory for makepkg
+	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
+
+	# create build directory and then set permissions for /tmp recursively
+	mkdir -p "${build_dir}"
 	chmod -R 777 '/tmp'
 
 	if ! which yay; then
@@ -71,9 +74,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# prevent sudo prompt for password when installing compiled
 	# package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
-
-	build_dir='/tmp/makepkg'
-	mkdir -p "${build_dir}"
 
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then

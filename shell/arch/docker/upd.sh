@@ -18,7 +18,7 @@ EOF
 pacman -S reflector --noconfirm
 
 # use reflector to overwriting existing mirrorlist, args explained below
-# --sort rate                       = sort by download rate
+# --sort age                        = sort by last server synchronized
 # --age 1                           = Only return mirrors that have synchronized in the last 1 hours.
 # --latest 5                        = Limit the list to the 5 most recently synchronized servers.
 # --score 5                         = Limit the list to the n servers with the highest score.
@@ -34,7 +34,7 @@ while true; do
 
 	# required, as this script is sourced in and thus picks up set -e
 	set +e
-	reflector_stderr=$(reflector --completion-percent="${completion_percent}" --connection-timeout 60 --cache-timeout 60 --sort rate --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
+	reflector_stderr=$(reflector --completion-percent="${completion_percent}" --connection-timeout 60 --cache-timeout 60 --sort age --age 1 --latest 5 --score 5 --save /etc/pacman.d/mirrorlist 2>&1)
 	set -e
 	exit_code=$?
 

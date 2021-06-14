@@ -135,6 +135,9 @@ function symlink_home_dir {
 	echo "[info] Creating soft link from /config/${app_name}/home to /home/nobody..."
 	mkdir -p "/config/${app_name}/home" ; mkdir -p "/home/nobody" ; ln -s "/config/${app_name}/home/" "/home/nobody/"
 
+	# reset permissions after file copy
+	chown -R "${PUID}":"${PGID}" "/config/${app_name}/home" "/home/nobody"
+
 }
 
 # ENVVARS_COMMON_PLACEHOLDER

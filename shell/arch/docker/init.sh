@@ -125,7 +125,7 @@ function symlink_home_dir {
 	if [[ ! -d "/config/${app_name}/home" ]]; then
 		if [[ -d "/home/nobody-backup" ]]; then
 			echo "[info] /config/${app_name}/home folder storing user general settings does not exist, copying defaults..."
-			mkdir -p "/config/${app_name}/home" ; cp -R "/home/nobody-backup" "/config/${app_name}/home"
+			mkdir -p "/config/${app_name}/home" ; cp -R "/home/nobody-backup/"* "/config/${app_name}/home"
 		fi
 	else
 		echo "[info] /config/${app_name}/home folder storing user general settings already exists, skipping copy"
@@ -133,7 +133,7 @@ function symlink_home_dir {
 
 	# create soft link to /home/nobody/${folder} storing general settings
 	echo "[info] Creating soft link from /config/${app_name}/home to /home/nobody..."
-	mkdir -p "/config/${app_name}/home" ; mkdir -p "/home/nobody" ; ln -s "/config/${app_name}/home/*" "/home/nobody/"
+	mkdir -p "/config/${app_name}/home" ; mkdir -p "/home/nobody" ; ln -s "/config/${app_name}/home/" "/home/nobody/"
 
 }
 

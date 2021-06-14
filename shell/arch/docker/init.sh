@@ -133,7 +133,7 @@ function symlink_home_dir {
 
 	# create soft link to /home/nobody/${folder} storing general settings
 	echo "[info] Creating soft link from /config/${app_name}/home to /home/nobody..."
-	mkdir -p "/config/${app_name}/home" ; mkdir -p "/home/nobody" ; ln -s "/config/${app_name}/home/" "/home/nobody/"
+	mkdir -p "/config/${app_name}/home" ; rm -rf "/home/nobody" ; ln -s "/config/${app_name}/home/" "/home/nobody"
 
 	# reset permissions after file copy
 	chown -R "${PUID}":"${PGID}" "/config/${app_name}/home" "/home/nobody"

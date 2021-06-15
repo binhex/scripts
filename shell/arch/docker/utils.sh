@@ -150,11 +150,12 @@ Where:
 		Displays this text.
 
 	-sp or --src-path <path>
-		Define source path to symlink
+		Define source path containing files you want to copy to dst-path.
 		No default.
 
 	-dp or --dst-path <path>
-		Define destinaiton path to symlink
+		Define destinaiton path to store files copied from src-path,
+		this is then symlinked back (src-path renamed to *-backup).
 		No default.
 
 	-lt or --link-type <softlink|hardlink>

@@ -1,7 +1,24 @@
 #!/bin/bash
 
-readonly defaultDebug="no"
-debug="${defaultDebug}"
+readonly defaultLogLevel="WARN"
+log_level="${defaultLogLevel}"
+
+declare -A levels=([DEBUG]=0 [INFO]=1 [WARN]=2 [ERROR]=3)
+
+function logger() {
+
+	local log_message=$1
+    local log_priority=$2
+
+    # check if level exists
+    [[ ${levels[$log_priority]} ]] || return 1
+
+    # check if level is enough
+    (( ${levels[$log_priority]} < ${levels[$log_level]} )) && return 2
+
+    # log here
+    echo "[${log_priority}] ${log_message}"
+}
 
 function symlink {
 
@@ -21,8 +38,8 @@ function symlink {
 				link_type=$2
 				shift
 				;;
-			--debug)
-				debug=$2
+			-ll|--log-level)
+				log_level=$2
 				shift
 				;;
 			-h|--help)
@@ -30,7 +47,7 @@ function symlink {
 				exit 0
 				;;
 			*)
-				echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
 				echo ""
 				show_help_symlink
 				return 1
@@ -41,19 +58,19 @@ function symlink {
 
 	# verify required options specified
 	if [[ -z "${src_path}" ]]; then
-		echo "[WARN] Source path not specified, showing help..."
+		logger "Source path not specified, showing help..." "WARN"
 		show_help_symlink
 		return 1
 	fi
 
 	if [[ -z "${dst_path}" ]]; then
-		echo "[WARN] Destination path not specified, showing help..."
+		logger "Destination path not specified, showing help..." "WARN"
 		show_help_symlink
 		return 1
 	fi
 
 	if [[ -z "${link_type}" ]]; then
-		echo "[WARN] Link type not specified, showing help..."
+		logger "Link type not specified, showing help..." "WARN"
 		show_help_symlink
 		return 1
 	fi
@@ -64,30 +81,47 @@ function symlink {
 	elif [[ "${link_type}" == "hardliunk" ]]; then
 		link_type=""
 	else
-		echo "[WARN] Unknown link type of '${link_type}' specified, exiting function..."
+		logger "Unknown link type of '${link_type}' specified, exiting function..." "WARN"
 		return 1
 	fi
 
 	# if container folder exists then rename and use as default restore
 	if [[ -d "${src_path}" && ! -L "${src_path}" ]]; then
-		echo "[info] '${src_path}' path already exists, renaming..."
-		mv "${src_path}" "${src_path}-backup"
+		logger "'${src_path}' path already exists, renaming..." "INFO"
+		if ! stderr=$(mv "${src_path}" "${src_path}-backup" 2>&1 >/dev/null); then
+			logger "Unable to move src path '${src_path}' to backup path '${src_path}-backup' error is '${stderr}', exiting function..." "ERROR"
+			return 1
+		fi
 	fi
 
 	# if ${dst_path} doesnt exist then restore from backup
 	if [[ ! -d "${dst_path}" ]]; then
 		if [[ -d "${src_path}-backup" ]]; then
-			echo "[info] '${dst_path}' path does not exist, copying defaults..."
-			mkdir -p "${dst_path}" ; cp -R "${src_path}-backup/"* "${dst_path}"
+			logger "'${dst_path}' path does not exist, copying defaults..." "INFO"
+			if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
+				logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+				return 1
+			fi
+			if ! stderr=$(cp -R "${src_path}-backup/"* "${dst_path}" 2>&1 >/dev/null); then
+				logger "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+				return 1
+			fi
 		fi
 	else
-		echo "[info] '${dst_path}' path already exists, skipping copy"
+		logger "'${dst_path}' path already exists, skipping copy" "INFO"
 	fi
 
 	# create soft link to ${src_path}/${folder} storing general settings
-	echo "[info] Creating soft link from '${dst_path}' to '${src_path}'..."
-	mkdir -p "${dst_path}" ; rm -rf "${src_path}" ; ln "${link_type}" "${dst_path}/" "${src_path}"
-
+	logger "Creating soft link from '${dst_path}' to '${src_path}'..." "INFO"
+	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
+		logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+	fi
+	if ! stderr=$(rm -rf "${src_path}" 2>&1 >/dev/null); then
+		logger "Unable to recusrively delete path '${src_path}' error is '${stderr}', exiting function..." "ERROR"
+	fi
+	if ! stderr=$(ln "${link_type}" "${dst_path}/" "${src_path}" 2>&1 >/dev/null); then
+		logger "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..." "ERROR"
+	fi
 	if [[ -n "${PUID}" && -n "${PGID}" ]]; then
 		# reset permissions after file copy
 		chown -R "${PUID}":"${PGID}" "${dst_path}" "${src_path}"
@@ -104,8 +138,8 @@ function dos2unix() {
 				file_path=$2
 				shift
 				;;
-			--debug)
-				debug=$2
+			-ll|--log-level)
+				log_level=$2
 				shift
 				;;
 			-h|--help)
@@ -113,7 +147,7 @@ function dos2unix() {
 				exit 0
 				;;
 			*)
-				echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
 				echo ""
 				show_help_dos2unix
 				return 1
@@ -124,14 +158,14 @@ function dos2unix() {
 
 	# verify required options specified
 	if [[ -z "${file_path}" ]]; then
-		echo "[WARN] File path not specified, showing help..."
+		logger "File path not specified, showing help..." "WARN"
 		show_help_dos2unix
 		return 1
 	fi
 
 	# verify file path exists
 	if [ ! -f "${file_path}" ]; then
-		echo "[WARN] File path '${file_path}' does not exist, exiting function..."
+		logger "File path '${file_path}' does not exist, exiting function..." "WARN"
 		return 1
 	fi
 
@@ -162,16 +196,16 @@ Where:
 		Define the symlink type.
 		No default.
 
-	--debug <yes|no>
-		Define whether debug is turned on or not.
-		Defaults to '${defaultDebug}'.
+	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
+		Define logging level.
+		Defaults to '${defaultLogLevel}'.
 
 Examples:
 	Create softlink from /home/nobody to /config/code-server/home with debugging on:
-		source '/usr/local/bin/utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink' --debug 'yes'
+		source '/usr/local/bin/utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink' --log-level 'WARN'
 
 	Create hardlink from /home/nobody to /config/code-server/home with debugging on:
-		source '/usr/local/bin//utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --debug 'yes'
+		source '/usr/local/bin//utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --log-level 'WARN'
 
 ENDHELP
 }
@@ -190,13 +224,13 @@ Where:
 		Define file path to file to convert from DOS line endings to UNIX.
 		No default.
 
-	--debug <yes|no>
-		Define whether debug is turned on or not.
-		Defaults to '${defaultDebug}'.
+	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
+		Define logging level.
+		Defaults to '${defaultLogLevel}'.
 
 Examples:
 	Convert line endings for wireguard config file 'config/wireguard/wg0.conf' with debugging on:
-		source '/usr/local/bin/utils.sh' && dos2unix --file-path '/config/wireguard/wg0.conf' --debug 'yes'
+		source '/usr/local/bin/utils.sh' && dos2unix --file-path '/config/wireguard/wg0.conf' --log-level 'WARN'
 
 ENDHELP
 }

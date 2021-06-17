@@ -11,13 +11,15 @@ function logger() {
     local log_priority=$2
 
     # check if level exists
-    [[ ${levels[$log_priority]} ]] || return 1
+    if ! [[ ${levels[$log_priority]} ]]; then
+		echo "[ERROR] Log level '${log_priority}' is not valid, exiting function"
+		return 1
+	fi
 
     # check if level is enough
-    (( ${levels[$log_priority]} < ${levels[$log_level]} )) && return 2
-
-    # log here
-    echo "[${log_priority}] ${log_message}"
+    if (( ${levels[$log_priority]} >= ${levels[$log_level]} )); then
+    	echo "[${log_priority}] ${log_message}"
+	fi
 }
 
 function symlink {
@@ -115,12 +117,15 @@ function symlink {
 	logger "Creating soft link from '${dst_path}' to '${src_path}'..." "INFO"
 	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
 		logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+		return 1
 	fi
 	if ! stderr=$(rm -rf "${src_path}" 2>&1 >/dev/null); then
-		logger "Unable to recusrively delete path '${src_path}' error is '${stderr}', exiting function..." "ERROR"
+		logger "Unable to recursively delete path '${src_path}' error is '${stderr}', exiting function..." "ERROR"
+		return 1
 	fi
 	if ! stderr=$(ln "${link_type}" "${dst_path}/" "${src_path}" 2>&1 >/dev/null); then
 		logger "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..." "ERROR"
+		return 1
 	fi
 	if [[ -n "${PUID}" && -n "${PGID}" ]]; then
 		# reset permissions after file copy

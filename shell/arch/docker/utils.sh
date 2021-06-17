@@ -1,8 +1,10 @@
 #!/bin/bash
 
-readonly defaultLogLevel="WARN"
+# set default logging level
+defaultLogLevel="WARN"
 log_level="${defaultLogLevel}"
 
+# create associative array with permitted logging levels
 declare -A levels=([DEBUG]=0 [INFO]=1 [WARN]=2 [ERROR]=3)
 
 function logger() {
@@ -10,15 +12,15 @@ function logger() {
 	local log_message=$1
     local log_priority=$2
 
-    # check if level exists
-    if ! [[ ${levels[$log_priority]} ]]; then
-		echo "[ERROR] Log level '${log_priority}' is not valid, exiting function"
+    # check if level is in array
+	if [[ -z "${log_level[${log_priority}]:-}" ]]; then
+    	echo "[ERROR] Log level '${log_priority}' is not valid, exiting function"
 		return 1
 	fi
 
-    # check if level is enough
+    # check if level is high enough to log
     if (( ${levels[$log_priority]} >= ${levels[$log_level]} )); then
-    	echo "[${log_priority}] ${log_message}"
+    	echo "[${log_priority}] ${log_message}" | ts '%Y-%m-%d %H:%M:%.S'
 	fi
 }
 
@@ -114,7 +116,7 @@ function symlink {
 	fi
 
 	# create soft link to ${src_path}/${folder} storing general settings
-	logger "Creating soft link from '${dst_path}' to '${src_path}'..." "INFO"
+	logger "Creating '${link_type}' from '${dst_path}' to '${src_path}'..." "INFO"
 	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
 		logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
 		return 1

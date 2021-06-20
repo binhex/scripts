@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source './utils.sh'
+source '/usr/local/bin/utils.sh'
 
 # check path param exists
 if [[ -z "${1}" ]]; then

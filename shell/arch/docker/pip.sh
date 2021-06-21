@@ -10,8 +10,8 @@ fi
 install_path="${1}"
 
 # check path exists
-if [[ -d "${install_path}" ]]; then
-    logger "PAth '${install_path}' does not exist" "ERROR"
+if [[ ! -d "${install_path}" ]]; then
+    logger "Path '${install_path}' does not exist" "ERROR"
 fi
 
 # define pacman packages

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# logger function
 source '/usr/local/bin/utils.sh'
 
 # check path param exists
@@ -19,7 +20,7 @@ pacman_packages="python python-pip"
 
 # install compiled packages using pacman
 if [[ ! -z "${pacman_packages}" ]]; then
-	pacman -S --needed $pacman_packages --noconfirm
+    pacman -S --needed $pacman_packages --noconfirm
 fi
 
 cd "${install_path}" || logger "Cannot change to path '${install_path}'" "ERROR"

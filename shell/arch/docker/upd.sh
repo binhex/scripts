@@ -26,8 +26,8 @@ pacman -S reflector --noconfirm
 # mirrorlist does not always populate, retry if exit code not 0
 
 echo "[info] Updating mirrorlist for pacman using reflector..."
-retry_count=10
-sleep_period_secs=60
+retry_count=3
+sleep_period_secs=10
 completion_percent=100
 
 while true; do

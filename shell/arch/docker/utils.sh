@@ -1,8 +1,12 @@
 #!/bin/bash
 
-# set default logging level
+# set defaults
 defaultLogLevel="WARN"
 log_level="${defaultLogLevel}"
+defaultNumberLogs="3"
+number_of_logs_to_keep="${defaultNumberLogs}"
+defaultFileSize="102048"
+file_size_limit_kb="${defaultFileSize}"
 
 # create associative array with permitted logging levels
 declare -A levels=([DEBUG]=0 [INFO]=1 [WARN]=2 [ERROR]=3)
@@ -24,7 +28,89 @@ function logger() {
 	fi
 }
 
-function symlink {
+function log_rotate() {
+
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-lp|--log-path)
+				log_path=$2
+				shift
+				;;
+			-nl|--number-logs)
+				number_of_logs_to_keep=$2
+				shift
+				;;
+			-fs|--file-size)
+				file_size_limit_kb=$2
+				shift
+				;;
+			-h|--help)
+				show_help_log_rotate
+				exit 0
+				;;
+			*)
+				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help_log_rotate
+				return 1
+				;;
+		esac
+		shift
+	done
+
+	# verify required options specified
+	if [[ -z "${log_path}" ]]; then
+		logger "Log path not specified, showing help..." "WARN"
+		show_help_log_rotate
+		return 1
+	fi
+
+	# wait for log file to exist before size checks proceed
+	while [[ ! -f "${log_path}" ]]; do
+		sleep 0.1
+	done
+
+	logger "Log rotate script running, monitoring log file '${log_path}'" "INFO"
+
+	while true; do
+
+		file_size_kb=$(du -k "${log_path}" | cut -f1)
+
+		if [ "${file_size_kb}" -ge "${file_size_limit_kb}" ]; then
+
+			logger "'${log_path}' log file larger than limit ${file_size_limit_kb} kb, rotating logs..." "INFO"
+
+			if [[ -f "${log_path}.${number_of_logs_to_keep}" ]]; then
+				logger "Deleting oldest log file '${log_path}.${number_of_logs_to_keep}'..." "INFO"
+				rm -f "${log_path}.${number_of_logs_to_keep}"
+			fi
+
+			for log_number in $(seq "${number_of_logs_to_keep}" -1 0); do
+
+				if [[ -f "${log_path}.${log_number}" ]]; then
+					log_number_inc=$((log_number+1))
+					mv "${log_path}.${log_number}" "${log_path}.${log_number_inc}"
+				fi
+
+			done
+
+			logger "Copying current log '${log_path}' to ${log_path}.0..." "INFO"
+			cp "${log_path}" "${log_path}.0"
+
+			logger "Emptying current log '${log_path}' contents..." "INFO"
+			> "${log_path}"
+
+		fi
+
+		sleep 30s
+
+	done
+
+}
+
+function symlink() {
 
 	while [ "$#" != "0" ]
 	do
@@ -213,6 +299,35 @@ Examples:
 
 	Create hardlink from /home/nobody to /config/code-server/home with debugging on:
 		source '/usr/local/bin//utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --log-level 'WARN'
+
+ENDHELP
+}
+
+function show_help_log_rotate() {
+	cat <<ENDHELP
+Description:
+	A function to rotate log files
+Syntax:
+	source ./utils.sh && log_rotate [args]
+Where:
+	-h or --help
+		Displays this text.
+
+	-lp or --log-path <path>
+		Define path to log file.
+		No default.
+
+	-nl or --number-logs <number of logs>
+		Define number of log files to keep.
+		Defaults to '${defaultNumberLogs}'.
+
+	-fs or --file-size <size of log in kb>
+		Define size of each log file in Kb.
+		Defaults to '${defaultFileSize}'.
+
+Examples:
+	Log rotate rclone log file keeping 3 log files and switching log file when size exceeds 1-2-48 Kb::
+		source '/usr/local/bin/utils.sh' && log_rotate --log-path '/config/rclone/logs/rclone.log' --number-logs '3' --file-size '102048'
 
 ENDHELP
 }

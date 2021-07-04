@@ -18,6 +18,9 @@ ___.   .__       .__
 
 EOF
 
+# set permissions to allow rw for all users (used when appending util output to supervisor log)
+chmod 666 "/config/supervisord.log"
+
 if [[ "${HOST_OS,,}" == "unraid" ]]; then
 	echo "[info] Host is running unRAID" | ts '%Y-%m-%d %H:%M:%.S'
 fi

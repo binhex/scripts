@@ -32,6 +32,8 @@ function pip_install() {
         python3 -m venv env
         source "${install_path}/env/bin/activate"
 
+		logger "Installing Python pre-requisites via requirements.txt file '${install_path}/requirements.txt'" "INFO"
+
         # install python modules as per requirements.txt in virtualenv
         pip install -r "${install_path}/requirements.txt"
 
@@ -42,6 +44,8 @@ function pip_install() {
         python3 -m venv env
         source "${install_path}/env/bin/activate"
 
+		logger "Installing Python package(s) '${pip_packages}'" "INFO"
+		
         # install python package in virtualenv
         pip install -U "${pip_packages}"
     fi

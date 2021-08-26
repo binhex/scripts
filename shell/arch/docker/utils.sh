@@ -266,6 +266,53 @@ function dos2unix() {
 	sed -i $'s/\r$//' "${file_path}"
 }
 
+
+function trim() {
+
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-s|--string)
+				string=$2
+				shift
+				;;
+			-ll|--log-level)
+				log_level=$2
+				shift
+				;;
+			-h|--help)
+				show_help_dos2unix
+				exit 0
+				;;
+			*)
+				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help_trim
+				return 1
+				;;
+		esac
+		shift
+	done
+
+	# verify required options specified
+	if [[ -z "${string}" ]]; then
+		logger "String to trim not specified, showing help..." "WARN"
+		show_help_trim
+		return 1
+	fi
+
+	# remove leading whitespace characters
+	string="${string#"${string%%[![:space:]]*}"}"
+
+	# remove trailing whitespace characters
+	string="${string%"${string##*[![:space:]]}"}"
+
+	# return stripped string
+	echo "${string}"
+}
+
+
 function show_help_symlink() {
 	cat <<ENDHELP
 Description:
@@ -353,6 +400,31 @@ Where:
 Examples:
 	Convert line endings for wireguard config file 'config/wireguard/wg0.conf' with debugging on:
 		source '/usr/local/bin/utils.sh' && dos2unix --file-path '/config/wireguard/wg0.conf' --log-level 'WARN'
+
+ENDHELP
+}
+
+function show_help_trim() {
+	cat <<ENDHELP
+Description:
+	A function to trim whitespace from start and end of string
+Syntax:
+	source ./utils.sh && trim [args]
+Where:
+	-h or --help
+		Displays this text.
+
+	-s or --string <string to trim>
+		Define the string to trim whitespace from.
+		No default.
+
+	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
+		Define logging level.
+		Defaults to '${defaultLogLevel}'.
+
+Examples:
+	Trim whitespace from the following string '    abc    ' with debugging on:
+		source '/usr/local/bin/utils.sh' && trim --string '    abc    ' --log-level 'WARN'
 
 ENDHELP
 }

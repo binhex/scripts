@@ -11,6 +11,12 @@ readonly defaultNetworkType="bridge"
 host_port="${defaultHostPort}"
 network_type="${defaultNetworkType}"
 
+function cleanup() {
+
+	echo "[info] Running post test cleanup..."
+	docker system prune -a -y
+}
+
 function run_smoketests() {
 
 	local retry_count=60
@@ -28,12 +34,14 @@ function run_smoketests() {
 			echo "[info] Test FAILED, Showing output for 'lsof' and supervisord log file..."
 			timeout 10s sudo lsof
 			cat '/tmp/config/supervisord.log'
+			cleanup
 			exit 1
 		fi
 		sleep 1s
 	done
 
 	echo "[info] Test PASSED, port is open"
+	cleanup
 }
 
 function show_help() {

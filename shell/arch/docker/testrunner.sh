@@ -23,8 +23,8 @@ function run_smoketests() {
 
 	local retry_count=60
 
-	echo "[info] Creating Docker container 'docker run -d --rm --net=${network_type} ${env_vars} -v /tmp/config:/config -v /tmp/data:/data -v /tmp/media:/media -p ${host_port}:${container_port} ${image_name}'"
-	docker run -d "--name=${container_name}" "--net=${network_type}" ${env_vars} -v "/tmp/config:/config" -v "/tmp/data:/data" -v "/tmp/media:/media" -p "${host_port}:${container_port}" ${image_name}
+	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} -v /tmp/config:/config -v /tmp/data:/data -v /tmp/media:/media -p ${host_port}:${container_port} ${image_name}'"
+	docker run -d --name "${container_name}" --net "${network_type}" ${env_vars} -v "/tmp/config:/config" -v "/tmp/data:/data" -v "/tmp/media:/media" -p "${host_port}:${container_port}" ${image_name}
 
 	echo "[info] Showing running containers..."
 	docker ps
@@ -33,8 +33,7 @@ function run_smoketests() {
 	until sudo lsof -i:${host_port}; do
 		retry_count=$((retry_count-1))
 		if [ "${retry_count}" -eq "0" ]; then
-			echo "[info] Test FAILED, Showing output for 'lsof' and supervisord log file..."
-			timeout 10s sudo lsof
+			echo "[info] Test FAILED, Showing output for supervisord log file..."
 			cat '/tmp/config/supervisord.log'
 			cleanup
 			exit 1

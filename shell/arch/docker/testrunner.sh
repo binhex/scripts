@@ -6,16 +6,17 @@ readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 readonly defaultHostPort="9999"
 readonly defaultNetworkType="bridge"
+readonly defaultContainerName="smoketest"
 
 # set defaults
 host_port="${defaultHostPort}"
 network_type="${defaultNetworkType}"
+container_name="${defaultContainerName}"
 
 function cleanup() {
 
-	echo "[info] Running post test cleanup..."
-	docker system prune -a -f
-	rm -rf /tmp/*
+	echo "[info] Running post test cleanup, deleting container '${container_name}'..."
+	docker rm -f "${container_name}"
 }
 
 function run_smoketests() {
@@ -23,7 +24,7 @@ function run_smoketests() {
 	local retry_count=60
 
 	echo "[info] Creating Docker container 'docker run -d --rm --net=${network_type} ${env_vars} -v /tmp/config:/config -v /tmp/data:/data -v /tmp/media:/media -p ${host_port}:${container_port} ${image_name}'"
-	docker run -d --rm "--net=${network_type}" ${env_vars} -v /tmp/config:/config -v /tmp/data:/data -v /tmp/media:/media -p "${host_port}:${container_port}" ${image_name}
+	docker run -d "--name=${container_name}" "--net=${network_type}" ${env_vars} -v "/tmp/config:/config" -v "/tmp/data:/data" -v "/tmp/media:/media" -p "${host_port}:${container_port}" ${image_name}
 
 	echo "[info] Showing running containers..."
 	docker ps
@@ -68,6 +69,10 @@ Where:
 		Define the container port for the container.
 		No default.
 
+	-cn or --container-name
+		Define the name for the container.
+		Defaults to '${defaultContainerName}'.
+
 	-nt or --network-type
 		Define the network type for the container.
 		Defaults to '${defaultNetworkType}'.
@@ -77,8 +82,8 @@ Where:
 		No default.
 
 Examples:
-	Run test for container with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --network-type 'bridge' --env-vars '-e VPN_ENABLED=no'
+	Run test for image with VPN disabled via env var:
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --env-vars '-e VPN_ENABLED=no'
 ENDHELP
 }
 
@@ -96,6 +101,10 @@ do
 			;;
 		-cp|--container-port)
 			container_port="${2}"
+			shift
+			;;
+		-cn|--container-name)
+			container_name="${2}"
 			shift
 			;;
 		-nt|--network-type)

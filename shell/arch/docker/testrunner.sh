@@ -34,6 +34,7 @@ function run_smoketests() {
 		retry_count=$((retry_count-1))
 		if [ "${retry_count}" -eq "0" ]; then
 			echo "[info] Test FAILED, Showing output for supervisord log file..."
+			ls -al /tmp
 			cat '/tmp/config/supervisord.log'
 			cleanup
 			exit 1

@@ -23,8 +23,8 @@ function run_smoketests() {
 
 	local retry_count=60
 
-	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} -v /tmp/config:/config -v /tmp/data:/data -v /tmp/media:/media -p ${host_port}:${container_port} ${image_name}'"
-	docker run -d --name "${container_name}" --net "${network_type}" ${env_vars} -v "/tmp/config:/config" -v "/tmp/data:/data" -v "/tmp/media:/media" -p "${host_port}:${container_port}" ${image_name}
+	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}'"
+	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}
 
 	echo "[info] Showing running containers..."
 	docker ps
@@ -80,9 +80,13 @@ Where:
 		Define the env vars for the container.
 		No default.
 
+	-aa or --additional-args
+		Define any additional docker arguments for the container.
+		No default.
+
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --env-vars '-e VPN_ENABLED=no'
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --env-vars '-e VPN_ENABLED=no' --additional-args '--sysctl="net.ipv4.conf.all.src_valid_mark=1"'
 ENDHELP
 }
 
@@ -112,6 +116,10 @@ do
 			;;
 		-ev|--env-vars)
 			env_vars="${2}"
+			shift
+			;;
+		-aa|--additional-args)
+			additional_args="${2}"
 			shift
 			;;
 		-h|--help)

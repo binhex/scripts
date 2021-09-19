@@ -14,7 +14,7 @@ network_type="${defaultNetworkType}"
 function cleanup() {
 
 	echo "[info] Running post test cleanup..."
-	docker system prune -a -y
+	docker system prune -a -f
 }
 
 function run_smoketests() {

@@ -15,6 +15,7 @@ function cleanup() {
 
 	echo "[info] Running post test cleanup..."
 	docker system prune -a -f
+	rm -rf /tmp/*
 }
 
 function run_smoketests() {

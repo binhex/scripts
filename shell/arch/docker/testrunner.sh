@@ -30,10 +30,10 @@ function run_smoketests() {
 	docker ps
 
 	echo "[info] Waiting for port '${host_port}' to be in listen state..."
-	until sudo lsof -i:${host_port}; do
+	while [[ $(netstat -lnt | awk "\$6 == \"LISTEN\" && \$4 ~ \".${host_port}\"") == "" ]]; do
 		retry_count=$((retry_count-1))
 		if [ "${retry_count}" -eq "0" ]; then
-			echo "[info] Test FAILED, Showing output for supervisord log file..."
+			echo "[info] TEST FAILED, Showing output for supervisord log file..."
 			ls -al /tmp
 			cat '/tmp/config/supervisord.log'
 			cleanup
@@ -42,7 +42,7 @@ function run_smoketests() {
 		sleep 1s
 	done
 
-	echo "[info] Test PASSED, port is open"
+	echo "[info] TEST PASSED, port is open"
 	cleanup
 }
 

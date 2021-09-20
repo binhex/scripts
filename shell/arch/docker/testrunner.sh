@@ -91,7 +91,7 @@ Where:
 
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --env-vars '-e VPN_ENABLED=no' --additional-args '--sysctl="net.ipv4.conf.all.src_valid_mark=1"'
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
 ENDHELP
 }
 

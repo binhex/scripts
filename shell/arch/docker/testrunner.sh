@@ -7,11 +7,13 @@ readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 readonly defaultHostPort="9999"
 readonly defaultNetworkType="bridge"
 readonly defaultContainerName="smoketest"
+readonly defaultRetryCount="60"
 
 # set defaults
 host_port="${defaultHostPort}"
 network_type="${defaultNetworkType}"
 container_name="${defaultContainerName}"
+retry_count="${defaultRetryCount}"
 
 function cleanup() {
 
@@ -20,8 +22,6 @@ function cleanup() {
 }
 
 function run_smoketests() {
-
-	local retry_count=60
 
 	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}'"
 	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}
@@ -77,6 +77,10 @@ Where:
 		Define the network type for the container.
 		Defaults to '${defaultNetworkType}'.
 
+	-rc or --retry-count
+		Define the number of retries before smoketest is marked as failed
+		Defaults to '${defaultRetryCount}'.
+
 	-ev or --env-vars
 		Define the env vars for the container.
 		No default.
@@ -113,6 +117,10 @@ do
 			;;
 		-nt|--network-type)
 			network_type="${2}"
+			shift
+			;;
+		-rc|--retry-count)
+			retry_count="${2}"
 			shift
 			;;
 		-ev|--env-vars)

@@ -6,7 +6,7 @@ readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 readonly defaultHostPort="9999"
 readonly defaultNetworkType="bridge"
-readonly defaultContainerName="smoketest"
+readonly defaultContainerName="test"
 readonly defaultRetryCount="60"
 
 # set defaults
@@ -17,11 +17,16 @@ retry_count="${defaultRetryCount}"
 
 function cleanup() {
 
-	echo "[info] Running post test cleanup, deleting container '${container_name}'..."
+	echo "[info] Running post test cleanup"
+
+	echo "[info] Deleting container '${container_name}'..."
 	docker rm -f "${container_name}"
+
+	echo "[info] Deleting container volume mappings..."
+	rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
 }
 
-function run_smoketests() {
+function check_port_listening() {
 
 	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}'"
 	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}
@@ -33,8 +38,8 @@ function run_smoketests() {
 	while [[ $(netstat -lnt | awk "\$6 == \"LISTEN\" && \$4 ~ \".${host_port}\"") == "" ]]; do
 		retry_count=$((retry_count-1))
 		if [ "${retry_count}" -eq "0" ]; then
-			echo "[info] TEST FAILED, Showing output for supervisord log file..."
-			ls -al /tmp
+			echo "[info] TESTS FAILED"
+			echo "[info] Displaying contents of log file '/tmp/config/supervisord.log'..."
 			cat '/tmp/config/supervisord.log'
 			cleanup
 			exit 1
@@ -42,7 +47,7 @@ function run_smoketests() {
 		sleep 1s
 	done
 
-	echo "[info] TEST PASSED, port is open"
+	echo "[info] TESTS PASSED"
 	cleanup
 }
 
@@ -78,7 +83,7 @@ Where:
 		Defaults to '${defaultNetworkType}'.
 
 	-rc or --retry-count
-		Define the number of retries before smoketest is marked as failed
+		Define the number of retries before test is marked as failed
 		Defaults to '${defaultRetryCount}'.
 
 	-ev or --env-vars
@@ -91,7 +96,7 @@ Where:
 
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'smoketest' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
 ENDHELP
 }
 
@@ -163,4 +168,4 @@ if [[ -z "${container_port}" ]]; then
 	exit 1
 fi
 
-run_smoketests
+check_port_listening

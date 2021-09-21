@@ -4,13 +4,11 @@
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
-readonly defaultHostPort="9999"
 readonly defaultNetworkType="bridge"
 readonly defaultContainerName="test"
 readonly defaultRetryCount="60"
 
 # set defaults
-host_port="${defaultHostPort}"
 network_type="${defaultNetworkType}"
 container_name="${defaultContainerName}"
 retry_count="${defaultRetryCount}"
@@ -26,29 +24,56 @@ function cleanup() {
 	rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
 }
 
+function test_result(){
+
+	if [[ "${tests_passed}" == "false" ]]; then
+		echo "==================="
+		echo "[info] TESTS FAILED"
+		echo "==================="
+		echo "[info] Displaying contents of log file '/tmp/config/supervisord.log'..."
+		cat '/tmp/config/supervisord.log'
+		cleanup
+		exit 1
+	fi
+
+	echo "==================="
+	echo "[info] TESTS PASSED"
+	echo "==================="
+	cleanup
+
+}
+
 function check_port_listening() {
 
-	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}'"
-	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' -p ${host_port}:${container_port} ${image_name}
+	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
+	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
 
 	echo "[info] Showing running containers..."
 	docker ps
 
-	echo "[info] Waiting for port '${host_port}' to be in listen state..."
-	while [[ $(netstat -lnt | awk "\$6 == \"LISTEN\" && \$4 ~ \".${host_port}\"") == "" ]]; do
-		retry_count=$((retry_count-1))
-		if [ "${retry_count}" -eq "0" ]; then
-			echo "[info] TESTS FAILED"
-			echo "[info] Displaying contents of log file '/tmp/config/supervisord.log'..."
-			cat '/tmp/config/supervisord.log'
-			cleanup
-			exit 1
-		fi
-		sleep 1s
+	# get host ports to check
+	host_ports=$(echo "${container_ports}" | grep -P -o -m 1 '(?<=-p\s)[0-9]+' | xargs)
+
+	# split space separated host ports into array
+	IFS=' ' read -ra host_ports_array <<< "${host_ports}"
+
+	# loop over list of host ports
+	for host_port in "${host_ports_array[@]}"; do
+
+		echo "[info] Waiting for port '${host_port}' to be in listen state..."
+		while [[ $(netstat -lnt | awk "\$6 == \"LISTEN\" && \$4 ~ \".${host_port}\"") == "" ]]; do
+			retry_count=$((retry_count-1))
+			if [ "${retry_count}" -eq "0" ]; then
+				tests_passed="false"
+				test_result
+			fi
+			sleep 1s
+		done
+		
 	done
 
-	echo "[info] TESTS PASSED"
-	cleanup
+	tests_passed="true"
+	test_result
 }
 
 function show_help() {
@@ -66,12 +91,8 @@ Where:
 		Define the image and tag name for the container.
 		No default.
 
-	-hp or --host-port
-		Define the host port for the container.
-		Defaults to '${defaultHostPort}'.
-
-	-cp or --container-port
-		Define the container port for the container.
+	-cp or --container-ports
+		Define the container port(s) for the container.
 		No default.
 
 	-cn or --container-name
@@ -96,7 +117,7 @@ Where:
 
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --host-port '9999' --container-port '8090' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
 ENDHELP
 }
 
@@ -108,12 +129,8 @@ do
 			image_name="${2}"
 			shift
 			;;
-		-hp|--host-port)
-			host_port="${2}"
-			shift
-			;;
-		-cp|--container-port)
-			container_port="${2}"
+		-cp|--container-ports)
+			container_ports="${2}"
 			shift
 			;;
 		-cn|--container-name)
@@ -161,8 +178,8 @@ if [[ -z "${image_name}" ]]; then
 	exit 1
 fi
 
-if [[ -z "${container_port}" ]]; then
-	echo "[warn] Please specify '--container-port' option, displaying help..."
+if [[ -z "${container_ports}" ]]; then
+	echo "[warn] Please specify '--container-ports' option, displaying help..."
 	echo ""
 	show_help
 	exit 1

@@ -20,7 +20,7 @@ function cleanup() {
 	echo "[info] Deleting container '${container_name}'..."
 	docker rm -f "${container_name}"
 
-	echo "[info] Deleting container volume mappings..."
+	echo "[info] Deleting container bind mounts '/tmp/config', '/tmp/data', '/tmp/media' ..."
 	sudo rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
 }
 

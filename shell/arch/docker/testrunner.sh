@@ -21,7 +21,7 @@ function cleanup() {
 	docker rm -f "${container_name}"
 
 	echo "[info] Deleting container volume mappings..."
-	rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
+	sudo rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
 }
 
 function test_result(){

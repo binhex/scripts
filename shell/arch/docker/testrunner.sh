@@ -7,11 +7,13 @@ readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 readonly defaultNetworkType="bridge"
 readonly defaultContainerName="test"
 readonly defaultRetryCount="60"
+readonly defaultProtocol="http"
 
 # set defaults
 network_type="${defaultNetworkType}"
 container_name="${defaultContainerName}"
 retry_count="${defaultRetryCount}"
+protocol="${defaultProtocol}"
 
 function cleanup() {
 
@@ -61,7 +63,7 @@ function check_port_listening() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[info] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -o /dev/null -L "http://localhost:${host_port}"; do
+		while ! curl -s -o /dev/null --insecure -L "${protocol}://localhost:${host_port}"; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"
@@ -116,9 +118,13 @@ Where:
 		Define any additional docker arguments for the container.
 		No default.
 
+	-p or --protocol
+		Define protocol for test, valid values are <http|https>.
+		defaults to '${defaultProtocol}'.
+
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true'
+		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 ENDHELP
 }
 
@@ -152,6 +158,10 @@ do
 			;;
 		-aa|--additional-args)
 			additional_args="${2}"
+			shift
+			;;
+		-p|--protocol)
+			protocol="${2}"
 			shift
 			;;
 		-h|--help)

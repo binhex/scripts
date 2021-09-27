@@ -32,8 +32,10 @@ function test_result(){
 		echo "==================="
 		echo "[info] TESTS FAILED"
 		echo "==================="
-		echo "[info] Displaying contents of log file '/tmp/config/supervisord.log'..."
+		echo "[info] Displaying contents of container log file '/tmp/config/supervisord.log'..."
 		cat '/tmp/config/supervisord.log'
+		echo "[info] Displaying contents of curl log file '/tmp/curl/curl.log'..."
+		cat '/tmp/curl/curl.log'
 		cleanup
 		exit 1
 	fi
@@ -46,6 +48,8 @@ function test_result(){
 }
 
 function check_port_listening() {
+
+	mkdir -p '/tmp/curl'
 
 	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
 	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
@@ -63,7 +67,7 @@ function check_port_listening() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[info] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -o /dev/null --insecure -L "${protocol}://localhost:${host_port}"; do
+		while ! curl -s -o '/tmp/curl/curl.log' --insecure -L "${protocol}://localhost:${host_port}"; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"

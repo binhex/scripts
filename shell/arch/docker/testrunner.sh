@@ -31,6 +31,9 @@ function test_result(){
 	if [[ "${tests_passed}" == "false" ]]; then
 		echo "[error] Tests failed"
 
+		echo "[debug] Displaying docker logs..."
+		docker logs "${container_name}"
+
 		echo "[debug] Displaying contents of container log file '/tmp/config/supervisord.log'..."
 		cat '/tmp/config/supervisord.log'
 

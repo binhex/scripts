@@ -67,7 +67,7 @@ function check_port_listening() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[info] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -o '/tmp/curl/curl.log' -L "${protocol}://localhost:${host_port}"; do
+		while ! curl -o '/tmp/curl/curl.log' --insecure -L "${protocol}://localhost:${host_port}/${url}"; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"
@@ -105,6 +105,10 @@ Where:
 	-cn or --container-name
 		Define the name for the container.
 		Defaults to '${defaultContainerName}'.
+
+	-u or --url
+		Define the URL to test for the container.
+		No default.
 
 	-nt or --network-type
 		Define the network type for the container.
@@ -146,6 +150,10 @@ do
 			;;
 		-cn|--container-name)
 			container_name="${2}"
+			shift
+			;;
+		-u|--url)
+			url="${2}"
 			shift
 			;;
 		-nt|--network-type)

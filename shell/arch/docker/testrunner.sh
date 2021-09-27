@@ -75,6 +75,7 @@ function check_port_listening() {
 			fi
 			sleep 1s
 		done
+		cat /tmp/curl/curl.log
 		echo "[info] SUCCESS, port '${host_port}' is in listening state"
 
 	done

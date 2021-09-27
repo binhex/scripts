@@ -29,6 +29,7 @@ function cleanup() {
 function test_result(){
 
 	if [[ "${tests_passed}" == "false" ]]; then
+	
 		echo "[error] Tests failed"
 
 		echo "[debug] Displaying docker logs..."

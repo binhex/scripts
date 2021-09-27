@@ -29,22 +29,18 @@ function cleanup() {
 function test_result(){
 
 	if [[ "${tests_passed}" == "false" ]]; then
-		echo "==================="
-		echo "[info] TESTS FAILED"
-		echo "==================="
-		
-		echo "[info] Displaying contents of container log file '/tmp/config/supervisord.log'..."
+		echo "[failed] Tests failed"
+
+		echo "[debug] Displaying contents of container log file '/tmp/config/supervisord.log'..."
 		cat '/tmp/config/supervisord.log'
 
-		echo "[info] Displaying contents of curl log file '/tmp/curl/curl.log'..."
+		echo "[debug] Displaying contents of curl log file '/tmp/curl/curl.log'..."
 		cat '/tmp/curl/curl.log'
 		cleanup
 		exit 1
 	fi
 
-	echo "==================="
-	echo "[info] TESTS PASSED"
-	echo "==================="
+	echo "[passed] Tests failed"
 	cleanup
 
 }
@@ -77,7 +73,7 @@ function check_port_listening() {
 			fi
 			sleep 1s
 		done
-		echo "[info] SUCCESS, port '${host_port}' is in listening state"
+		echo "[info] Success, port '${host_port}' is in listening state"
 
 	done
 

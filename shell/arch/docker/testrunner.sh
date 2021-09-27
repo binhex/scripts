@@ -67,7 +67,7 @@ function check_port_listening() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[info] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -o '/tmp/curl/curl.log' --insecure -L "${protocol}://localhost:${host_port}"; do
+		while ! curl -o '/tmp/curl/curl.log' -L "${protocol}://localhost:${host_port}"; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"

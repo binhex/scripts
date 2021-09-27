@@ -17,19 +17,19 @@ protocol="${defaultProtocol}"
 
 function cleanup() {
 
-	echo "[info] Running post test cleanup"
+	echo "[debug] Running post test cleanup"
 
-	echo "[info] Deleting container '${container_name}'..."
+	echo "[debug] Deleting container '${container_name}'..."
 	docker rm -f "${container_name}"
 
-	echo "[info] Deleting container bind mounts '/tmp/config', '/tmp/data', '/tmp/media' ..."
+	echo "[debug] Deleting container bind mounts '/tmp/config', '/tmp/data', '/tmp/media' ..."
 	sudo rm -rf '/tmp/config' '/tmp/data' '/tmp/media'
 }
 
 function test_result(){
 
 	if [[ "${tests_passed}" == "false" ]]; then
-		echo "[failed] Tests failed"
+		echo "[error] Tests failed"
 
 		echo "[debug] Displaying contents of container log file '/tmp/config/supervisord.log'..."
 		cat '/tmp/config/supervisord.log'
@@ -49,10 +49,10 @@ function check_port_listening() {
 
 	mkdir -p '/tmp/curl'
 
-	echo "[info] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
+	echo "[debug] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
 	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
 
-	echo "[info] Showing running containers..."
+	echo "[debug] Showing running containers..."
 	docker ps
 
 	# get host ports to check
@@ -64,7 +64,7 @@ function check_port_listening() {
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 
-		echo "[info] Waiting for port '${host_port}' to be in listen state..."
+		echo "[debug] Waiting for port '${host_port}' to be in listen state..."
 		while ! curl -s -v --cookie --insecure -L "${protocol}://localhost:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
@@ -73,7 +73,7 @@ function check_port_listening() {
 			fi
 			sleep 1s
 		done
-		echo "[info] Success, port '${host_port}' is in listening state"
+		echo "[debug] Success, port '${host_port}' is in listening state"
 
 	done
 
@@ -188,9 +188,9 @@ do
 	 shift
 done
 
-echo "[info] Running ${ourScriptName} script..."
+echo "[debug] Running ${ourScriptName} script..."
 
-echo "[info] Checking we have all required parameters before running..."
+echo "[debug] Checking we have all required parameters before running..."
 
 if [[ -z "${image_name}" ]]; then
 	echo "[warn] Please specify '--image-name' option, displaying help..."

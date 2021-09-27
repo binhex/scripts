@@ -32,8 +32,10 @@ function test_result(){
 		echo "==================="
 		echo "[info] TESTS FAILED"
 		echo "==================="
+		
 		echo "[info] Displaying contents of container log file '/tmp/config/supervisord.log'..."
 		cat '/tmp/config/supervisord.log'
+
 		echo "[info] Displaying contents of curl log file '/tmp/curl/curl.log'..."
 		cat '/tmp/curl/curl.log'
 		cleanup
@@ -75,7 +77,6 @@ function check_port_listening() {
 			fi
 			sleep 1s
 		done
-		cat /tmp/curl/curl.log
 		echo "[info] SUCCESS, port '${host_port}' is in listening state"
 
 	done

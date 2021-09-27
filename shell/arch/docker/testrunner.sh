@@ -43,7 +43,7 @@ function test_result(){
 		exit 1
 	fi
 
-	echo "[passed] Tests failed"
+	echo "[debug] Tests passed"
 	cleanup
 
 }

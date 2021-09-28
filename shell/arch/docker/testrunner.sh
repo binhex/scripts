@@ -331,10 +331,10 @@ ENDHELP
 function show_help_webui_test() {
 	cat <<ENDHELP
 Description:
-	Testrunner for binhex repo's.
+	Run Web UI tests.
 	${ourScriptName} - Created by binhex.
 Syntax:
-	${ourScriptName} [args]
+	webui_test [args]
 Where:
 	-h or --help
 		Displays this text.
@@ -370,10 +370,10 @@ Where:
 	-p or --protocol
 		Define protocol for test, valid values are <http|https>.
 		defaults to '${defaultProtocol}'.
-		
+
 Examples:
-	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	Run Web UI test for image with VPN disabled via env var:
+		webui_test --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 ENDHELP
 }
 

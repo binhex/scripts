@@ -51,7 +51,7 @@ function test_result(){
 
 function webui_test() {
 
-	"[debug] Running Web UI test for application '${app_name}'..."
+	echo "[debug] Running Web UI test for application '${app_name}'..."
 
 	while [ "$#" != "0" ]
 	do
@@ -165,7 +165,7 @@ function run_test() {
 		shift
 	done
 
-	echo "[debug] Checking we have all required parameters before running..."
+	echo "[debug] Checking we have all required parameters..."
 
 	if [[ -z "${app_name}" ]]; then
 		echo "[warn] Please specify '--app-name' option, displaying help..."

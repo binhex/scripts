@@ -183,122 +183,97 @@ function run_test() {
 
 	if [[ "${app_name}" == "airsonic" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:4040'
-	fi
 
-	if [[ "${app_name}" == "code-server" ]]; then
+	elif [[ "${app_name}" == "code-server" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8500'
-	fi
 
-	if [[ "${app_name}" == "couchpotato" ]]; then
+	elif [[ "${app_name}" == "couchpotato" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:5050'
-	fi
 
-	if [[ "${app_name}" == "crafty" ]]; then
+	elif [[ "${app_name}" == "crafty" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
-	fi
 
-	if [[ "${app_name}" == "deluge" ]]; then
+	elif [[ "${app_name}" == "deluge" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
-	fi
 
-	if [[ "${app_name}" == "emby" ]]; then
+	elif [[ "${app_name}" == "emby" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8096'
-	fi
 
-	if [[ "${app_name}" == "jackett" ]]; then
+	elif [[ "${app_name}" == "jackett" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:9117'
-	fi
 
-	if [[ "${app_name}" == "jellyfin" ]]; then
+	elif [[ "${app_name}" == "jellyfin" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8096'
-	fi
 
-	if [[ "${app_name}" == "jenkins" ]]; then
+	elif [[ "${app_name}" == "jenkins" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8090'
-	fi
 
-	if [[ "${app_name}" == "lidarr" ]]; then
+	elif [[ "${app_name}" == "lidarr" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8686'
-	fi
 
-	if [[ "${app_name}" == "medusa" ]]; then
+	elif [[ "${app_name}" == "medusa" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8081'
-	fi
 
-	if [[ "${app_name}" == "mineos-node" ]]; then
+	elif [[ "${app_name}" == "mineos-node" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8443'
-	fi
 
-	if [[ "${app_name}" == "moviegrabber" ]]; then
+	elif [[ "${app_name}" == "moviegrabber" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:9191'
-	fi
 
-	if [[ "${app_name}" == "nzbget" ]]; then
+	elif [[ "${app_name}" == "nzbget" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:6789'
-	fi
 
-	if [[ "${app_name}" == "nzbhydra" ]]; then
+	elif [[ "${app_name}" == "nzbhydra" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:5075'
-	fi
 
-	if [[ "${app_name}" == "nzbhydra2" ]]; then
+	elif [[ "${app_name}" == "nzbhydra2" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:5076'
-	fi
 
-	if [[ "${app_name}" == "plex" ]]; then
+	elif [[ "${app_name}" == "plex" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:32400'
-	fi
 
-	if [[ "${app_name}" == "privoxy" ]]; then
+	elif [[ "${app_name}" == "privoxy" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
-	fi
 
-	if [[ "${app_name}" == "prowlarr" ]]; then
+	elif [[ "${app_name}" == "prowlarr" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:9696'
-	fi
 
-	if [[ "${app_name}" == "qbittorrent" ]]; then
+	elif [[ "${app_name}" == "qbittorrent" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
-	fi
 
-	if [[ "${app_name}" == "radarr" ]]; then
+	elif [[ "${app_name}" == "radarr" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:7878'
-	fi
 
-	if [[ "${app_name}" == "rclone" ]]; then
+	elif [[ "${app_name}" == "rclone" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:5572' --env-vars '-e ENABLE_WEBUI=yes'
-	fi
 
-	if [[ "${app_name}" == "resilio-sync" ]]; then
+	elif [[ "${app_name}" == "resilio-sync" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8888'
-	fi
 
-	if [[ "${app_name}" == "rtorrent" ]]; then
+	elif [[ "${app_name}" == "rtorrent" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:9080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
-	fi
 
-	if [[ "${app_name}" == "sabnzbd" ]]; then
+	elif [[ "${app_name}" == "sabnzbd" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
-	fi
 
-	if [[ "${app_name}" == "sickchill" ]]; then
+	elif [[ "${app_name}" == "sickchill" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8081'
-	fi
 
-	if [[ "${app_name}" == "sonarr" ]]; then
+	elif [[ "${app_name}" == "sonarr" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8989'
-	fi
 
-	if [[ "${app_name}" == "syncthing" ]]; then
+	elif [[ "${app_name}" == "syncthing" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8384'
-	fi
 
-	if [[ "${app_name}" == "tvheadend" ]]; then
+	elif [[ "${app_name}" == "tvheadend" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:9981'
-	fi
 
-	if [[ "${app_name}" == "urbackup" ]]; then
+	elif [[ "${app_name}" == "urbackup" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:55414'
+		
+	else
+		echo "[error] Application name '${app_name}' unknown, exiting script..."
+		exit 1
 	fi
 
 }

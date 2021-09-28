@@ -55,10 +55,6 @@ function webui_test() {
 	do
 		case "$1"
 		in
-			-in|--image-name)
-				image_name="${2}"
-				shift
-				;;
 			-cp|--container-ports)
 				container_ports="${2}"
 				shift
@@ -183,7 +179,7 @@ function run_test() {
 		exit 1
 	fi
 
-	common_options="--image-name ${image_name} --container-name 'test' --network-type 'bridge' --retry-count '60'"
+	common_options="--image-name ${image_name} --container-name test --network-type bridge --retry-count 60"
 
 	if [[ "${app_name}" == "airsonic" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:4040'

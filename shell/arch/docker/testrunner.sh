@@ -52,7 +52,7 @@ function test_result(){
 function webui_test() {
 
 	"[debug] Running Web UI test for application '${app_name}'..."
-	
+
 	while [ "$#" != "0" ]
 	do
 		case "$1"
@@ -358,5 +358,5 @@ Examples:
 ENDHELP
 }
 
-echo "[debug] Running ${ourScriptName} script..."
+echo "[debug] ${ourScriptName} script"
 run_test "$@"

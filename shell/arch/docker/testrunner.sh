@@ -51,6 +51,8 @@ function test_result(){
 
 function webui_test() {
 
+	"[debug] Running Web UI test for application '${app_name}'..."
+	
 	while [ "$#" != "0" ]
 	do
 		case "$1"
@@ -203,7 +205,7 @@ function run_test() {
 		# force jackett to listen on ipv4
 	    mkdir -p '/tmp/config/Jackett'
         echo '{ "urls": "http://0.0.0.0:9117" }' > '/tmp/config/Jackett/appsettings.json'
-		
+
 		webui_test ${common_options} --container-ports '-p 9999:9117'
 
 	elif [[ "${app_name}" == "jellyfin" ]]; then

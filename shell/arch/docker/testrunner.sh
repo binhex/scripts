@@ -121,7 +121,7 @@ function webui_test() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[debug] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -v --cookie -k -4 -L "${protocol}://localhost:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
+		while ! curl -s -v --cookie --insecure -4 -L "${protocol}://localhost:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"
@@ -193,7 +193,7 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:5050'
 
 	elif [[ "${app_name}" == "crafty" ]]; then
-		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
+		webui_test ${common_options} --container-ports '-p 8000:8000' --protocol 'https'
 
 	elif [[ "${app_name}" == "deluge" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'

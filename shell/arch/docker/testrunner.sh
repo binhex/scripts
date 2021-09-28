@@ -338,36 +338,42 @@ Syntax:
 Where:
 	-h or --help
 		Displays this text.
-	-in or --image-name
-		Define the image and tag name for the container.
-		No default.
+
 	-cp or --container-ports
 		Define the container port(s) for the container.
 		No default.
+
 	-cn or --container-name
 		Define the name for the container.
 		Defaults to '${defaultContainerName}'.
+
 	-u or --url
 		Define the URL to test for the container.
 		No default.
+
 	-nt or --network-type
 		Define the network type for the container.
 		Defaults to '${defaultNetworkType}'.
+
 	-rc or --retry-count
 		Define the number of retries before test is marked as failed
 		Defaults to '${defaultRetryCount}'.
+
 	-ev or --env-vars
 		Define the env vars for the container.
 		No default.
+
 	-aa or --additional-args
 		Define any additional docker arguments for the container.
 		No default.
+
 	-p or --protocol
 		Define protocol for test, valid values are <http|https>.
 		defaults to '${defaultProtocol}'.
+		
 Examples:
 	Run test for image with VPN disabled via env var:
-		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+		${ourScriptPath}/${ourScriptName} --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 ENDHELP
 }
 

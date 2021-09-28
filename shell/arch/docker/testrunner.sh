@@ -116,7 +116,7 @@ function webui_test() {
 
 	# split space separated host ports into array
 	IFS=' ' read -ra host_ports_array <<< "${host_ports}"
-
+	sleep 60s
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 
@@ -193,7 +193,7 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:5050'
 
 	elif [[ "${app_name}" == "crafty" ]]; then
-		webui_test ${common_options} --container-ports '-p 8000:8000' --protocol 'https'
+		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
 
 	elif [[ "${app_name}" == "deluge" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'

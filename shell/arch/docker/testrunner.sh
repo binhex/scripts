@@ -179,7 +179,7 @@ function run_test() {
 		exit 1
 	fi
 
-	common_options="--image-name ${image_name} --container-name test --network-type bridge --retry-count 60"
+	common_options="--container-name test --network-type bridge --retry-count 60"
 
 	if [[ "${app_name}" == "airsonic" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:4040'

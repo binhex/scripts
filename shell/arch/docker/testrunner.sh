@@ -250,9 +250,6 @@ function run_test() {
 	elif [[ "${app_name}" == "radarr" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:7878'
 
-	elif [[ "${app_name}" == "rclone" ]]; then
-		webui_test ${common_options} --container-ports '-p 9999:5572' --env-vars '-e ENABLE_WEBUI=yes'
-
 	elif [[ "${app_name}" == "resilio-sync" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8888'
 

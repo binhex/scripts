@@ -51,7 +51,7 @@ function test_result(){
 
 function webui_test() {
 
-	echo "[debug] Running Web UI test for application '${app_name}'..."
+	echo "[debug] Running Web UI test for application '${app_name}' with parameters '$@'..."
 
 	while [ "$#" != "0" ]
 	do

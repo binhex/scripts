@@ -29,7 +29,7 @@ function cleanup() {
 function test_result(){
 
 	if [[ "${tests_passed}" == "false" ]]; then
-	
+
 		echo "[error] Tests failed"
 
 		echo "[debug] Displaying docker logs..."
@@ -49,7 +49,61 @@ function test_result(){
 
 }
 
-function check_port_listening() {
+function webui_test() {
+
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-in|--image-name)
+				image_name="${2}"
+				shift
+				;;
+			-cp|--container-ports)
+				container_ports="${2}"
+				shift
+				;;
+			-cn|--container-name)
+				container_name="${2}"
+				shift
+				;;
+			-u|--url)
+				url="${2}"
+				shift
+				;;
+			-nt|--network-type)
+				network_type="${2}"
+				shift
+				;;
+			-rc|--retry-count)
+				retry_count="${2}"
+				shift
+				;;
+			-ev|--env-vars)
+				env_vars="${2}"
+				shift
+				;;
+			-aa|--additional-args)
+				additional_args="${2}"
+				shift
+				;;
+			-p|--protocol)
+				protocol="${2}"
+				shift
+				;;
+			-h|--help)
+				show_help
+				exit 0
+				;;
+			*)
+				echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help_webui_test
+				exit 1
+				;;
+		esac
+		shift
+	done
 
 	mkdir -p '/tmp/curl'
 
@@ -85,6 +139,174 @@ function check_port_listening() {
 	test_result
 }
 
+function run_test() {
+
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-ap|--app-name)
+				app_name="${2}"
+				shift
+				;;
+			-in|--image-name)
+				image_name="${2}"
+				shift
+				;;
+			-h|--help)
+				show_help
+				exit 0
+				;;
+			*)
+				echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help
+				exit 1
+				;;
+		esac
+		shift
+	done
+
+	echo "[debug] Checking we have all required parameters before running..."
+
+	if [[ -z "${app_name}" ]]; then
+		echo "[warn] Please specify '--app-name' option, displaying help..."
+		echo ""
+		show_help
+		exit 1
+	fi
+
+	if [[ -z "${image_name}" ]]; then
+		echo "[warn] Please specify '--image-name' option, displaying help..."
+		echo ""
+		show_help
+		exit 1
+	fi
+
+	common_options="--image-name ${image_name} --container-name 'test' --network-type 'bridge' --retry-count '60'"
+
+	if [[ "${app_name}" == "airsonic" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:4040'
+	fi
+
+	if [[ "${app_name}" == "code-server" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8500'
+	fi
+
+	if [[ "${app_name}" == "couchpotato" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:5050'
+	fi
+
+	if [[ "${app_name}" == "crafty" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
+	fi
+
+	if [[ "${app_name}" == "deluge" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	fi
+
+	if [[ "${app_name}" == "emby" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8096'
+	fi
+
+	if [[ "${app_name}" == "jackett" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:9117'
+	fi
+
+	if [[ "${app_name}" == "jellyfin" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8096'
+	fi
+
+	if [[ "${app_name}" == "jenkins" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8090'
+	fi
+
+	if [[ "${app_name}" == "lidarr" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8686'
+	fi
+
+	if [[ "${app_name}" == "medusa" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8081'
+	fi
+
+	if [[ "${app_name}" == "mineos-node" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8443'
+	fi
+
+	if [[ "${app_name}" == "moviegrabber" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:9191'
+	fi
+
+	if [[ "${app_name}" == "nzbget" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:6789'
+	fi
+
+	if [[ "${app_name}" == "nzbhydra" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:5075'
+	fi
+
+	if [[ "${app_name}" == "nzbhydra2" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:5076'
+	fi
+
+	if [[ "${app_name}" == "plex" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:32400'
+	fi
+
+	if [[ "${app_name}" == "privoxy" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	fi
+
+	if [[ "${app_name}" == "prowlarr" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:9696'
+	fi
+
+	if [[ "${app_name}" == "qbittorrent" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	fi
+
+	if [[ "${app_name}" == "radarr" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:7878'
+	fi
+
+	if [[ "${app_name}" == "rclone" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:5572' --env-vars '-e ENABLE_WEBUI=yes'
+	fi
+
+	if [[ "${app_name}" == "resilio-sync" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8888'
+	fi
+
+	if [[ "${app_name}" == "rtorrent" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:9080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	fi
+
+	if [[ "${app_name}" == "sabnzbd" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+	fi
+
+	if [[ "${app_name}" == "sickchill" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8081'
+	fi
+
+	if [[ "${app_name}" == "sonarr" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8989'
+	fi
+
+	if [[ "${app_name}" == "syncthing" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:8384'
+	fi
+
+	if [[ "${app_name}" == "tvheadend" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:9981'
+	fi
+
+	if [[ "${app_name}" == "urbackup" ]]; then
+		webui_test ${common_options} --container-ports '-p 9999:55414'
+	fi
+
+}
+
 function show_help() {
 	cat <<ENDHELP
 Description:
@@ -96,118 +318,62 @@ Where:
 	-h or --help
 		Displays this text.
 
+	-an or --app-name
+		Define the application name to test.
+		No default.
+
 	-in or --image-name
 		Define the image and tag name for the container.
 		No default.
 
+Examples:
+	Run test for application airsonic:
+		${ourScriptPath}/${ourScriptName} --app-name 'airsonic' --image-name 'binhex/arch-airsonic:latest'
+ENDHELP
+}
+
+function show_help_webui_test() {
+	cat <<ENDHELP
+Description:
+	Testrunner for binhex repo's.
+	${ourScriptName} - Created by binhex.
+Syntax:
+	${ourScriptName} [args]
+Where:
+	-h or --help
+		Displays this text.
+	-in or --image-name
+		Define the image and tag name for the container.
+		No default.
 	-cp or --container-ports
 		Define the container port(s) for the container.
 		No default.
-
 	-cn or --container-name
 		Define the name for the container.
 		Defaults to '${defaultContainerName}'.
-
 	-u or --url
 		Define the URL to test for the container.
 		No default.
-
 	-nt or --network-type
 		Define the network type for the container.
 		Defaults to '${defaultNetworkType}'.
-
 	-rc or --retry-count
 		Define the number of retries before test is marked as failed
 		Defaults to '${defaultRetryCount}'.
-
 	-ev or --env-vars
 		Define the env vars for the container.
 		No default.
-
 	-aa or --additional-args
 		Define any additional docker arguments for the container.
 		No default.
-
 	-p or --protocol
 		Define protocol for test, valid values are <http|https>.
 		defaults to '${defaultProtocol}'.
-
 Examples:
 	Run test for image with VPN disabled via env var:
 		${ourScriptPath}/${ourScriptName} --image-name 'binhex/arch-sabnzbd:latest' --container-ports '-p 9999:8080' --container-name 'test' --network-type 'bridge' --retry-count '60' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 ENDHELP
 }
 
-while [ "$#" != "0" ]
-do
-	case "$1"
-	in
-		-in|--image-name)
-			image_name="${2}"
-			shift
-			;;
-		-cp|--container-ports)
-			container_ports="${2}"
-			shift
-			;;
-		-cn|--container-name)
-			container_name="${2}"
-			shift
-			;;
-		-u|--url)
-			url="${2}"
-			shift
-			;;
-		-nt|--network-type)
-			network_type="${2}"
-			shift
-			;;
-		-rc|--retry-count)
-			retry_count="${2}"
-			shift
-			;;
-		-ev|--env-vars)
-			env_vars="${2}"
-			shift
-			;;
-		-aa|--additional-args)
-			additional_args="${2}"
-			shift
-			;;
-		-p|--protocol)
-			protocol="${2}"
-			shift
-			;;
-		-h|--help)
-			show_help
-			exit 0
-			;;
-		*)
-			echo "[warn] Unrecognised argument '$1', displaying help..." >&2
-			echo ""
-			show_help
-			 exit 1
-			 ;;
-	 esac
-	 shift
-done
-
 echo "[debug] Running ${ourScriptName} script..."
-
-echo "[debug] Checking we have all required parameters before running..."
-
-if [[ -z "${image_name}" ]]; then
-	echo "[warn] Please specify '--image-name' option, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
-if [[ -z "${container_ports}" ]]; then
-	echo "[warn] Please specify '--container-ports' option, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
-check_port_listening
+run_test "$@"

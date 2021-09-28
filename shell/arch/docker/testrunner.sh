@@ -200,6 +200,10 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:8096'
 
 	elif [[ "${app_name}" == "jackett" ]]; then
+		# force jackett to listen on ipv4
+	    mkdir -p '/tmp/config/Jackett'
+        echo '{ "urls": "http://0.0.0.0:9117" }' > '/tmp/config/Jackett/appsettings.json'
+		
 		webui_test ${common_options} --container-ports '-p 9999:9117'
 
 	elif [[ "${app_name}" == "jellyfin" ]]; then
@@ -270,7 +274,7 @@ function run_test() {
 
 	elif [[ "${app_name}" == "urbackup" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:55414'
-		
+
 	else
 		echo "[error] Application name '${app_name}' unknown, exiting script..."
 		exit 1

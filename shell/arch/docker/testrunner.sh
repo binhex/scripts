@@ -61,7 +61,6 @@ function trust_self_signed_cert() {
 
 	# copy crafty self-sgined certs to ca store
 	sudo cp "${cert_path}" '/usr/local/share/ca-certificates/'
-	#sudo cp "${cert_path}" '/etc/ssl/certs/'
 
 	# update ca store
 	sudo update-ca-certificates --verbose

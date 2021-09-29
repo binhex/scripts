@@ -56,6 +56,9 @@ function test_result(){
 
 function trust_self_signed_cert() {
 
+	# put in sleep to allow container to start and create certs
+	sleep 10s
+
 	#apk add ca-certificates
 	sudo cp "${cert_path}" '/usr/local/share/ca-certificates/'
 	sudo cp "${cert_path}" '/etc/ssl/certs/'
@@ -130,7 +133,6 @@ function webui_test() {
 	# split space separated host ports into array
 	IFS=' ' read -ra host_ports_array <<< "${host_ports}"
 
-	sleep 10s
 	# add self signed cert to ca store
 	if [[ -n "${cert_path}" ]]; then
 		trust_self_signed_cert

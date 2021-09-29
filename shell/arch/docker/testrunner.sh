@@ -40,8 +40,13 @@ function test_result(){
 
 		echo "[debug] Displaying contents of curl log file '/tmp/curl/curl.log'..."
 		cat '/tmp/curl/curl.log'
+
+		echo "[debug] Displaying contents of bind mount '/config'..."
+		ls -alR '/tmp/config'
+
 		cleanup
 		exit 1
+	
 	fi
 
 	echo "[debug] Tests passed"

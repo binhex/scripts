@@ -56,9 +56,9 @@ function test_result(){
 
 function trust_self_signed_cert() {
 
-	apk add ca-certificates
-	cp "${cert_path}" '/usr/local/share/ca-certificates/'
-	cp "${cert_path}" '/etc/ssl/certs/'
+	#apk add ca-certificates
+	sudo cp "${cert_path}" '/usr/local/share/ca-certificates/'
+	sudo cp "${cert_path}" '/etc/ssl/certs/'
 	sudo update-ca-certificates --verbose
 }
 

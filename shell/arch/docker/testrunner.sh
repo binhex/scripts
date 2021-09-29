@@ -123,7 +123,7 @@ function webui_test() {
 	mkdir -p '/tmp/curl'
 
 	echo "[debug] Creating Docker container 'docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
-	docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
+	docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
 
 	echo "[debug] Showing running containers..."
 	docker ps

@@ -121,8 +121,8 @@ function webui_test() {
 
 	mkdir -p '/tmp/curl'
 
-	echo "[debug] Creating Docker container 'docker run -d --name ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
-	docker run -d --name ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
+	echo "[debug] Creating Docker container 'docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
+	docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars}  ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
 
 	echo "[debug] Showing running containers..."
 	docker ps
@@ -138,11 +138,14 @@ function webui_test() {
 		trust_self_signed_cert
 	fi
 
+	# sert hostname to hosts file so we can use the name to match the cert
+	echo "127.0.0.1	 ${container_name}" | sudo tee -a '/etc/hosts'
+
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[debug] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -v --cookie --insecure -4 -L "${protocol}://localhost:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
+		while ! curl -s -v --cookie --insecure -4 -L "${protocol}://${container_name}:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"

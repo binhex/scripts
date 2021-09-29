@@ -46,7 +46,7 @@ function test_result(){
 
 		cleanup
 		exit 1
-	
+
 	fi
 
 	echo "[debug] Tests passed"
@@ -59,7 +59,7 @@ function trust_self_signed_cert() {
 	apk add ca-certificates
 	cp "${cert_path}" '/usr/local/share/ca-certificates/'
 	cp "${cert_path}" '/etc/ssl/certs/'
-	update-ca-certificates --verbose
+	sudo update-ca-certificates --verbose
 }
 
 function webui_test() {
@@ -130,6 +130,7 @@ function webui_test() {
 	# split space separated host ports into array
 	IFS=' ' read -ra host_ports_array <<< "${host_ports}"
 
+	sleep 10s
 	# add self signed cert to ca store
 	if [[ -n "${cert_path}" ]]; then
 		trust_self_signed_cert

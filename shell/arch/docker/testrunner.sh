@@ -49,9 +49,17 @@ function test_result(){
 
 }
 
+function trust_self_signed_cert() {
+
+	apk add ca-certificates
+	cp "${cert_path}" '/usr/local/share/ca-certificates/'
+	cp "${cert_path}" '/etc/ssl/certs/'
+	update-ca-certificates --verbose
+}
+
 function webui_test() {
 
-	echo "[debug] Running Web UI test for application '${app_name}' with parameters '$@'..."
+	echo "[debug] Running Web UI test for application '${app_name}' with parameters '$*'..."
 
 	while [ "$#" != "0" ]
 	do
@@ -116,7 +124,12 @@ function webui_test() {
 
 	# split space separated host ports into array
 	IFS=' ' read -ra host_ports_array <<< "${host_ports}"
-	sleep 60s
+
+	# add self signed cert to ca store
+	if [[ -n "${cert_path}" ]]; then
+		trust_self_signed_cert
+	fi
+
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 
@@ -184,94 +197,153 @@ function run_test() {
 	common_options="--container-name test --network-type bridge --retry-count 60"
 
 	if [[ "${app_name}" == "airsonic" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:4040'
 
 	elif [[ "${app_name}" == "code-server" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8500'
 
 	elif [[ "${app_name}" == "couchpotato" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5050'
 
 	elif [[ "${app_name}" == "crafty" ]]; then
+
+		# define path to self signed cert
+		cert_path="/tmp/config/crafty/certs/crafty.crt"
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
 
 	elif [[ "${app_name}" == "deluge" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "emby" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8096'
 
 	elif [[ "${app_name}" == "jackett" ]]; then
+
 		# force jackett to listen on ipv4
 	    mkdir -p '/tmp/config/Jackett'
         echo '{ "urls": "http://0.0.0.0:9117" }' > '/tmp/config/Jackett/appsettings.json'
 
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9117'
 
 	elif [[ "${app_name}" == "jellyfin" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8096'
 
 	elif [[ "${app_name}" == "jenkins" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8090'
 
 	elif [[ "${app_name}" == "lidarr" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8686'
 
 	elif [[ "${app_name}" == "medusa" ]]; then
 		webui_test ${common_options} --container-ports '-p 9999:8081'
 
 	elif [[ "${app_name}" == "mineos-node" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8443'
 
 	elif [[ "${app_name}" == "moviegrabber" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9191'
 
 	elif [[ "${app_name}" == "nzbget" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:6789'
 
 	elif [[ "${app_name}" == "nzbhydra" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5075'
 
 	elif [[ "${app_name}" == "nzbhydra2" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5076'
 
 	elif [[ "${app_name}" == "plex" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:32400'
 
 	elif [[ "${app_name}" == "privoxy" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "prowlarr" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9696'
 
 	elif [[ "${app_name}" == "qbittorrent" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "radarr" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:7878'
 
 	elif [[ "${app_name}" == "resilio-sync" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8888'
 
 	elif [[ "${app_name}" == "rtorrent" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "sabnzbd" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "sickchill" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8081'
 
 	elif [[ "${app_name}" == "sonarr" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8989'
 
 	elif [[ "${app_name}" == "syncthing" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8384'
 
 	elif [[ "${app_name}" == "tvheadend" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9981'
 
 	elif [[ "${app_name}" == "urbackup" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:55414'
 
 	else

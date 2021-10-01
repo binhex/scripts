@@ -219,7 +219,7 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8500'
 
-	elif [[ "${app_name}" == "couchpotato" ]]; then
+	elif [[ "${app_name}" == "couchpotato-git" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5050'
@@ -232,7 +232,7 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
 
-	elif [[ "${app_name}" == "deluge" ]]; then
+	elif [[ "${app_name}" == "deluge" || "${app_name}" == "delugevpn" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8112' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
@@ -294,12 +294,12 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5076'
 
-	elif [[ "${app_name}" == "plex" ]]; then
+	elif [[ "${app_name}" == "plex" || "${app_name}" == "plexpass" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:32400'
 
-	elif [[ "${app_name}" == "privoxy" ]]; then
+	elif [[ "${app_name}" == "privoxyvpn" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
@@ -309,7 +309,7 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9696'
 
-	elif [[ "${app_name}" == "qbittorrent" ]]; then
+	elif [[ "${app_name}" == "qbittorrentvpn" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
@@ -324,12 +324,12 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8888'
 
-	elif [[ "${app_name}" == "rtorrent" ]]; then
+	elif [[ "${app_name}" == "rtorrentvpn" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
-	elif [[ "${app_name}" == "sabnzbd" ]]; then
+	elif [[ "${app_name}" == "sabnzbd" || "${app_name}" == "sabnzbdvpn" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
@@ -360,8 +360,8 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:55414'
 
 	else
-		echo "[error] Application name '${app_name}' unknown, exiting script..."
-		exit 1
+		echo "[warn] Application name '${app_name}' unknown, skipping tests"
+		exit 0
 	fi
 
 }

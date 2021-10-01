@@ -360,7 +360,7 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:55414'
 
 	else
-		echo "[warn] Application name '${app_name}' unknown, skipping tests"
+		echo "[warn] Tests for application '${app_name}' not defined, skipping tests"
 		exit 0
 	fi
 

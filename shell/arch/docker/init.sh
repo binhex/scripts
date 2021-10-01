@@ -122,6 +122,9 @@ source '/usr/local/bin/utils.sh'
 
 # CONFIG_PLACEHOLDER
 
+# set permissions to allow rw for all users (used when appending util output to supervisor log)
+chmod 666 "/config/supervisord.log"
+
 echo "[info] Starting Supervisor..." | ts '%Y-%m-%d %H:%M:%.S'
 
 # restore file descriptors to prevent duplicate stdout & stderr to supervisord.log

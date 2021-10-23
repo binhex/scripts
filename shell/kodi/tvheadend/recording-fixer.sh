@@ -27,7 +27,7 @@ if [[ -z "${ffmpeg_filepath}" ]]; then
 fi
 
 if [[ -z "${input_video_path}" ]]; then
-	echo "[error] Please specify path to video file as second parameter, exiting script..." >> "${log_path}"
+	echo "[error] Please specify path to video file to process, exiting script..." >> "${log_path}"
 	exit 1
 fi
 

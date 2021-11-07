@@ -34,6 +34,7 @@ cat <<EOF > "./${name}.xml"
   <Network>${mode}</Network>
   <Privileged>${privileged}</Privileged>
   <Support>${support}</Support>
+  <ReadMe>https://github.com/binhex/documentation</ReadMe>
   <Overview>${description}</Overview>
   <Category>${category}</Category>
   <WebUI>${webui}</WebUI>
@@ -168,7 +169,7 @@ cat <<EOF >> "./${name}.xml"
 EOF
 
 done
- 
+
 cat <<EOF >> "./${name}.xml"
 </Container>
 EOF

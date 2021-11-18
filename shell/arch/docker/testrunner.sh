@@ -302,7 +302,7 @@ function run_test() {
 	elif [[ "${app_name}" == "privoxyvpn" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
+		webui_test ${common_options} --container-ports '-p 9999:8118' --env-vars '-e VPN_ENABLED=no -e ENABLE_PRIVOXY=yes' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "prowlarr" ]]; then
 

@@ -13,6 +13,7 @@ download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
 extract_path="${defaultExtractPath}"
 query_type="${defaultQueryType}"
+download_branch="${defaultDownloadBranch}"
 
 function identify_github_release_tag_name() {
 

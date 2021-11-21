@@ -272,7 +272,7 @@ function run_test() {
 	elif [[ "${app_name}" == "mineos-node" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:8443'
+		webui_test ${common_options} --container-ports '-p 9999:8443' --env-vars '-e PUID=0' --env-vars '-e PGID=0'
 
 	elif [[ "${app_name}" == "moviegrabber" ]]; then
 

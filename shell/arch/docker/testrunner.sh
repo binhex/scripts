@@ -147,6 +147,7 @@ function webui_test() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[debug] Waiting for port '${host_port}' to be in listen state..."
+		set -x
 		while ! curl -s -v --cookie --insecure -4 -L "${protocol}://${container_name}:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
@@ -156,7 +157,7 @@ function webui_test() {
 			sleep 1s
 		done
 		echo "[debug] Success, port '${host_port}' is in listening state"
-
+		set +x
 	done
 
 	tests_passed="true"

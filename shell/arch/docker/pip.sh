@@ -17,7 +17,8 @@ function pip_install() {
 		pacman -S --needed $pacman_packages --noconfirm
 	fi
 
-	cd "${install_path}" || logger "Cannot change to path '${install_path}'" "ERROR"
+	# create install path to store virtualenv and python modules
+	mkdir -p "${install_path}" && cd "${install_path}" || exit 1
 
 	if [[ -z "${pip_packages}" ]]; then
 
@@ -47,7 +48,8 @@ function pip_install() {
 		logger "Installing Python package(s) '${pip_packages}'" "INFO"
 
 		# install python package in virtualenv
-		pip install -U "${pip_packages}"
+		pip install -U ${pip_packages}
+
 	fi
 
 }
@@ -63,12 +65,11 @@ Where:
 		Displays this text.
 
 	-ip or --install-path <path>
-		Define path to installation.
+		Define path to 'requirements.txt'.
 		No default.
 
 	-pp or --pip-paackages <path>
-		Define destinaiton path to store files copied from src-path,
-		this is then symlinked back (src-path renamed to *-backup).
+		Define specified packages to install via pip.
 		No default.
 
 	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
@@ -76,11 +77,11 @@ Where:
 		Defaults to '${defaultLogLevel}'.
 
 Examples:
-	Install Python modules using requirements.txt file:
+	Install Python modules from requirements.txt file:
 		./pip.sh --install-path /opt/sickchill --log-level 'WARN'
 
-	Install Python application using pip:
-		./pip.sh --install-path /opt/sickchill --pip-packages sickchill --log-level 'WARN'
+	Install specified Python modules:
+		./pip.sh --install-path /opt/sickchill --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
 
 ENDHELP
 }
@@ -109,7 +110,7 @@ do
 			echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
 			echo ""
 			show_help
-			return 1
+			exit 1
 			;;
 	esac
 	shift
@@ -119,13 +120,7 @@ done
 if [[ -z "${install_path}" ]]; then
 	logger "Install path not specified, showing help..." "WARN"
 	show_help
-	return 1
-fi
-
-if [[ ! -d "${install_path}" ]]; then
-	logger "Install path '${install_path}' does not exist, showing help..." "WARN"
-	show_help
-	return 1
+	exit 1
 fi
 
 pip_install

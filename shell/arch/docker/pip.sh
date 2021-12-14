@@ -78,10 +78,13 @@ Where:
 
 Examples:
 	Install Python modules from requirements.txt file:
-		./pip.sh --install-path /opt/sickchill --log-level 'WARN'
+		./pip.sh --install-path '/opt/sickchill' --log-level 'WARN'
 
 	Install specified Python modules:
-		./pip.sh --install-path /opt/sickchill --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
+		./pip.sh --install-path '/usr/local/lib/python' --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
+
+Notes:
+	Run 'cd <install path>/env && source ./bin/activate' to activate virtualenv.
 
 ENDHELP
 }

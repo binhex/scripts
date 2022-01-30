@@ -8,12 +8,14 @@ readonly defaultDownloadPath="/tmp"
 readonly defaultExtractPath="/tmp/extracted"
 readonly defaultQueryType="releases/latest"
 readonly defaultDownloadBranch="master"
+readonly defaultStripComponents="0"
 
 download_filename="${defaultDownloadFilename}"
 download_path="${defaultDownloadPath}"
 extract_path="${defaultExtractPath}"
 query_type="${defaultQueryType}"
 download_branch="${defaultDownloadBranch}"
+strip_components="${defaultStripComponents}"
 
 function identify_github_release_tag_name() {
 
@@ -192,9 +194,9 @@ function archive_extractor() {
 		cd "${extract_path}"
 
 		if [[ -n "${match_asset_name}" ]]; then
-			tar -xvf "${download_path}/${match_asset_name}"
+			tar -xvf --strip-components="${strip_components}" "${download_path}/${match_asset_name}"
 		else
-			tar -xvf "${download_path}/${download_filename}"
+			tar -xvf --strip-components="${strip_components}" "${download_path}/${download_filename}"
 		fi
 
 	else
@@ -349,6 +351,10 @@ Where:
 		Define path to extract the download to.
 		Defaults to '${defaultExtractPath}'.
 
+	-sc or --strip-components <number of directories to remove>
+		Define number of directories to strip from the extracted path.
+		Defaults to '${defaultStripComponents}'.
+
 	-ip or --install-path <path>
 		Define path to install to.
 		No default.
@@ -386,6 +392,9 @@ Examples:
 	GitHub release binary asset download:
 		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --query-type 'release'
 
+	GitHub release binary asset download and strip first folder:
+		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --strip-components '1' --query-type 'release'
+
 	GitHub pre-release binary asset download:
 		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*linux_amd64.tar.gz' --query-type 'pre-release'
 
@@ -414,6 +423,10 @@ do
 			;;
 		-ep|--extract-path)
 			extract_path=$2
+			shift
+			;;
+		-sc|--strip-components)
+			strip_components=$2
 			shift
 			;;
 		-ip|--install-path)

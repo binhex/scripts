@@ -194,9 +194,9 @@ function archive_extractor() {
 		cd "${extract_path}"
 
 		if [[ -n "${match_asset_name}" ]]; then
-			tar -xvf --strip-components="${strip_components}" "${download_path}/${match_asset_name}"
+			tar -xvf "${download_path}/${match_asset_name}" --strip-components="${strip_components}"
 		else
-			tar -xvf --strip-components="${strip_components}" "${download_path}/${download_filename}"
+			tar -xvf "${download_path}/${download_filename}" --strip-components="${strip_components}"
 		fi
 
 	else

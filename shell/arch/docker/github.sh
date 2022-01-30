@@ -352,7 +352,7 @@ Where:
 		Defaults to '${defaultExtractPath}'.
 
 	-sc or --strip-components <number of directories to remove>
-		Define number of directories to strip from the extracted path.
+		Define number of directories to strip from the extracted archive.
 		Defaults to '${defaultStripComponents}'.
 
 	-ip or --install-path <path>
@@ -392,7 +392,7 @@ Examples:
 	GitHub release binary asset download:
 		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --query-type 'release'
 
-	GitHub release binary asset download and strip first folder:
+	GitHub release binary asset download and strip first folder from downloaded archive:
 		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --strip-components '1' --query-type 'release'
 
 	GitHub pre-release binary asset download:

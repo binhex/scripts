@@ -293,6 +293,11 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:5076'
 
+	elif [[ "${app_name}" == "overseerr" ]]; then
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:5055'
+
 	elif [[ "${app_name}" == "plex" || "${app_name}" == "plexpass" ]]; then
 
 		# run tests

@@ -192,7 +192,7 @@ function symlink() {
 				logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
 				return 1
 			fi
-			if ! stderr=$(rsync -av "${src_path}-backup/".??* "${dst_path}" 2>&1 >/dev/null); then
+			if ! stderr=$(rsync -av "${src_path}-backup/" "${dst_path}" 2>&1 >/dev/null); then
 				logger "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
 				return 1
 			fi

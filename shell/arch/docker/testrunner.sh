@@ -233,9 +233,6 @@ function run_test() {
 
 	elif [[ "${app_name}" == "crafty-4" ]]; then
 
-		# define path to self signed cert
-		cert_path="/tmp/config/crafty/app/config/web/certs/commander.cert.pem"
-
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8443' --protocol 'https'
 

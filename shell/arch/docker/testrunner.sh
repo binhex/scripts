@@ -231,6 +231,14 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
 
+	elif [[ "${app_name}" == "crafty-4" ]]; then
+
+		# define path to self signed cert
+		cert_path="/tmp/config/crafty/app/config/web/certs/certs/commander.cert.pem"
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:8443' --protocol 'https'
+
 	elif [[ "${app_name}" == "deluge" || "${app_name}" == "delugevpn" ]]; then
 
 		# run tests

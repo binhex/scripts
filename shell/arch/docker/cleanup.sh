@@ -9,11 +9,11 @@ if pacman -Qg "base-devel" > /dev/null ; then
 fi
 
 # remove any build tools that maybe present from the build
-pacman -Ru dotnet-sdk yarn git yay-bin reflector gcc binutils --noconfirm 2> /dev/null || true
+pacman -Ru dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils --noconfirm 2> /dev/null || true
 
 # remove any cached packages that maybe present from the build
 rm -rf /home/nobody/.nuget/
- 
+
 # general cleanup
 yes|pacman -Scc
 pacman --noconfirm -Rns $(pacman -Qtdq) 2> /dev/null || true

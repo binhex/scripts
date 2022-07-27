@@ -100,7 +100,7 @@ cat "/etc/pacman.conf"
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 
 # set pacman to ignore signatures - required due to rolling release nature of archlinux
-sed -i -E "s~SigLevel =.*~SigLevel = Never~g" '/etc/pacman.conf'
+sed -i -E "s~.*SigLevel =.*~SigLevel = Never~g" '/etc/pacman.conf'
 
 if [[ "${pacman_confirm}" == "yes" ]]; then
 	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so

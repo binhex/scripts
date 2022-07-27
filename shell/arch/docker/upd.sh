@@ -101,13 +101,14 @@ echo "[info] Synchronize pacman database and then upgrade any existing packages 
 
 # wipe keys and populate keys db
 rm -rf /etc/pacman.d/gnupg
+pacman -Syy
 pacman-key --init
 pacman-key --populate archlinux
 
 if [[ "${pacman_confirm}" == "yes" ]]; then
-	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so
+	yes|pacman -Su --overwrite /usr/lib\*/p11-kit-trust.so
 else
-	pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
+	pacman -Su --overwrite /usr/lib\*/p11-kit-trust.so --noconfirm
 fi
 
 # delme once fixed!!

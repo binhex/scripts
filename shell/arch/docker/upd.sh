@@ -99,6 +99,11 @@ cat "/etc/pacman.conf"
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
 
+# wipe keys and populate keys db
+rm -rf /etc/pacman.d/gnupg
+pacman-key --init
+pacman-key --populate archlinux
+
 if [[ "${pacman_confirm}" == "yes" ]]; then
 	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so
 else

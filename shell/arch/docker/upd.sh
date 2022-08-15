@@ -92,7 +92,7 @@ if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
 fi
 
 echo "[info] set pacman to ignore signatures - required due to rolling release nature of archlinux"
-sed -i -E "s~.*SigLevel(\s+)?=.*~SigLevel = Never~g" '/etc/pacman.conf'
+sed -i -E "s~^SigLevel(\s+)?=.*~SigLevel = Never~g" '/etc/pacman.conf'
 
 echo "[info] Showing pacman configuration file '/etc/pacman.conf'..."
 cat "/etc/pacman.conf"

@@ -91,6 +91,9 @@ if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
 
 fi
 
+echo "[info] set pacman to ignore signatures - required due to rolling release nature of archlinux"
+sed -i -E "s~.*SigLevel =.*~SigLevel = Never~g" '/etc/pacman.conf'
+
 echo "[info] Showing pacman configuration file '/etc/pacman.conf'..."
 cat "/etc/pacman.conf"
 
@@ -98,9 +101,6 @@ cat "/etc/pacman.conf"
 # see below for details:-
 # https://www.archlinux.org/news/nss3511-1-and-lib32-nss3511-1-updates-require-manual-intervention/
 echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
-
-# set pacman to ignore signatures - required due to rolling release nature of archlinux
-sed -i -E "s~.*SigLevel =.*~SigLevel = Never~g" '/etc/pacman.conf'
 
 if [[ "${pacman_confirm}" == "yes" ]]; then
 	yes|pacman -Syyu --overwrite /usr/lib\*/p11-kit-trust.so

@@ -28,7 +28,7 @@ function virtualenv() {
 function pip_install() {
 
 	# define pacman packages
-	pacman_packages="python"
+	pacman_packages="python curl"
 
 	# install compiled packages using pacman
 	if [[ -n "${pacman_packages}" ]]; then
@@ -36,9 +36,9 @@ function pip_install() {
 	fi
 
 	# compile pip from source, fixes issue https://github.com/pypa/pip/issues/9348
-	curl https://bootstrap.pypa.io/get-pip.py | python
+	curl -L https://bootstrap.pypa.io/get-pip.py | python
 
-	# force upgrade/install of setuptools
+	# force upgrade/install of setuptools, fixes issue https://github.com/pypa/packaging-problems/issues/573
 	pip install --upgrade setuptools
 
 	if [[ -n "${install_path}" ]]; then

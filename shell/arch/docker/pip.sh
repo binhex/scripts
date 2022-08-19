@@ -28,12 +28,15 @@ function virtualenv() {
 function pip_install() {
 
 	# define pacman packages
-	pacman_packages="python python-pip"
+	pacman_packages="python"
 
 	# install compiled packages using pacman
 	if [[ -n "${pacman_packages}" ]]; then
 		pacman -S --needed $pacman_packages --noconfirm
 	fi
+
+	# compile pip from source, fixes issue https://github.com/pypa/pip/issues/9348
+	wget https://bootstrap.pypa.io/get-pip.py -O - | python
 
 	# force upgrade/install of setuptools
 	pip install --upgrade setuptools

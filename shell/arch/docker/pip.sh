@@ -36,7 +36,7 @@ function pip_install() {
 	fi
 
 	# compile pip from source, fixes issue https://github.com/pypa/pip/issues/9348
-	wget https://bootstrap.pypa.io/get-pip.py -O - | python
+	curl https://bootstrap.pypa.io/get-pip.py | python
 
 	# force upgrade/install of setuptools
 	pip install --upgrade setuptools

@@ -14,12 +14,22 @@ function virtualenv() {
 
 	if [[ "${create_virtualenv}" == "yes" ]]; then
 
-		logger "Activating virtualenv at location '${install_path}/env/bin/activate'" "INFO"
+		if [[ ! -f "${virtualenv_path}/env/bin/activate" ]]; then
 
-		# install virtualenv, create env and activate
-		python3 -m pip install --user virtualenv
-		python3 -m venv env
-		source "${install_path}/env/bin/activate"
+			logger "Creating virtualenv at location '${virtualenv_path}/env/bin/activate'" "INFO"
+
+			# install virtualenv and create virtualenv
+			python3 -m pip install --user virtualenv
+			python3 -m venv env
+
+		else
+
+			logger "Skipping creation of virtualenv for location '${virtualenv_path}/env/bin/activate' as it already exists" "INFO"
+
+		fi
+
+		logger "Activating virtualenv at location '${virtualenv_path}/env/bin/activate'" "INFO"
+		source "${virtualenv_path}/env/bin/activate"
 
 	fi
 
@@ -95,6 +105,10 @@ Where:
 		Define path to 'requirements.txt'.
 		No default.
 
+	-vp or --virtualenv-path <path>
+		Define path to create for virtualenv.
+		Defaults to '--install-path'.
+
 	-pp or --pip-paackages <package names>
 		Define specified packages to install via pip.
 		No default.
@@ -110,10 +124,13 @@ Examples:
 	Install Python modules specified in requirements.txt file to system:
 		./pip.sh --create-virtualenv 'no' --install-path '/opt/sickchill' --log-level 'WARN'
 
-	Install specified Python modules to virtualenv (located at --install-path/env/):
-		./pip.sh  --install-path '/opt/sickchill' --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
+	Install Python modules specified in requirements.txt file to virtualenv with specific path:
+		./pip.sh --create-virtualenv 'yes' --install-path '/opt/sickchill' --virtualenv-path '/opt/sickchill/env' --log-level 'WARN'
 
-	Install specified Python modules to system:
+	Install specific Python modules to virtualenv with the default path (--install-path/env/):
+		./pip.sh --create-virtualenv 'yes' --install-path '/opt/sickchill' --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
+
+	Install specific Python modules to system:
 		./pip.sh --create-virtualenv 'no' --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
 
 Notes:
@@ -132,6 +149,10 @@ do
 			;;
 		-rq|--install-path)
 			install_path=$2
+			shift
+			;;
+		-vp|--virtualenv-path)
+			virtualenv_path=$2
 			shift
 			;;
 		-pp|--pip-packages)
@@ -165,6 +186,11 @@ if [[ -z "${pip_packages}" || "${create_virtualenv}" == "yes" ]]; then
 		exit 1
 	fi
 
+fi
+
+# if virtualenv enabled and path not defined then use default
+if [[ -z "${virtualenv_path}" || "${create_virtualenv}" == "yes" ]]; then
+	virtualenv_path="${install_path}"
 fi
 
 pip_install

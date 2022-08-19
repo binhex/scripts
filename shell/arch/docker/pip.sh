@@ -30,13 +30,13 @@ function pip_install() {
 	# define pacman packages
 	pacman_packages="python python-pip"
 
-	# force upgrade of setuptools
-	pip install --upgrade setuptools
-
 	# install compiled packages using pacman
 	if [[ -n "${pacman_packages}" ]]; then
 		pacman -S --needed $pacman_packages --noconfirm
 	fi
+
+	# force upgrade/install of setuptools
+	pip install --upgrade setuptools
 
 	if [[ -n "${install_path}" ]]; then
 

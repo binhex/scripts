@@ -14,22 +14,22 @@ function virtualenv() {
 
 	if [[ "${create_virtualenv}" == "yes" ]]; then
 
-		if [[ ! -f "${virtualenv_path}/env/bin/activate" ]]; then
+		if [[ ! -f "${virtualenv_path}/bin/activate" ]]; then
 
-			logger "Creating virtualenv at location '${virtualenv_path}/env/bin/activate'" "INFO"
+			logger "Creating virtualenv at location '${virtualenv_path}/bin/activate'" "INFO"
 
 			# install virtualenv and create virtualenv
 			python3 -m pip install --user virtualenv
-			python3 -m venv env
+			python3 -m venv "${virtualenv_path}"
 
 		else
 
-			logger "Skipping creation of virtualenv for location '${virtualenv_path}/env/bin/activate' as it already exists" "INFO"
+			logger "Skipping creation of virtualenv for location '${virtualenv_path}/bin/activate' as it already exists" "INFO"
 
 		fi
 
-		logger "Activating virtualenv at location '${virtualenv_path}/env/bin/activate'" "INFO"
-		source "${virtualenv_path}/env/bin/activate"
+		logger "Activating virtualenv at location '${virtualenv_path}/bin/activate'" "INFO"
+		source "${virtualenv_path}/bin/activate"
 
 	fi
 

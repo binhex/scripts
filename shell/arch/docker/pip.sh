@@ -3,9 +3,11 @@
 # set defaults
 defaultLogLevel="WARN"
 defaultCreateVirtualenv="yes"
+defaultVirtualenvPath="$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')/venv"
 
 log_level="${defaultLogLevel}"
 create_virtualenv="${defaultCreateVirtualenv}"
+virtualenv_path="${defaultVirtualenvPath}"
 
 # logger function
 source '/usr/local/bin/utils.sh'
@@ -16,7 +18,7 @@ function virtualenv() {
 
 		if [[ ! -f "${virtualenv_path}/bin/activate" ]]; then
 
-			logger "Creating virtualenv at location '${virtualenv_path}/bin/activate'" "INFO"
+			logger "Creating virtualenv at location '${virtualenv_path}'" "INFO"
 
 			# install virtualenv and create virtualenv
 			python3 -m pip install --user virtualenv
@@ -24,7 +26,7 @@ function virtualenv() {
 
 		else
 
-			logger "Skipping creation of virtualenv for location '${virtualenv_path}/bin/activate' as it already exists" "INFO"
+			logger "Skipping creation of virtualenv for location '${virtualenv_path}' as it already exists" "INFO"
 
 		fi
 
@@ -107,7 +109,7 @@ Where:
 
 	-vp or --virtualenv-path <path>
 		Define path to create for virtualenv.
-		Defaults to '--install-path'.
+		Defaults to '${defaultVirtualenvPath}'.
 
 	-pp or --pip-paackages <package names>
 		Define specified packages to install via pip.
@@ -186,11 +188,6 @@ if [[ -z "${pip_packages}" || "${create_virtualenv}" == "yes" ]]; then
 		exit 1
 	fi
 
-fi
-
-# if virtualenv enabled and path not defined then use default
-if [[ -z "${virtualenv_path}" || "${create_virtualenv}" == "yes" ]]; then
-	virtualenv_path="${install_path}"
 fi
 
 pip_install

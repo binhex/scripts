@@ -180,7 +180,7 @@ do
 done
 
 # verify required options specified
-if [[ -z "${pip_packages}" || "${create_virtualenv}" == "yes" ]]; then
+if [[ -z "${pip_packages}" ]]; then
 
 	if [[ -z "${install_path}" ]]; then
 		logger "Install path not specified, showing help..." "WARN"

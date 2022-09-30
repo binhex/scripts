@@ -147,7 +147,7 @@ function webui_test() {
 	for host_port in "${host_ports_array[@]}"; do
 
 		echo "[debug] Waiting for port '${host_port}' to be in listen state..."
-		while ! curl -s -v --cookie --insecure -k -4 -L "${protocol}://${container_name}:${host_port}/${url}" >> /tmp/curl/curl.log 2>&1; do
+		while ! curl -s -v --cookie --insecure -k -4 -L "${protocol}://${container_name}:${host_port}${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
 				tests_passed="false"
@@ -301,7 +301,7 @@ function run_test() {
 	elif [[ "${app_name}" == "overseerr" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:5055'
+		webui_test ${common_options} --container-ports '-p 9999:5055' --url '/setup'
 
 	elif [[ "${app_name}" == "plex" || "${app_name}" == "plexpass" ]]; then
 

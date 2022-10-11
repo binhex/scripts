@@ -6,7 +6,7 @@ readonly ourScriptPath="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 readonly defaultNetworkType="bridge"
 readonly defaultContainerName="test"
-readonly defaultRetryCount="60"
+readonly defaultRetryCount="120"
 readonly defaultProtocol="http"
 
 # set defaults

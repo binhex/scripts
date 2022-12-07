@@ -75,6 +75,12 @@ if [[ ! -z "${aur_packages}" ]]; then
 	# package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
 
+	# check if prerun_cmd (run command before helper)
+	if [[ -n "${aur_precmd}" ]]; then
+		echo "[info] Pre-run command defined as '${aur_precmd}', executing..."
+		eval "${aur_precmd}"
+	fi
+
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
 		aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --noconfirm"

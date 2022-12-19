@@ -301,7 +301,7 @@ function run_test() {
 	elif [[ "${app_name}" == "overseerr" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:5055' --url '/setup'
+		webui_test ${common_options} --container-ports '-p 9999:5055' --retry-count '300' --url '/setup'
 
 	elif [[ "${app_name}" == "plex" || "${app_name}" == "plexpass" ]]; then
 

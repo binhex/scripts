@@ -20,7 +20,7 @@ if [[ ! -z "${aur_packages}" ]]; then
 	fi
 
 	# install required packages to compile
-	pacman -S base-devel --needed --noconfirm
+	pacman -S base-devel binutils --needed --noconfirm
 
 	# define build directory
 	build_dir='/tmp/makepkg'

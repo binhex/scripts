@@ -7,7 +7,7 @@
 # common
 
 common_support_all="\
-  http://lime-technology.com/forum/index.php?topic"
+  http://forums.unraid.net/index.php?topic"
 
 common_variable_vpn="\
   VPN_ENABLED~yes|no~Toggle VPN%\

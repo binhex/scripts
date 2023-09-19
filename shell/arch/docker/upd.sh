@@ -15,7 +15,7 @@ Server = rsync://arch.mirror.square-r00t.net/arch/$repo/os/$arch
 EOF
 else
 cat <<'EOF' > /etc/pacman.d/mirrorlist
-Server = http://mirror.archlinuxarm.org/$arch/$repo
+Server = http://eu.mirror.archlinuxarm.org/$arch/$repo
 EOF
 fi
 

@@ -23,7 +23,7 @@ fi
 
 function run_reflector() {
 
-	pacman -S reflector --noconfirm
+	pacman -S rsync reflector --noconfirm
 
 	# use reflector to overwriting existing mirrorlist, args explained below
 	# --sort age                        = sort by last server synchronized

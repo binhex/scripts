@@ -87,6 +87,8 @@ function run_reflector() {
 
 }
 
+echo "[info] Target architecture from Dockerfile arg is '${TARGETARCH}'"
+
 # reflector only supported for amd64, use static mirrorlist for arm64
 if [[ "${TARGETARCH}" == "amd64" ]]; then
 	run_reflector

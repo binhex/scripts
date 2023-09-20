@@ -6,19 +6,6 @@ aur_helper="yay"
 # check we have aur packages to install
 if [[ ! -z "${aur_packages}" ]]; then
 
-	OS_ARCH=$(cat /etc/os-release | grep -P -o -m 1 "(?=^ID\=).*" | grep -P -o -m 1 "[a-z]+$")
-	if [[ ! -z "${OS_ARCH}" ]]; then
-		if [[ "${OS_ARCH}" == "arch" ]]; then
-			OS_ARCH="x86-64"
-		else
-			OS_ARCH="aarch64"
-		fi
-		echo "[info] OS_ARCH defined as '${OS_ARCH}'"
-	else
-		echo "[warn] Unable to identify OS_ARCH, defaulting to 'x86-64'"
-		OS_ARCH="x86-64"
-	fi
-
 	# install required packages to compile
 	pacman -S base-devel binutils --needed --noconfirm
 
@@ -41,15 +28,21 @@ if [[ ! -z "${aur_packages}" ]]; then
 		# install git, used to pull down aur helper from github
 		pacman -S git sudo --noconfirm
 
-		aur_helper_package_name="yay-x86_64.tar.zst"
+		# different compression used for arm and amd
+		if [[ "${TARGETARCH}" == "amd64" ]]; then
+			yay_package_name="yay.tar.zst"
+		else
+			yay_package_name="yay.tar.xz"
+		fi
 
 		# download compiled aur helper
-		rcurl.sh -o "/tmp/${aur_helper_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${OS_ARCH}/${aur_helper_package_name}"
+		rcurl.sh -o "/tmp/${yay_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${yay_package_name}"
 
 		# install aur helper
-		pacman -U "/tmp/${aur_helper_package_name}" --noconfirm
+		pacman -U "/tmp/${yay_package_name}" --noconfirm
 
-		# compile and install aur helper
+		# compile yay
+		#pacman -S base-devel
 		# strip out restriction to not allow make as user root, used during make of aur helper
 		#sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 		# download and install aur helper
@@ -57,7 +50,6 @@ if [[ ! -z "${aur_packages}" ]]; then
 		#git clone https://aur.archlinux.org/yay-bin.git
 		#cd yay-bin
 		#makepkg -sri --noconfirm
-		#cd /tmp
 
 	fi
 

@@ -6,6 +6,17 @@ aur_helper="yay"
 # check we have aur packages to install
 if [[ ! -z "${aur_packages}" ]]; then
 
+	# if we do not hve arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
+	if [[ -z "${TARGETARCH}" ]]; then
+
+		TARGETARCH=$(cat /etc/os-release | grep -P -o -m 1 "(?=^ID\=).*" | grep -P -o -m 1 "[a-z]+$")
+		if [[ -z "${TARGETARCH}" ]]; then
+			echo "[warn] Unable to identify architecture, exiting script..."
+			exit 1
+		fi
+
+	fi
+
 	# install required packages to compile
 	pacman -S base-devel binutils --needed --noconfirm
 

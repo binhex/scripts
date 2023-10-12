@@ -4,15 +4,21 @@
 aur_helper="yay"
 
 # check we have aur packages to install
-if [[ ! -z "${aur_packages}" ]]; then
+if [[ -n "${aur_packages}" ]]; then
 
 	# if we do not hve arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
 	if [[ -z "${TARGETARCH}" ]]; then
 
-		TARGETARCH=$(cat /etc/os-release | grep -P -o -m 1 "(?=^ID\=).*" | grep -P -o -m 1 "[a-z]+$")
-		if [[ -z "${TARGETARCH}" ]]; then
+		uname=$(uname -m)
+		if [[ -z "${uname}" ]]; then
 			echo "[warn] Unable to identify architecture, exiting script..."
 			exit 1
+		elif [[ "${uname}" == "x86_64" ]]; then
+			TARGETARCH="amd64"
+		elif [[ "${uname}" == "aarch64" ]]; then
+			TARGETARCH="arm64"
+		else
+			echo "[warn] No support for architecture '${uname}', exiting script..."
 		fi
 
 	fi

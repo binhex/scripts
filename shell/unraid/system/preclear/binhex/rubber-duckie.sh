@@ -97,15 +97,7 @@ function prompt_for_test_selection() {
 				write_serial_to_in_progress_filepath "${disk_serial}"
 
 				run_smartctl_with_flag "-H" "${disk_name}"
-				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-					exit 10
-				fi
-
 				run_smartctl_with_flag "-t ${smartctl_test}" "${disk_name}"
-				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-					exit 20
-				fi
-
 				remove_serial_from_in_progress_filepath "${disk_serial}"
 				continue
 				;;
@@ -114,16 +106,12 @@ function prompt_for_test_selection() {
 				write_serial_to_in_progress_filepath "${disk_serial}"
 
 				if [[ "${test_type}" == "destructive" ]]; then
+
 					run_badblocks_test "${disk_name}" "w"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 30
-					fi
 
 				else
+
 					run_badblocks_test "${disk_name}" "n"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 40
-					fi
 
 				fi
 				remove_serial_from_in_progress_filepath "${disk_serial}"
@@ -136,14 +124,8 @@ function prompt_for_test_selection() {
 				if [[ "${test_type}" == "Destructive" ]]; then
 
 					run_dd_zeros_test "${disk_name}"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 50
-					fi
-
 					run_dd_random_test "${disk_name}" "${dd_minutes_to_run_random_test}"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 60
-					fi
+
 				else
 					echo "[INFO] Test type '${test_type}' selected, DD skipped (destructive test)"
 				fi
@@ -153,40 +135,19 @@ function prompt_for_test_selection() {
 			"All")
 				echo "[INFO] Option '${REPLY}' selected, running test '${opt}'..."
 				write_serial_to_in_progress_filepath "${disk_serial}"
-
+				
 				run_smartctl_with_flag "-H" "${disk_name}"
-				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-					exit 10
-				fi
-
 				run_smartctl_with_flag "-t ${smartctl_test}" "${disk_name}"
-				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-					exit 20
-				fi
 
 				if [[ "${test_type}" == "Destructive" ]]; then
 
 					run_badblocks_test "${disk_name}" "w"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 30
-					fi
-
 					run_dd_zeros_test "${disk_name}"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 50
-					fi
-
 					run_dd_random_test "${disk_name}" "${dd_minutes_to_run_random_test}"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 60
-					fi
 
 				else
 
 					run_badblocks_test "${disk_name}" "n"
-					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
-						exit 40
-					fi
 
 				fi
 				remove_serial_from_in_progress_filepath "${disk_serial}"
@@ -222,7 +183,7 @@ function prompt_for_test_type() {
 
 		if [[ "${drive_confirm}" == "PROCEED" ]]; then
 
-			PS3='Please choose the test type you wish to run: '
+			PS3='Please choose the test type you wish to run (Non-destructive is slower): '
 			type_options=("Non-destructive" "Destructive" "Quit")
 
 			select opt in "${type_options[@]}"
@@ -305,7 +266,9 @@ function run_dd_zeros_test() {
 	# if=/dev/zero = write zeros to disk
 	# bs=128k = block size, may speed up process
 	dd if=/dev/zero "of=/dev/${disk_name}" bs=128k status=progress
-	run_smartctl_with_flag "-a" "${disk_name}"
+	if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+		exit 1
+	fi
 }
 
 function run_dd_random_test() {
@@ -322,7 +285,9 @@ function run_dd_random_test() {
 		# seek = skip n blocks then begin writing
 		dd if=/dev/urandom "of=/dev/${disk_name}" "seek=${random_block_number}" count=1 bs=128k status=progress
 	done
-	run_smartctl_with_flag "-a" "${disk_name}"
+	if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+		exit 1
+	fi
 }
 
 function run_badblocks_test() {
@@ -336,7 +301,9 @@ function run_badblocks_test() {
 	#
 	# note non-destructive write mode (default) will result in longer process times
 	badblocks -b 4096 -c 200000 "-s${badblocks_flag}v" "/dev/${disk_name}"
-	run_smartctl_with_flag "-a" "${disk_name}"
+	if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+		exit 1
+	fi
 }
 
 function run() {

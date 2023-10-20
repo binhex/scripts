@@ -7,11 +7,11 @@ readonly ourScriptVersion="v1.0.0"
 
 # define default values
 readonly default_smartctl_test="short"
-readonly default_badblocks_write_mode="non-destructive"
+readonly default_test_mode="non-destructive"
 readonly default_dd_minutes_to_run_random_test="480"
 
 smartctl_test="${default_smartctl_test}"
-badblocks_write_mode="${default_badblocks_write_mode}"
+test_mode="${default_test_mode}"
 dd_minutes_to_run_random_test="${default_dd_minutes_to_run_random_test}"
 
 # construct required filepaths
@@ -78,28 +78,183 @@ function find_all_disks_not_in_array() {
 	done
 	echo "[DEBUG] Disks in the array (do not check) are '${disks_in_array_array[*]}'"
 	echo "[DEBUG] Disks NOT in scope (do not check) are '${disks_not_in_scope_array[*]}'"
-	echo "[DEBUG] Disks NOT in the array (candidates for checking) are '${disks_not_in_array_array[*]}'"
+	echo "[DEBUG] Disks NOT in the array (candidates for testing) are '${disks_not_in_array_array[*]}'"
 }
 
- # TODO need to add in prompt for non destructive or destructive
- # TODO prompt for tests to run, or all
- # TODO prompt for multi disk selection (or all) and run in background
-function prompt_user_for_disk_selection() {
+function prompt_for_test_selection() {
+
+	local test_type="${1}"
+	local disk_name="${2}"
+	local disk_serial="${3}"
+
+	PS3='Please enter the test you want to run: '
+	tests_options=("Smartctl Healthcheck" "Badblocks" "DD" "All" "Quit")
+	select opt in "${tests_options[@]}"
+	do
+		case $opt in
+			"Smartctl Healthcheck")
+				echo "[INFO] Option '${REPLY}' selected, running test '${opt}'..."
+				write_serial_to_in_progress_filepath "${disk_serial}"
+
+				run_smartctl_with_flag "-H" "${disk_name}"
+				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+					exit 10
+				fi
+
+				run_smartctl_with_flag "-t ${smartctl_test}" "${disk_name}"
+				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+					exit 20
+				fi
+
+				remove_serial_from_in_progress_filepath "${disk_serial}"
+				continue
+				;;
+			"Badblocks")
+				echo "[INFO] Option '${REPLY}' selected, running test '${opt}'..."
+				write_serial_to_in_progress_filepath "${disk_serial}"
+
+				if [[ "${test_type}" == "destructive" ]]; then
+					run_badblocks_test "${disk_name}" "w"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 30
+					fi
+
+				else
+					run_badblocks_test "${disk_name}" "n"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 40
+					fi
+
+				fi
+				remove_serial_from_in_progress_filepath "${disk_serial}"
+				continue
+				;;
+			"DD")
+				echo "[INFO] Option '${REPLY}' selected, running test '${opt}'..."
+				write_serial_to_in_progress_filepath "${disk_serial}"
+
+				if [[ "${test_type}" == "Destructive" ]]; then
+
+					run_dd_zeros_test "${disk_name}"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 50
+					fi
+
+					run_dd_random_test "${disk_name}" "${dd_minutes_to_run_random_test}"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 60
+					fi
+				else
+					echo "[INFO] Test type '${test_type}' selected, DD skipped (destructive test)"
+				fi
+				remove_serial_from_in_progress_filepath "${disk_serial}"
+				continue
+				;;
+			"All")
+				echo "[INFO] Option '${REPLY}' selected, running test '${opt}'..."
+				write_serial_to_in_progress_filepath "${disk_serial}"
+
+				run_smartctl_with_flag "-H" "${disk_name}"
+				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+					exit 10
+				fi
+
+				run_smartctl_with_flag "-t ${smartctl_test}" "${disk_name}"
+				if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+					exit 20
+				fi
+
+				if [[ "${test_type}" == "Destructive" ]]; then
+
+					run_badblocks_test "${disk_name}" "w"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 30
+					fi
+
+					run_dd_zeros_test "${disk_name}"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 50
+					fi
+
+					run_dd_random_test "${disk_name}" "${dd_minutes_to_run_random_test}"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 60
+					fi
+
+				else
+
+					run_badblocks_test "${disk_name}" "n"
+					if ! run_smartctl_with_flag "-a" "${disk_name}"; then
+						exit 40
+					fi
+
+				fi
+				remove_serial_from_in_progress_filepath "${disk_serial}"
+				continue
+				;;
+			"Quit")
+				echo "[INFO] Option '${REPLY}' selected, exiting test selection..."
+				break
+				;;
+			*) echo "invalid option $REPLY";;
+		esac
+	done
+
+}
+
+# run tests for multiple disks by backgrounding operation?
+function prompt_for_test_type() {
+
 	local disk_name
 	local disk_serial
-	echo "[INFO] The following disks are candidates for processing with ${ourScriptName}:"
+
+	echo "[INFO] The following disks are candidates for testing with ${ourScriptName}:"
 	echo "[DEBUG] array is '${disks_not_in_array_array[*]}'"
+
 	for i in "${disks_not_in_array_array[@]}"; do
+
 		disk_name=$(echo "${i}" | grep -P -o -m 1 '^[^,]+')
 		disk_serial=$(echo "${i}" | grep -P -o -m 1 '[^,]+$')
-		run_smartctl_get_info "${disk_name}" "i"
-		echo "[INFO] Do you want to check the above drive?"
-		select yn in "Yes" "No"; do
-    		case $yn in
-        		Yes ) run_non_destructive_tests "${disk_name}" "${disk_serial}"; break;;
-        		No ) break;;
-    		esac
-		done
+
+		run_smartctl_with_flag "-i" "${disk_name}"
+		echo -n "Please confirm you wish to check the above drive by typing 'PROCEED': "
+		read -r drive_confirm
+
+		if [[ "${drive_confirm}" == "PROCEED" ]]; then
+
+			PS3='Please choose the test type you wish to run: '
+			type_options=("Non-destructive" "Destructive" "Quit")
+
+			select opt in "${type_options[@]}"
+			do
+				case $opt in
+					"Non-destructive")
+						prompt_for_test_selection "${opt}" "${disk_name}" "${disk_serial}"
+						break
+						;;
+					"Destructive")
+						echo -n "Are you sure?, data maybe (depending on test selection) be erased from device '${disk_name}', type 'CONFIRM': "
+						read -r destructive_confirm
+						if [[ "${destructive_confirm}" == "CONFIRM" ]]; then
+							prompt_for_test_selection "${opt}" "${disk_name}" "${disk_serial}"
+							break
+						else
+							echo "[info] Bad response '${destructive_confirm}', exiting script..."
+							break
+						fi
+						;;
+					"Quit")
+						break
+						;;
+					*) echo "invalid option $REPLY";;
+				esac
+			done
+
+		else
+			echo "[info] Bad response '${drive_confirm}', continuing to next drive..."
+			continue
+		fi
+
 	done
 }
 
@@ -126,62 +281,22 @@ function remove_serial_from_in_progress_filepath() {
 	sed -i '/^$/d' "${in_progress_filepath}"
 }
 
-function run_destructive_tests() {
-	local disk_name="${1}"
-	local disk_serial="${2}"
-
-	write_serial_to_in_progress_filepath "${disk_serial}"
-	run_smartctl_get_attributes "${disk_name}" # TODO grep for all attributes
-	run_badblocks_test "${disk_name}" "w"
-	run_dd_zeros_test "${disk_name}"
-	run_dd_random_test "${disk_name}" "${dd_minutes_to_run_random_test}"
-	remove_serial_from_in_progress_filepath "${disk_serial}"
-}
-
-function run_non_destructive_tests() {
-	local disk_name="${1}"
-	local disk_serial="${2}"
-
-	write_serial_to_in_progress_filepath "${disk_serial}"
-	run_smartctl_get_attributes "${disk_name}" # TODO grep for all attributes
-	run_smartctl_health "${disk_name}"
-	run_smartctl_test "${disk_name}" "${smartctl_test}"
-	run_badblocks_test "${disk_name}" "n"
-	remove_serial_from_in_progress_filepath "${disk_serial}"
-}
-
-function run_smartctl_get_attributes() {
-	local disk_name="${1}"
-	echo "[INFO] Running smartctl with flag '${smartctl_flag}' for disk '/dev/${disk_name}'..."
-	smartctl -a "/dev/${disk_name}"
-}
-
-function run_smartctl_check_for_fail() {
-	local disk_name="${1}"
-	local smartctl_flag="${2}"
-	echo "[INFO] Running smartctl with flag '${smartctl_flag}' for disk '/dev/${disk_name}'..."
-	if smartctl -a "/dev/${disk_name}" | xargs | grep -q 'No Errors Logged'; then
-		echo "[INFO] Drive '/dev/${disk_name}' PASSED S.M.A.R.T."
-		return 0
+function run_smartctl_with_flag() {
+	local flag="${1}"
+	local disk="${2}"
+	echo "[INFO] Running smartctl with flags '${flag}' for disk '/dev/${disk}'..."
+	if [[ "${flag}" == "-a" ]]; then
+		if smartctl -a "/dev/${disk_name}" | xargs | grep -q 'No Errors Logged'; then
+			echo "[INFO] Drive '/dev/${disk_name}' PASSED S.M.A.R.T."
+			return 0
+		else
+			echo "[INFO] Drive '/dev/${disk_name}' FAILED S.M.A.R.T., showing S.M.A.R.T. output..."
+			smartctl -a "/dev/${disk_name}"
+			return 1
+		fi
 	else
-		echo "[INFO] Drive '/dev/${disk_name}' FAILED S.M.A.R.T."
-		return 1
+		smartctl ${flag} "/dev/${disk}"
 	fi
-}
-
-function run_smartctl_test() {
-	local disk_name="${1}"
-	local smartctl_test="${2}"
-	echo "[INFO] Running smartctl '${smartctl_test}' test for disk '/dev/${disk_name}', this may take some time..."
-	smartctl -t "${smartctl_test}" "/dev/${disk_name}"
-	run_smartctl_check_for_fail "${disk_name}"
-}
-
-function run_smartctl_health() {
-	local disk_name="${1}"
-	echo "[INFO] Running smartctl health check for disk '/dev/${disk_name}'..."
-	smartctl -H "/dev/${disk_name}"
-	run_smartctl_check_for_fail "${disk_name}"
 }
 
 function run_dd_zeros_test() {
@@ -190,7 +305,7 @@ function run_dd_zeros_test() {
 	# if=/dev/zero = write zeros to disk
 	# bs=128k = block size, may speed up process
 	dd if=/dev/zero "of=/dev/${disk_name}" bs=128k status=progress
-	run_smartctl_check_for_fail "${disk_name}"
+	run_smartctl_with_flag "-a" "${disk_name}"
 }
 
 function run_dd_random_test() {
@@ -207,7 +322,7 @@ function run_dd_random_test() {
 		# seek = skip n blocks then begin writing
 		dd if=/dev/urandom "of=/dev/${disk_name}" "seek=${random_block_number}" count=1 bs=128k status=progress
 	done
-	run_smartctl_check_for_fail "${disk_name}"
+	run_smartctl_with_flag "-a" "${disk_name}"
 }
 
 function run_badblocks_test() {
@@ -221,21 +336,17 @@ function run_badblocks_test() {
 	#
 	# note non-destructive write mode (default) will result in longer process times
 	badblocks -b 4096 -c 200000 "-s${badblocks_flag}v" "/dev/${disk_name}"
-	run_smartctl_check_for_fail "${disk_name}"
+	run_smartctl_with_flag "-a" "${disk_name}"
 }
 
 function run() {
 	echo "[INFO] Running script ${ourScriptName}..."
 	check_prereqs
-	echo "[INFO] Gathering potential candidates for processing, please wait..."
+	echo "[INFO] Gathering potential candidates for processing, please wait whilst all disks are spun up..."
 	find_all_disks_not_in_array
-	prompt_user_for_disk_selection
-	# prompt_user_for
-	# read smartctl attribs and store in memory
-	# run tests
-	# send email oncee processed?
-	# read smartctl attribs and compare and show to user changed attribs
+	prompt_for_test_type
 	echo "[INFO] Script ${ourScriptName} finished"
 }
 
+# kickoff
 run

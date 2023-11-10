@@ -29,7 +29,6 @@ function identify_github_release_tag_name() {
 	shift
 
 	echo -e "[info] Running function to identify name of ${query_type} from GitHub..."
-	github_release_url="https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}"
 
 	if [ "${query_type}" == "tags" ]; then
 		local json_query=".[0].name"
@@ -105,13 +104,11 @@ function github_downloader() {
 			echo -e "[info] Asset name matches, downloading binary asset '${match_asset_name}' from GitHub..."
 
 			echo -e "[info] rcurl.sh -o ${download_path}/${match_asset_name} https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-			rcurl.sh -o "${download_path}/${match_asset_name}" "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+			if ! rcurl.sh -o "${download_path}/${match_asset_name}" "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"; then
+				echo -e "[info] Unable to download binary asset, exiting script..."
+				exit 1
+			fi
 
-		fi
-
-		if [ $? -ne 0 ]; then
-			echo -e "[info] Unable to download binary asset, exiting script..."
-			exit 1
 		fi
 
 		filename=$(basename "${match_asset_name}")
@@ -129,13 +126,11 @@ function github_downloader() {
 
 			echo -e "[info] Downloading ${query_type} source from GitHub..."
 			echo -e "[info] rcurl.sh -o '${download_path}/${download_filename}' 'https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip'"
-			rcurl.sh -o "${download_path}/${download_filename}" "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"
+			if ! rcurl.sh -o "${download_path}/${download_filename}" "https://github.com/${github_owner}/${github_repo}/archive/${github_release}.zip"; then
+				echo -e "[info] Unable to download source, exiting script..."
+				exit 1
+			fi
 
-		fi
-
-		if [ $? -ne 0 ]; then
-			echo -e "[info] Unable to download source, exiting script..."
-			exit 1
 		fi
 
 		filename=$(basename "${download_filename}")
@@ -173,7 +168,7 @@ function archive_extractor() {
 	if [ "${download_ext}" == "zip" ]; then
 
 		echo -e "[info] Removing previous extract path..."
-		rm -rf "${extract_path}/"
+		rm -rf "${extract_path}:?/"
 		mkdir -p "${extract_path}"
 
 		echo -e "[info] Extracting zip..."
@@ -187,11 +182,11 @@ function archive_extractor() {
 	elif [ "${download_ext}" == "gz" ]; then
 
 		echo -e "[info] Removing previous extract path..."
-		rm -rf "${extract_path}/"
+		rm -rf "${extract_path:?}/"
 		mkdir -p "${extract_path}"
 
 		echo -e "[info] Extracting gz..."
-		cd "${extract_path}"
+		cd "${extract_path}" || exit 1
 
 		if [[ -n "${match_asset_name}" ]]; then
 			tar -xvf "${download_path}/${match_asset_name}" --strip-components="${strip_components}"
@@ -241,7 +236,7 @@ function copy_to_install_path() {
 		echo -e "[info] cp -rf ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
-	elif ( [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] ) && [[ -n "${match_asset_name}" ]]; then
+	elif [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] && [[ -n "${match_asset_name}" ]]; then
 
 		if [ -z "${extract_path}" ]; then
 			echo -e "[warn] Extraction path not found"
@@ -310,8 +305,11 @@ function github_compile_src() {
 
 	echo -e "[info] Running compile source..."
 
-	# move to install path
-	cd "${install_path}"
+	if [[ -n "${install_path}" ]]; then
+		cd "${install_path}" || exit 1
+	else
+		cd "${extract_path}" || exit 1
+	fi
 
 	# install compilation tooling
 	pacman -S --needed base-devel --noconfirm
@@ -482,13 +480,6 @@ if [[ -z "${github_repo}" ]]; then
 	exit 1
 fi
 
-if [[ -z "${install_path}" ]]; then
-	echo "[warn] GitHub installation path not defined via parameter -ip or --install-path, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
 # change friendly name to correct name used in api call
 if [ "${query_type}" == "release" ]; then
 	query_type="releases/latest"
@@ -511,14 +502,20 @@ github_downloader "${github_release_tag_name}" "${github_owner}" "${github_repo}
 # extract any compressed source or binary assets
 archive_extractor "${download_ext}" "${match_asset_name}" "${download_filename}" "${extract_path}"
 
-# copy extracted source/binary to specified install path
-copy_to_install_path "${extract_path}" "${install_path}" "${download_ext}" "${download_path}" "${match_asset_name}"
+# if install_path defined then copy and then cleanup extracted and downloaded files
+if [[ -n "${install_path}" ]]; then
 
-# delete any compressed source or binary assets
-cleanup "${download_ext}" "${match_asset_name}" "${download_filename}" "${download_path}" "${extract_path}"
+	# copy extracted source/binary to specified install path
+	copy_to_install_path "${extract_path}" "${install_path}" "${download_ext}" "${download_path}" "${match_asset_name}"
+
+	# delete any compressed source or binary assets
+	cleanup "${download_ext}" "${match_asset_name}" "${download_filename}" "${download_path}" "${extract_path}"
+
+fi
 
 # if we need to compile source then install base-devel and run commands to compile
 if [[ -n "${compile_src}" ]]; then
 	github_compile_src
 fi
+
 echo "[info] GitHub script finished"

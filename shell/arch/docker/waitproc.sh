@@ -15,4 +15,4 @@ function child_process_monitor(){
 }
 
 # monitor for child processes on intialised shutdown
-trap 'child_process_monitor' SIGTERM SIGINT EXIT
+trap 'child_process_monitor' SIGTERM

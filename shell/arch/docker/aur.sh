@@ -32,6 +32,9 @@ if [[ -n "${aur_packages}" ]]; then
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
 
+	# strip out restriction to not allow make as user root (docker build uses root)
+	sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
+
 	# create build directory and then set permissions for /tmp recursively
 	mkdir -p "${build_dir}"
 	chmod -R 777 '/tmp'
@@ -60,8 +63,6 @@ if [[ -n "${aur_packages}" ]]; then
 
 		# compile yay
 		#pacman -S base-devel
-		# strip out restriction to not allow make as user root, used during make of aur helper
-		#sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 		# download and install aur helper
 		#cd /tmp
 		#git clone https://aur.archlinux.org/yay-bin.git

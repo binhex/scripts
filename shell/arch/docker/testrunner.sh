@@ -249,7 +249,7 @@ function run_test() {
 	elif [[ "${app_name}" == "flaresolverr" ]]; then
 
 		# run tests
-		webui_test ${common_options} --url 'v1' --container-ports '-p 9999:8191'
+		webui_test ${common_options} --url '/v1' --container-ports '-p 9999:8191'
 
 	elif [[ "${app_name}" == "jackett" ]]; then
 

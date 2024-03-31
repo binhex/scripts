@@ -68,15 +68,11 @@ function compile_yay() {
 	cd yay-bin
 	makepkg -sri --noconfirm
 
-	# install compiled package
-	pacman -U yay-bin-*.pkg.tar.${yay_compression} --noconfirm
-
 }
 
 function install_package_using_yay() {
 
-	# prevent sudo prompt for password when installing compiled
-	# package via pacman
+	# prevent sudo prompt for password when installing compiled package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
 
 	# check if prerun_cmd (run command before helper)
@@ -92,7 +88,7 @@ function install_package_using_yay() {
 
 	fi
 
-	# if not defined then assume install package
+	# if no aur operation defined then assume install package
 	if [[ -z "${aur_operations}" ]]; then
 		aur_operations="-S"
 	fi

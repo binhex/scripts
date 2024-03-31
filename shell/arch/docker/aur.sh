@@ -1,30 +1,46 @@
 #!/bin/bash
 
+# exit script if return code != 0, note need it at this location as which
+set -e
+
 # define aur helper
 aur_helper="yay"
 
-# check we have aur packages to install
-if [[ -n "${aur_packages}" ]]; then
+function install_compiled_yay() {
 
-	# if we do not hve arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
-	if [[ -z "${TARGETARCH}" ]]; then
+	if ! which yay || true; then
 
-		uname=$(uname -m)
-		if [[ -z "${uname}" ]]; then
-			echo "[warn] Unable to identify architecture, exiting script..."
-			exit 1
-		elif [[ "${uname}" == "x86_64" ]]; then
-			TARGETARCH="amd64"
-		elif [[ "${uname}" == "aarch64" ]]; then
-			TARGETARCH="arm64"
+		# install git, used to pull down aur helper from github
+		pacman -S git sudo --noconfirm
+
+		# different compression used for arm and amd
+		if [[ "${TARGETARCH}" == "amd64" ]]; then
+			yay_compression="zst"
 		else
-			echo "[warn] No support for architecture '${uname}', exiting script..."
+			yay_compression="xz"
 		fi
+		yay_package_name="yay.tar.${yay_compression}"
 
+		# download compiled aur helper
+		rcurl.sh -o "/tmp/${yay_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${yay_package_name}"
+
+		# install aur helper
+		pacman -U "/tmp/${yay_package_name}" --noconfirm
 	fi
 
-	# install required packages to compile
-	pacman -S base-devel binutils --needed --noconfirm
+	if [[ -d /home/nobody/.cache ]]; then
+		# ensure we are owner for cache and config folders used by aur_helper
+		chown -R nobody:users /home/nobody/.cache
+	fi
+
+	if [[ -d /home/nobody/.config ]]; then
+		# ensure we are owner for cache and config folders used by aur_helper
+		chown -R nobody:users /home/nobody/.config
+	fi
+
+}
+
+function compile_yay() {
 
 	# define build directory
 	build_dir='/tmp/makepkg'
@@ -39,47 +55,25 @@ if [[ -n "${aur_packages}" ]]; then
 	mkdir -p "${build_dir}"
 	chmod -R 777 '/tmp'
 
-	if ! which yay; then
-
-		# exit script if return code != 0, note need it at this location as which
-		# yay may return non zero exit code
-		set -e
-
-		# install git, used to pull down aur helper from github
-		pacman -S git sudo --noconfirm
-
-		# different compression used for arm and amd
-		if [[ "${TARGETARCH}" == "amd64" ]]; then
-			yay_package_name="yay.tar.zst"
-		else
-			yay_package_name="yay.tar.xz"
-		fi
-
-		# download compiled aur helper
-		rcurl.sh -o "/tmp/${yay_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${yay_package_name}"
-
-		# install aur helper
-		pacman -U "/tmp/${yay_package_name}" --noconfirm
-
-		# compile yay
-		#pacman -S base-devel
-		# download and install aur helper
-		#cd /tmp
-		#git clone https://aur.archlinux.org/yay-bin.git
-		#cd yay-bin
-		#makepkg -sri --noconfirm
-
+	# different compression used for arm and amd
+	if [[ "${TARGETARCH}" == "amd64" ]]; then
+		yay_compression="zst"
+	else
+		yay_compression="xz"
 	fi
 
-	if [[ -d /home/nobody/.cache ]]; then
-		# ensure we are owner for cache and config folders used by aur_helper
-		chown -R nobody:users /home/nobody/.cache
-	fi
+	# download and install aur helper
+	cd /tmp
+	git clone https://aur.archlinux.org/yay-bin.git
+	cd yay-bin
+	makepkg -sri --noconfirm
 
-	if [[ -d /home/nobody/.config ]]; then
-		# ensure we are owner for cache and config folders used by aur_helper
-		chown -R nobody:users /home/nobody/.config
-	fi
+	# install compiled package
+	pacman -U yay-bin-*.pkg.tar.${yay_compression} --noconfirm
+
+}
+
+function install_package_using_yay() {
 
 	# prevent sudo prompt for password when installing compiled
 	# package via pacman
@@ -111,8 +105,42 @@ if [[ -n "${aur_packages}" ]]; then
 		eval "${aur_custom_script}"
 	fi
 
+}
+
+function prereqs() {
+
+	if command -v yay; then
+		echo "[info] yay already installed, exiting script..."
+		exit 0
+	fi
+
+	# install required packages to compile
+	pacman -S base-devel binutils --needed --noconfirm
+
+	# if we do not have arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
+	if [[ -z "${TARGETARCH}" ]]; then
+
+		uname=$(uname -m)
+		if [[ -z "${uname}" ]]; then
+			echo "[warn] Unable to identify architecture, exiting script..."
+			exit 1
+		elif [[ "${uname}" == "x86_64" ]]; then
+			TARGETARCH="amd64"
+		elif [[ "${uname}" == "aarch64" ]]; then
+			TARGETARCH="arm64"
+		else
+			echo "[warn] No support for architecture '${uname}', exiting script..."
+		fi
+
+	fi
+
+}
+
+# check we have aur packages to install
+if [[ -n "${aur_packages}" ]]; then
+	prereqs
+	compile_yay
+	install_package_using_yay
 else
-
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"
-
 fi

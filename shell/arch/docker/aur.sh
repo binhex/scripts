@@ -115,7 +115,7 @@ function prereqs() {
 	fi
 
 	# install required packages to compile
-	pacman -S base-devel binutils --needed --noconfirm
+	pacman -S base-devel binutils git --needed --noconfirm
 
 	# if we do not have arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
 	if [[ -z "${TARGETARCH}" ]]; then

@@ -48,6 +48,12 @@ function compile_yay() {
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
 
+	# hack to fix up segmentation errors on arm when building packages using yay
+	# see https://archlinuxarm.org/forum/viewtopic.php?f=57&t=16830
+	# full line shown below
+	#-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
+	sed -i -e 's~\s-mno-omit-leaf-frame-pointer~~g' '/etc/makepkg.conf'
+
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
 

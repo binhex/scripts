@@ -3,31 +3,32 @@
 # exit script if return code != 0, note need it at this location as which
 set -e
 
-# define aur helper
-aur_helper="yay"
+# define aur helper, normally 'yay' or 'paru'
+aur_helper="paru"
 
-function install_precompiled_yay() {
+function install_precompiled_helper() {
 
 	cleanup
 
-	if ! which yay || true; then
+	if ! which "${aur_helper}" || true; then
 
 		# install git, used to pull down aur helper from github
 		pacman -S git sudo --noconfirm
 
 		# different compression used for arm and amd
 		if [[ "${TARGETARCH}" == "amd64" ]]; then
-			yay_compression="zst"
+			compression="zst"
 		else
-			yay_compression="xz"
+			compression="xz"
 		fi
-		yay_package_name="yay.tar.${yay_compression}"
+
+		package_name="${aur_helper}.tar.${compression}"
 
 		# download compiled aur helper
-		rcurl.sh -o "/tmp/${yay_package_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${yay_package_name}"
+		rcurl.sh -o "/tmp/${package_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${package_name}"
 
 		# install aur helper
-		pacman -U "/tmp/${yay_package_name}" --noconfirm
+		pacman -U "/tmp/${package_name}" --noconfirm
 	fi
 
 	if [[ -d /home/nobody/.cache ]]; then
@@ -41,7 +42,7 @@ function install_precompiled_yay() {
 	fi
 }
 
-function compile_yay() {
+function compile_helper() {
 
 	cleanup
 
@@ -64,22 +65,25 @@ function compile_yay() {
 	mkdir -p "${build_dir}"
 	chmod -R 777 '/tmp'
 
-	# different compression used for arm and amd
-	if [[ "${TARGETARCH}" == "amd64" ]]; then
-		yay_compression="zst"
+	if [[ "${aur_helper}" == 'yay' ]]; then
+		# download and install aur helper
+		cd /tmp
+		git clone https://aur.archlinux.org/yay-bin.git
+		cd yay-bin
+		makepkg -sri --noconfirm
+	elif [[ "${aur_helper}" == 'paru' ]]; then
+		# download and install aur helper
+		cd /tmp
+		git clone https://aur.archlinux.org/paru.git
+		cd paru
+		makepkg -sri --noconfirm
 	else
-		yay_compression="xz"
+		echo "[warn] AUR helper '${aur_helper}' not supported, exiting script..."
+		exit 1
 	fi
-
-	# download and install aur helper
-	cd /tmp
-	git clone https://aur.archlinux.org/yay-bin.git
-	cd yay-bin
-	makepkg -sri --noconfirm
-
 }
 
-function install_package_using_yay() {
+function install_package_using_helper() {
 
 	cleanup
 
@@ -116,8 +120,8 @@ function install_package_using_yay() {
 
 function prereqs() {
 
-	if command -v yay; then
-		echo "[info] yay already installed, exiting script..."
+	if command -v "${aur_helper}"; then
+		echo "[info] AUR helper already installed, exiting script..."
 		exit 0
 	fi
 
@@ -140,7 +144,6 @@ function prereqs() {
 		fi
 
 	fi
-
 }
 
 function cleanup() {
@@ -150,10 +153,10 @@ function cleanup() {
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	prereqs
-	compile_yay
-	# alternative to compiling yay, download precompiled yay
-	#install_precompiled_yay
-	install_package_using_yay
+	compile_helper
+	# alternative to compiling helper, download precompiled helper
+	#install_precompiled_helper
+	install_package_using_helper
 else
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"
 fi

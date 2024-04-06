@@ -6,7 +6,9 @@ set -e
 # define aur helper
 aur_helper="yay"
 
-function install_compiled_yay() {
+function install_precompiled_yay() {
+
+	cleanup
 
 	if ! which yay || true; then
 
@@ -37,10 +39,11 @@ function install_compiled_yay() {
 		# ensure we are owner for cache and config folders used by aur_helper
 		chown -R nobody:users /home/nobody/.config
 	fi
-
 }
 
 function compile_yay() {
+
+	cleanup
 
 	# define build directory
 	build_dir='/tmp/makepkg'
@@ -77,6 +80,8 @@ function compile_yay() {
 }
 
 function install_package_using_yay() {
+
+	cleanup
 
 	# prevent sudo prompt for password when installing compiled package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
@@ -138,10 +143,16 @@ function prereqs() {
 
 }
 
+function cleanup() {
+	rm -rf /tmp/*
+}
+
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	prereqs
 	compile_yay
+	# alternative to compiling yay, download precompiled yay
+	#install_precompiled_yay
 	install_package_using_yay
 else
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"

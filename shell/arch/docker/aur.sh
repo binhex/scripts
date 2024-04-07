@@ -9,6 +9,7 @@ aur_helper="yay"
 
 function install_precompiled_helper() {
 
+	# ensure we have a clean environment
 	cleanup
 
 	if ! which "${aur_helper}" || true; then
@@ -45,6 +46,7 @@ function install_precompiled_helper() {
 
 function compile_and_install_helper() {
 
+	# ensure we have a clean environment
 	cleanup
 
 	# set build directory for makepkg
@@ -63,24 +65,21 @@ function compile_and_install_helper() {
 
 	if [[ "${aur_helper}" == 'yay' ]]; then
 		# download and install aur helper
-		cd /tmp
-		git clone https://aur.archlinux.org/yay-bin.git
-		cd yay-bin
-		makepkg -sri --noconfirm
+		git clone https://aur.archlinux.org/yay-bin.git "${git_dir}"
 	elif [[ "${aur_helper}" == 'paru' ]]; then
 		# download and install aur helper
-		cd /tmp
-		git clone https://aur.archlinux.org/paru.git
-		cd paru
-		makepkg -sri --noconfirm
+		git clone https://aur.archlinux.org/paru.git "${git_dir}"
 	else
 		echo "[warn] AUR helper '${aur_helper}' not supported, exiting script..."
 		exit 1
 	fi
+	cd "${git_dir}"
+	makepkg -sri --noconfirm
 }
 
 function install_package_using_helper() {
 
+	# ensure we have a clean environment
 	cleanup
 
 	# prevent sudo prompt for password when installing compiled package via pacman
@@ -120,7 +119,7 @@ function install_package_using_helper() {
 
 }
 
-function prereqs() {
+function init() {
 
 	if command -v "${aur_helper}"; then
 		echo "[info] AUR helper already installed, exiting script..."
@@ -147,22 +146,25 @@ function prereqs() {
 
 	fi
 
-	# define build directory
+	# define paths for build and clone
 	build_dir='/tmp/makepkg'
+	git_dir='/tmp/helper'
 
-	# create build directory and then set permissions for /tmp recursively
+	# create build and clone paths and then set permissions for /tmp recursively
 	mkdir -p "${build_dir}"
+	mkdir -p "${git_dir}"
 	chmod -R 777 '/tmp'
 
 }
 
 function cleanup() {
 	rm -rf "${build_dir:?}"/*
+	rm -rf "${git_dir:?}"/*
 }
 
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
-	prereqs
+	init
 	compile_and_install_helper
 	# alternative to compiling helper, download precompiled helper
 	#install_precompiled_helper

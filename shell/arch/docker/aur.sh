@@ -4,7 +4,8 @@
 set -e
 
 # define aur helper, normally 'yay' or 'paru'
-aur_helper="paru"
+# note paru does not currently build on arm64 - 20240407
+aur_helper="yay"
 
 function install_precompiled_helper() {
 
@@ -59,10 +60,6 @@ function compile_and_install_helper() {
 
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
-
-	# create build directory and then set permissions for /tmp recursively
-	mkdir -p "${build_dir}"
-	chmod -R 777 '/tmp'
 
 	if [[ "${aur_helper}" == 'yay' ]]; then
 		# download and install aur helper
@@ -152,6 +149,10 @@ function prereqs() {
 
 	# define build directory
 	build_dir='/tmp/makepkg'
+
+	# create build directory and then set permissions for /tmp recursively
+	mkdir -p "${build_dir}"
+	chmod -R 777 '/tmp'
 
 }
 

@@ -102,7 +102,7 @@ function install_package_using_helper() {
 	fi
 
 	# switch to user 'nobody' and run aur helper to compile package
-	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages}"
+	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} --noconfirm"
 
 	# if custom script defined then run
 	if [[ -n "${aur_custom_script}" ]]; then

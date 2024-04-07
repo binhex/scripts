@@ -42,7 +42,7 @@ function install_precompiled_helper() {
 	fi
 }
 
-function compile_helper() {
+function compile_and_install_helper() {
 
 	cleanup
 
@@ -52,11 +52,13 @@ function compile_helper() {
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
 
-	# hack to fix up segmentation errors on arm when building packages using yay
-	# see https://archlinuxarm.org/forum/viewtopic.php?f=57&t=16830
-	# full line shown below
-	#-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
-	sed -i -e 's~-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer~~g' '/etc/makepkg.conf'
+	if [[ "${aur_helper}" == 'yay' ]]; then
+		# hack to fix up segmentation errors on arm when building packages using yay
+		# see https://archlinuxarm.org/forum/viewtopic.php?f=57&t=16830
+		# full line shown below
+		#-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
+		sed -i -e 's~-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer~~g' '/etc/makepkg.conf'
+	fi
 
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"
@@ -98,8 +100,14 @@ function install_package_using_helper() {
 
 	# check if aur_options not specified then use common options
 	if [[ -z "${aur_options}" ]]; then
-		aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm"
-		echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
+
+		if [[ "${aur_helper}" == 'yay' ]]; then
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm"
+			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
+		elif [[ "${aur_helper}" == 'paru' ]]; then
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --norebuild --needed --noconfirm"
+			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
+		fi
 
 	fi
 
@@ -147,13 +155,13 @@ function prereqs() {
 }
 
 function cleanup() {
-	rm -rf /tmp/*
+	rm -rf "${build_dir:?}"/*
 }
 
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	prereqs
-	compile_helper
+	compile_and_install_helper
 	# alternative to compiling helper, download precompiled helper
 	#install_precompiled_helper
 	install_package_using_helper

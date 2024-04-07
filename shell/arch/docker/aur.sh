@@ -2,7 +2,7 @@
 
 # exit script if return code != 0, note need it at this location as which
 set -e
-
+set -x
 # define aur helper, normally 'yay' or 'paru'
 # note paru does not currently build on arm64 - 20240407
 aur_helper="yay"
@@ -51,14 +51,6 @@ function compile_and_install_helper() {
 
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
-
-	# if [[ "${aur_helper}" == 'yay' ]]; then
-	# 	# hack to fix up segmentation errors on arm when building packages using yay
-	# 	# see https://archlinuxarm.org/forum/viewtopic.php?f=57&t=16830
-	# 	# full line shown below
-	# 	#-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
-	# 	sed -i -e 's~-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer~~g' '/etc/makepkg.conf'
-	# fi
 
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' "/usr/bin/makepkg"

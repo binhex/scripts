@@ -46,9 +46,6 @@ function compile_and_install_helper() {
 
 	cleanup
 
-	# define build directory
-	build_dir='/tmp/makepkg'
-
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
 
@@ -152,6 +149,10 @@ function prereqs() {
 		fi
 
 	fi
+
+	# define build directory
+	build_dir='/tmp/makepkg'
+
 }
 
 function cleanup() {

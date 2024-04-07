@@ -84,6 +84,7 @@ function install_package_using_helper() {
 	fi
 
 	# check if aur_options not specified then use common options
+	# note --debug SEEMS (to be confirmed) to fix segmentation faults
 	if [[ -z "${aur_options}" ]]; then
 
 		if [[ "${aur_helper}" == 'yay' ]]; then

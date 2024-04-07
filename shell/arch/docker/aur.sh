@@ -83,18 +83,18 @@ function install_package_using_helper() {
 		eval "${aur_precmd}"
 	fi
 
-	# # check if aur_options not specified then use common options
-	# if [[ -z "${aur_options}" ]]; then
+	# check if aur_options not specified then use common options
+	if [[ -z "${aur_options}" ]]; then
 
-	# 	if [[ "${aur_helper}" == 'yay' ]]; then
-	# 		aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm"
-	# 		echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
-	# 	elif [[ "${aur_helper}" == 'paru' ]]; then
-	# 		aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --norebuild --needed --noconfirm"
-	# 		echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
-	# 	fi
+		if [[ "${aur_helper}" == 'yay' ]]; then
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm --debug"
+			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
+		elif [[ "${aur_helper}" == 'paru' ]]; then
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --norebuild --needed --noconfirm --debug"
+			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
+		fi
 
-	# fi
+	fi
 
 	# if no aur operation defined then assume install package
 	if [[ -z "${aur_operations}" ]]; then
@@ -102,7 +102,7 @@ function install_package_using_helper() {
 	fi
 
 	# switch to user 'nobody' and run aur helper to compile package
-	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} --debug --noconfirm"
+	su nobody -c "cd /tmp && ${aur_helper} ${aur_operations} ${aur_packages} ${aur_options}"
 
 	# if custom script defined then run
 	if [[ -n "${aur_custom_script}" ]]; then

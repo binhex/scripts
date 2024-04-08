@@ -9,6 +9,9 @@ aur_helper="paru"
 
 function install_binary_helper() {
 
+	# ensure we have a clean environment
+	cleanup
+
 	if [[ "${aur_helper}" == 'paru' ]]; then
 
 		# download correct binary for arch
@@ -34,9 +37,6 @@ function install_precompiled_helper() {
 	cleanup
 
 	if ! which "${aur_helper}" || true; then
-
-		# install git, used to pull down aur helper from github
-		pacman -S git sudo --noconfirm
 
 		# different compression used for arm and amd
 		if [[ "${TARGETARCH}" == "amd64" ]]; then
@@ -141,7 +141,7 @@ function init() {
 	fi
 
 	# install required packages to compile
-	pacman -S base-devel binutils git --needed --noconfirm
+	pacman -S base-devel binutils git sudo --needed --noconfirm
 
 	# if we do not have arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
 	if [[ -z "${TARGETARCH}" ]]; then
@@ -164,16 +164,17 @@ function init() {
 	build_dir='/tmp/makepkg'
 	git_dir='/tmp/helper'
 
+}
+
+function cleanup() {
+
+	rm -rf /tmp/*
+
 	# create build and clone paths and then set permissions for /tmp recursively
 	mkdir -p "${build_dir}"
 	mkdir -p "${git_dir}"
 	chmod -R 777 '/tmp'
 
-}
-
-function cleanup() {
-	rm -rf "${build_dir:?}"/*
-	rm -rf "${git_dir:?}"/*
 }
 
 # check we have aur packages to install
@@ -183,6 +184,7 @@ if [[ -n "${aur_packages}" ]]; then
 	#install_precompiled_helper
 	install_binary_helper
 	install_package_using_helper
+	cleanup
 else
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"
 fi

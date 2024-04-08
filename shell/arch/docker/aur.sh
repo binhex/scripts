@@ -4,26 +4,28 @@
 set -e
 
 # define aur helper, normally 'yay' or 'paru'
-# note paru does not currently build on arm64 - 20240407
+# note paru does not currently compile on arm64 - 20240407
 aur_helper="paru"
 
 function install_binary_helper() {
 
-	# download correct binary for arch
-	if [[ "${TARGETARCH}" == "amd64" ]]; then
-		github_asset_regex="paru.*x86_64.*"
-	elif [[ "${TARGETARCH}" == "arm64" ]]; then
-		github_asset_regex="paru.*aarch64.*"
+	if [[ "${aur_helper}" == 'paru' ]]; then
+
+		# download correct binary for arch
+		if [[ "${TARGETARCH}" == "amd64" ]]; then
+			github_asset_regex="paru.*x86_64.*"
+		elif [[ "${TARGETARCH}" == "arm64" ]]; then
+			github_asset_regex="paru.*aarch64.*"
+		fi
+
+		# download binary paru
+		source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex "${github_asset_regex}"
+
+		# extract and move binary to /usr/bin
+		tar -xvf /tmp/paru*.tar* -C /tmp
+		mv '/tmp/paru' '/usr/bin/' && chmod +x '/usr/bin/paru'
+
 	fi
-
-	# download binary helper
-	source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex "${github_asset_regex}"
-
-	tar -xvf /tmp/paru*.tar* -C /tmp
-	mv '/tmp/paru' '/usr/local/bin/' && chmod +x '/usr/local/bin/paru'
-	paru
-	ls -al /tmp
-
 }
 
 function install_precompiled_helper() {
@@ -104,14 +106,13 @@ function install_package_using_helper() {
 	fi
 
 	# check if aur_options not specified then use common options
-	# note --debug SEEMS (to be confirmed) to fix segmentation faults
 	if [[ -z "${aur_options}" ]]; then
 
 		if [[ "${aur_helper}" == 'yay' ]]; then
-			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm --debug"
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --save --norebuild --needed --noconfirm"
 			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
 		elif [[ "${aur_helper}" == 'paru' ]]; then
-			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --norebuild --needed --noconfirm --debug"
+			aur_options="--builddir=${build_dir} --mflags '--config /etc/makepkg.conf' --norebuild --needed --noconfirm"
 			echo "[info] No AUR options defined via 'export aur_options=aur helper options' using the defaults '${aur_options}'"
 		fi
 

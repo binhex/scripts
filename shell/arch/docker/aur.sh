@@ -15,10 +15,11 @@ function install_binary_helper() {
 	if [[ "${aur_helper}" == 'paru' ]]; then
 
 		# download correct binary for arch
+		# note specifying paru version for now to v2.0.3-1
 		if [[ "${TARGETARCH}" == "amd64" ]]; then
-			github_asset_regex="paru.*x86_64.*"
+			github_asset_regex="paru-v2.0.3-1.*x86_64.*"
 		elif [[ "${TARGETARCH}" == "arm64" ]]; then
-			github_asset_regex="paru.*aarch64.*"
+			github_asset_regex="paru-v2.0.3-1.*aarch64.*"
 		fi
 
 		# download binary paru

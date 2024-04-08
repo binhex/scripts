@@ -9,16 +9,20 @@ aur_helper="paru"
 
 function install_binary_helper() {
 
-	# missing library required for qemu
-	library_name='ld-linux-aarch64.so.1'
-	rcurl.sh -o "/usr/lib/${library_name}" "https://github.com/binhex/packages/raw/master/compiled/${TARGETARCH}/${library_name}"
+	# download correct binary for arch
+	if [[ "${TARGETARCH}" == "amd64" ]]; then
+		github_asset_regex="paru.*x86_64.*"
+	elif [[ "${TARGETARCH}" == "arm64" ]]; then
+		github_asset_regex="paru.*aarch64.*"
+	fi
 
-	source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru.*aarch64.*'
+	# download binary helper
+	source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex "${github_asset_regex}"
+
 	tar -xvf /tmp/paru*.tar* -C /tmp
 	mv '/tmp/paru' '/usr/local/bin/' && chmod +x '/usr/local/bin/paru'
 	paru
 	ls -al /tmp
-
 
 }
 

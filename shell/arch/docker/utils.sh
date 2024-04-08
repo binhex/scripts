@@ -5,14 +5,12 @@ defaultLogLevel="WARN"
 defaultNumberLogs="3"
 defaultFileSize="102048"
 defaultGitHubDownloadPath="$(pwd)"
-defaultGitHubReleaseNumber="0"
 defaultGitHubAssetNumber="0"
 
 log_level="${defaultLogLevel}"
 number_of_logs_to_keep="${defaultNumberLogs}"
 file_size_limit_kb="${defaultFileSize}"
 download_path="${defaultGitHubDownloadPath}"
-github_release_number="${defaultGitHubReleaseNumber}"
 github_asset_number="${defaultGitHubAssetNumber}"
 
 # get this scripts current path
@@ -57,10 +55,6 @@ function download_github_release_asset() {
 				;;
 			-gr| --github-repo)
 				github_repo=$2
-				shift
-				;;
-			-grn|--github-release-number)
-				github_release_number=$2
 				shift
 				;;
 			-gan|--github-asset-number)
@@ -120,7 +114,7 @@ function download_github_release_asset() {
 	fi
 
 	# get url for github release asset
-	asset_url=$(curl --silent "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r "[.[${github_release_number}].assets[] | select(.name | test(\"${github_asset_regex}\")).browser_download_url][${github_asset_number}]")
+	asset_url=$(curl --silent "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r "[.[].assets[] | select(.name | test(\"${github_asset_regex}\")).browser_download_url][${github_asset_number}]")
 
 	logger "Downloading asset from '${asset_url}' to '${download_path}'..." "INFO"
 
@@ -434,10 +428,6 @@ Where:
 		Define GitHub repo name.
 		No default.
 
-	-grn or --github-release-number <release number>
-		Define GitHub release number, '0' being the first release, in date order.
-		Defaults to '${defaultGitHubReleaseNumber}'.
-
 	-gra or --github-release-asset <asset number>
 		Define GitHub asset number, '0' being the first asset in the release, in date order.
 		Defaults to '${defaultGitHubAssetNumber}'.
@@ -452,7 +442,7 @@ Where:
 
 Examples:
 	Download AUR helper 'Paru' from the latest GitHub release with minimal supplied flags:
-		source "${script_path}/${script_name}" && download_github_release_asset --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru.*aarch64.*'
+		source "${script_path}/${script_name}" && download_github_release_asset --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru-v2.0.3-1.*aarch64.*'
 
 ENDHELP
 }

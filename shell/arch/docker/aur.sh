@@ -2,10 +2,18 @@
 
 # exit script if return code != 0, note need it at this location as which
 set -e
-set -x
+
 # define aur helper, normally 'yay' or 'paru'
 # note paru does not currently build on arm64 - 20240407
-aur_helper="yay"
+aur_helper="paru"
+
+function install_binary_helper() {
+
+	source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru.*aarch64.*'
+	tar -xvf /tmp/paru*.tar* -C /tmp
+	ls -al
+
+}
 
 function install_precompiled_helper() {
 
@@ -31,6 +39,7 @@ function install_precompiled_helper() {
 
 		# install aur helper
 		pacman -U "/tmp/${package_name}" --noconfirm
+
 	fi
 
 	if [[ -d /home/nobody/.cache ]]; then
@@ -158,9 +167,9 @@ function cleanup() {
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	init
-	compile_and_install_helper
-	# alternative to compiling helper, download precompiled helper
+	#compile_and_install_helper
 	#install_precompiled_helper
+	install_binary_helper
 	install_package_using_helper
 else
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"

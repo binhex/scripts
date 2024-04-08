@@ -2,11 +2,24 @@
 
 # set defaults
 defaultLogLevel="WARN"
-log_level="${defaultLogLevel}"
 defaultNumberLogs="3"
-number_of_logs_to_keep="${defaultNumberLogs}"
 defaultFileSize="102048"
+defaultGitHubDownloadPath="$(pwd)"
+defaultGitHubReleaseNumber="0"
+defaultGitHubAssetNumber="0"
+
+log_level="${defaultLogLevel}"
+number_of_logs_to_keep="${defaultNumberLogs}"
 file_size_limit_kb="${defaultFileSize}"
+download_path="${defaultGitHubDownloadPath}"
+github_release_number="${defaultGitHubReleaseNumber}"
+github_asset_number="${defaultGitHubAssetNumber}"
+
+# get this scripts current path
+script_path=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# get this scripts name
+script_name=$(basename "${BASH_SOURCE[0]}")
 
 # create associative array with permitted logging levels
 declare -A levels=([DEBUG]=0 [INFO]=1 [WARN]=2 [ERROR]=3)
@@ -26,6 +39,93 @@ function logger() {
 	if (( ${levels[$log_priority]} >= ${levels[$log_level]} )); then
 		echo "[${log_priority}] ${log_message}" | ts '%Y-%m-%d %H:%M:%.S'
 	fi
+}
+
+function download_github_release_asset() {
+
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-dp|--download-path)
+				download_path=$2
+				shift
+				;;
+			-go|--github-owner)
+				github_owner=$2
+				shift
+				;;
+			-gr| --github-repo)
+				github_repo=$2
+				shift
+				;;
+			-grn|--github-release-number)
+				github_release_number=$2
+				shift
+				;;
+			-gan|--github-asset-number)
+				github_asset_number=$2
+				shift
+				;;
+			-gar|--github-asset-regex)
+				github_asset_regex=$2
+				shift
+				;;
+			-ll|--log-level)
+				log_level=$2
+				shift
+				;;
+			-h|--help)
+				show_help_download_github_release_asset
+				exit 0
+				;;
+			*)
+				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help_download_github_release_asset
+				return 1
+				;;
+		esac
+		shift
+	done
+
+	# verify required options specified
+	if [[ -z "${github_owner}" ]]; then
+		logger "GitHub owner not specified, showing help..." "WARN"
+		show_help_download_github_release_asset
+		return 1
+	fi
+
+	if [[ -z "${github_repo}" ]]; then
+		logger "GitHub repo not specified, showing help..." "WARN"
+		show_help_download_github_release_asset
+		return 1
+	fi
+
+	if [[ -z "${github_asset_regex}" ]]; then
+		logger "GitHub asset regex not specified, showing help..." "WARN"
+		show_help_download_github_release_asset
+		return 1
+	fi
+
+	# verify required tools installed
+	if ! command -v jq &> /dev/null; then
+		logger "jq not installed, please install jq before running this function..." "WARN"
+		return 1
+	fi
+
+	if ! command -v curl &> /dev/null; then
+		logger "curl not installed, please install curl before running this function..." "WARN"
+		return 1
+	fi
+
+	# get url for github release asset
+	asset_url=$(curl --silent "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r "[.[${github_release_number}].assets[] | select(.name | test(\"${github_asset_regex}\")).browser_download_url][${github_asset_number}]")
+
+	logger "Downloading asset from '${asset_url}' to '${download_path}'..." "INFO"
+
+	# download github release asset
+	curl -o "${download_path}/$(basename "${asset_url}")" -L "${asset_url}"
 }
 
 function log_rotate() {
@@ -312,13 +412,57 @@ function trim() {
 	echo "${string}"
 }
 
+function show_help_download_github_release_asset() {
+	cat <<ENDHELP
+Description:
+	A function to download assets from GitHub using curl and jq only.
+Syntax:
+	source "${script_path}/${script_name}" && download_github_release_asset [args]
+Where:
+	-h or --help
+		Displays this text.
+
+	-dp or --download-path <path>
+		Define path to download assets to.
+		Defaults to '${defaultGitHubDownloadPath}'.
+
+	-go or --github-owner <owners name>
+		Define GitHub owner/org name.
+		No default.
+
+	-gr or --github-repo <repo name>
+		Define GitHub repo name.
+		No default.
+
+	-grn or --github-release-number <release number>
+		Define GitHub release number, '0' being the first release, in date order.
+		Defaults to '${defaultGitHubReleaseNumber}'.
+
+	-gra or --github-release-asset <asset number>
+		Define GitHub asset number, '0' being the first asset in the release, in date order.
+		Defaults to '${defaultGitHubAssetNumber}'.
+
+	-gar or --github-asset-regex <regex of asset>
+		Define GitHub asset to match.
+		No default.
+
+	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
+		Define logging level.
+		Defaults to '${defaultLogLevel}'.
+
+Examples:
+	Download AUR helper 'Paru' from the latest GitHub release with minimal supplied flags:
+		source "${script_path}/${script_name}" && download_github_release_asset --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru.*aarch64.*'
+
+ENDHELP
+}
 
 function show_help_symlink() {
 	cat <<ENDHELP
 Description:
 	A function to symlink a source path to a destination path.
 Syntax:
-	source ./utils.sh && symlink [args]
+	source "${script_path}/${script_name}" && symlink [args]
 Where:
 	-h or --help
 		Displays this text.
@@ -342,10 +486,10 @@ Where:
 
 Examples:
 	Create softlink from /home/nobody to /config/code-server/home with debugging on:
-		source '/usr/local/bin/utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink' --log-level 'WARN'
+		source "${script_path}/${script_name}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink' --log-level 'WARN'
 
 	Create hardlink from /home/nobody to /config/code-server/home with debugging on:
-		source '/usr/local/bin//utils.sh' && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --log-level 'WARN'
+		source "${script_path}/${script_name}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --log-level 'WARN'
 
 ENDHELP
 }
@@ -355,7 +499,7 @@ function show_help_log_rotate() {
 Description:
 	A function to rotate log files
 Syntax:
-	source ./utils.sh && log_rotate [args]
+	source "${script_path}/${script_name}" && log_rotate [args]
 Where:
 	-h or --help
 		Displays this text.
@@ -374,7 +518,7 @@ Where:
 
 Examples:
 	Log rotate rclone log file keeping 3 log files and switching log file when size exceeds 1-2-48 Kb::
-		source '/usr/local/bin/utils.sh' && log_rotate --log-path '/config/rclone/logs/rclone.log' --number-logs '3' --file-size '102048'
+		source "${script_path}/${script_name}" && log_rotate --log-path '/config/rclone/logs/rclone.log' --number-logs '3' --file-size '102048'
 
 ENDHELP
 }
@@ -384,7 +528,7 @@ function show_help_dos2unix() {
 Description:
 	A function to change line endings from dos to unix
 Syntax:
-	source ./utils.sh && dos2unix [args]
+	source "${script_path}/${script_name}" && dos2unix [args]
 Where:
 	-h or --help
 		Displays this text.
@@ -399,7 +543,7 @@ Where:
 
 Examples:
 	Convert line endings for wireguard config file 'config/wireguard/wg0.conf' with debugging on:
-		source '/usr/local/bin/utils.sh' && dos2unix --file-path '/config/wireguard/wg0.conf' --log-level 'WARN'
+		source "${script_path}/${script_name}" && dos2unix --file-path '/config/wireguard/wg0.conf' --log-level 'WARN'
 
 ENDHELP
 }
@@ -409,7 +553,7 @@ function show_help_trim() {
 Description:
 	A function to trim whitespace from start and end of string
 Syntax:
-	source ./utils.sh && trim [args]
+	source "${script_path}/${script_name}" && trim [args]
 Where:
 	-h or --help
 		Displays this text.
@@ -424,7 +568,7 @@ Where:
 
 Examples:
 	Trim whitespace from the following string '    abc    ' with debugging on:
-		source '/usr/local/bin/utils.sh' && trim --string '    abc    ' --log-level 'WARN'
+		source "${script_path}/${script_name}" && trim --string '    abc    ' --log-level 'WARN'
 
 ENDHELP
 }

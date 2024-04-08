@@ -132,7 +132,7 @@ function init() {
 	fi
 
 	# install required packages to compile
-	pacman -S base-devel binutils git aarch64-linux-gnu-glibc aarch64-linux-gnu-gcc --needed --noconfirm
+	pacman -S base-devel binutils git --needed --noconfirm
 
 	# if we do not have arg TARGETARCH' from Dockerfile (calling this script directly) then work out the arch
 	if [[ -z "${TARGETARCH}" ]]; then

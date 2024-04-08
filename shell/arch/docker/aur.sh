@@ -11,7 +11,10 @@ function install_binary_helper() {
 
 	source utils.sh && download_github_release_asset --download-path '/tmp' --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru.*aarch64.*'
 	tar -xvf /tmp/paru*.tar* -C /tmp
-	ls -al
+	mv '/tmp/paru' '/usr/local/bin/' && chmod +x '/usr/local/bin/paru'
+	paru
+	ls -al /tmp
+
 
 }
 

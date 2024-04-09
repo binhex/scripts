@@ -9,6 +9,11 @@ aur_helper="paru"
 
 function install_binary_helper() {
 
+	if command -v "${aur_helper}"; then
+		echo "[info] AUR helper already installed, skipping install of helper..."
+		return 0
+	fi
+
 	# ensure we have a clean environment
 	cleanup
 
@@ -135,11 +140,6 @@ function install_package_using_helper() {
 }
 
 function init() {
-
-	if command -v "${aur_helper}"; then
-		echo "[info] AUR helper already installed, exiting script..."
-		exit 0
-	fi
 
 	# install required packages to compile
 	pacman -S base-devel binutils git sudo --needed --noconfirm

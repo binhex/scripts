@@ -55,7 +55,7 @@ function pip_install() {
 
 	if [[ -n "${install_path}" ]]; then
 
-		 # create install path to store virtualenv and python modules
+		# create install path to store virtualenv and python modules
 		mkdir -p "${install_path}" && cd "${install_path}" || exit 1
 
 	fi
@@ -73,8 +73,7 @@ function pip_install() {
 		logger "Installing Python pre-requisites via requirements.txt file '${install_path}/requirements.txt'" "INFO"
 
 		# install python modules as per requirements.txt in virtualenv
-		pip install -r "${install_path}/requirements.txt"
-
+		pip install -r "${install_path}/requirements.txt" --break-system-packages
 
 	else
 
@@ -83,7 +82,7 @@ function pip_install() {
 		logger "Installing Python package(s) '${pip_packages}'" "INFO"
 
 		# install python package in virtualenv
-		pip install -U ${pip_packages}
+		pip install -U ${pip_packages} --break-system-packages
 
 	fi
 

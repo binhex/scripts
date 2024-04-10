@@ -73,7 +73,7 @@ function pip_install() {
 		logger "Installing Python pre-requisites via requirements.txt file '${install_path}/requirements.txt'" "INFO"
 
 		# install python modules as per requirements.txt in virtualenv
-		pip install -r "${install_path}/requirements.txt" --break-system-packages
+		pip install --break-system-packages -r "${install_path}/requirements.txt"
 
 	else
 
@@ -82,7 +82,7 @@ function pip_install() {
 		logger "Installing Python package(s) '${pip_packages}'" "INFO"
 
 		# install python package in virtualenv
-		pip install -U ${pip_packages} --break-system-packages
+		pip install --break-system-packages -U ${pip_packages}
 
 	fi
 

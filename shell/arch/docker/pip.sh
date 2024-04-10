@@ -72,8 +72,20 @@ function pip_install() {
 
 		logger "Installing Python pre-requisites via requirements.txt file '${install_path}/requirements.txt'" "INFO"
 
-		# install python modules as per requirements.txt in virtualenv
-		pip install --break-system-packages -r "${install_path}/requirements.txt"
+		if [[ -n "${package_constraints}" ]]; then
+
+			logger "Package constraints defined as '${package_constraints}', writing to file '${install_path}/constraint.txt'" "INFO"
+			for package_constraint in ${package_constraints}; do
+				echo "${package_constraint}" >> "${install_path}/constraint.txt"
+			done
+			PIP_CONSTRAINT="${install_path}/constraint.txt" pip install --break-system-packages -r "${install_path}/requirements.txt"
+
+		else
+
+			# install python modules as per requirements.txt in virtualenv
+			pip install --break-system-packages -r "${install_path}/requirements.txt"
+
+		fi
 
 	else
 
@@ -106,6 +118,10 @@ Where:
 		Define path to 'requirements.txt'.
 		No default.
 
+	-pc or --package-constraints <package names and versions>
+		Define whether to constraint python packages to a specified version, package constraints can be a space seperated list.
+		No default.
+
 	-vp or --virtualenv-path <path>
 		Define path to create for virtualenv.
 		Defaults to '${defaultVirtualenvPath}'.
@@ -127,6 +143,9 @@ Examples:
 
 	Install Python modules specified in requirements.txt file to virtualenv with specific path:
 		./pip.sh --create-virtualenv 'yes' --install-path '/opt/sickchill' --virtualenv-path '/opt/sickchill/env' --log-level 'WARN'
+
+	Install Python modules specified in requirements.txt file with constraints on the cython package to virtualenv with specific path:
+		./pip.sh --create-virtualenv 'yes' --install-path '/opt/sickchill' --package-constraints 'cython<3' --virtualenv-path '/opt/sickchill/env' --log-level 'WARN'
 
 	Install specific Python modules to virtualenv with the default path (--install-path/env/):
 		./pip.sh --create-virtualenv 'yes' --install-path '/opt/sickchill' --pip-packages 'websockify pyxdg numpy' --log-level 'WARN'
@@ -150,6 +169,10 @@ do
 			;;
 		-rq|--install-path)
 			install_path=$2
+			shift
+			;;
+		-pc|--package-constraints)
+			package_constraints=$2
 			shift
 			;;
 		-vp|--virtualenv-path)

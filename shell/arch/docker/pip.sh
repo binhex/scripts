@@ -74,11 +74,11 @@ function pip_install() {
 
 		if [[ -n "${package_constraints}" ]]; then
 
-			logger "Package constraints defined as '${package_constraints}', writing to file '${install_path}/constraint.txt'" "INFO"
+			logger "Package constraints defined as '${package_constraints}', writing to file '${install_path}/constraints.txt'" "INFO"
 			for package_constraint in ${package_constraints}; do
-				echo "${package_constraint}" >> "${install_path}/constraint.txt"
+				echo "${package_constraint}" >> "${install_path}/constraints.txt"
 			done
-			PIP_CONSTRAINT="${install_path}/constraint.txt" pip install --break-system-packages -r "${install_path}/requirements.txt"
+			pip install --break-system-packages -r "${install_path}/requirements.txt" -c "${install_path}/constraints.txt"
 
 		else
 

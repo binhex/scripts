@@ -218,19 +218,6 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8500'
 
-	elif [[ "${app_name}" == "couchpotato-git" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:5050'
-
-	elif [[ "${app_name}" == "crafty" ]]; then
-
-		# define path to self signed cert
-		cert_path="/tmp/config/crafty/certs/crafty.crt"
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:8000' --protocol 'https'
-
 	elif [[ "${app_name}" == "crafty-4" ]]; then
 
 		# run tests
@@ -276,27 +263,14 @@ function run_test() {
 		webui_test ${common_options} --container-ports '-p 9999:8686'
 
 	elif [[ "${app_name}" == "medusa" ]]; then
+
+		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8081'
-
-	elif [[ "${app_name}" == "mineos-node" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:8443' --env-vars '-e PUID=0 -e PGID=0' --protocol 'https'
-
-	elif [[ "${app_name}" == "moviegrabber" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:9191'
 
 	elif [[ "${app_name}" == "nzbget" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:6789'
-
-	elif [[ "${app_name}" == "nzbhydra" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:5075'
 
 	elif [[ "${app_name}" == "nzbhydra2" ]]; then
 
@@ -342,11 +316,6 @@ function run_test() {
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8888'
-
-	elif [[ "${app_name}" == "rtorrentvpn" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:9080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
 	elif [[ "${app_name}" == "sabnzbd" || "${app_name}" == "sabnzbdvpn" ]]; then
 

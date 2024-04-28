@@ -238,15 +238,10 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --url '/v1' --container-ports '-p 9999:8191'
 
-	elif [[ "${app_name}" == "goland" ]]; then
-
-		# run tests
-		webui_test ${common_options} --url '/vnc.html?resize=remote&port=6080&autoconnect=1' --container-ports '-p 9999:6080'
-
 	elif [[ "${app_name}" == "jackett" ]]; then
 
 		# force jackett to listen on ipv4
-	    mkdir -p '/tmp/config/Jackett'
+		mkdir -p '/tmp/config/Jackett'
         echo '{ "urls": "http://0.0.0.0:9117" }' > '/tmp/config/Jackett/appsettings.json'
 
 		# run tests
@@ -351,6 +346,22 @@ function run_test() {
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:55414'
+
+	# novnc related images
+	elif [[ \
+		"${app_name}" == "goland" || \
+		"${app_name}" == "hexchat" || \
+		"${app_name}" == "intellij" || \
+		"${app_name}" == "krusader" || \
+		"${app_name}" == "libreoffice" || \
+		"${app_name}" == "preclear" || \
+		"${app_name}" == "pycharm" || \
+		"${app_name}" == "rider" || \
+		"${app_name}" == "rustrover" \
+	]]; then
+
+		# run tests
+		webui_test ${common_options} --url '/vnc.html?resize=remote&port=9999&autoconnect=1' --container-ports '-p 9999:6080'
 
 	else
 		echo "[warn] Tests for application '${app_name}' not defined, skipping tests"

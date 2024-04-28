@@ -238,6 +238,11 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --url '/v1' --container-ports '-p 9999:8191'
 
+	elif [[ "${app_name}" == "goland" ]]; then
+
+		# run tests
+		webui_test ${common_options} --url '/vnc.html?resize=remote&port=6080&autoconnect=1' --container-ports '-p 9999:6080'
+
 	elif [[ "${app_name}" == "jackett" ]]; then
 
 		# force jackett to listen on ipv4

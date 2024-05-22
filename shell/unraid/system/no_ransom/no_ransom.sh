@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v1.0.3"
+readonly ourScriptVersion="v2.0.0"
 
 # setup default values
 readonly defaultInlcudeExtensions="*"
@@ -21,6 +21,7 @@ readonly defaultExcludeFolders=""
 readonly defaultDebug="no"
 readonly defaultSecureChattr="yes"
 readonly defaultSecureChattrRename="rttahc"
+readonly defaultLockType="files"
 
 include_extensions="${defaultInlcudeExtensions}"
 exclude_extensions="${defaultExcludeExtensions}"
@@ -28,6 +29,7 @@ include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
 secure_chattr="${defaultSecureChattr}"
 secure_chattr_rename="${defaultSecureChattrRename}"
+lock_type="${defaultLockType}"
 debug="{defaultDebug}"
 
 if [[ ! -f '/usr/bin/chattr' && ! -f "/usr/bin/${secure_chattr_rename}" ]]; then
@@ -204,7 +206,7 @@ function process_files() {
 	fi
 
 	# if lock files then set chattr to +i
-	if [[ "${lock_files}" == "yes" ]]; then
+	if [[ "${lock}" == "yes" ]]; then
 		chattr_cmd="chattr +i"
 	else
 		chattr_cmd="chattr -i"
@@ -226,10 +228,20 @@ function process_files() {
 			if [[ -n "${media_shares_match}" ]]; then
 
 				echo "[info] Share found, processing media share '${media_shares_match}' using 'chattr' recursively..."
-				if [[ "${debug}" == "yes" ]]; then
-					echo "[debug] find '${media_shares_match}' -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+
+				# define lock type
+				if [[ "${lock_type}" == "files" ]]; then
+					find_type="-type f"
+				elif [[ "${lock_type}" == "folders" ]]; then
+					find_type="-type d"
+				elif [[ "${lock_type}" == "both" ]]; then
+					find_type=""
 				fi
-				eval "find '${media_shares_match}' -type f ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+
+				if [[ "${debug}" == "yes" ]]; then
+					echo "[debug] find '${media_shares_match}' ${find_type} ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
+				fi
+				eval "find '${media_shares_match}' ${find_type} ${include_folders_cmd} ${include_extensions_cmd} ${exclude_folders_cmd} ${exclude_extensions_cmd} -exec ${chattr_cmd} {} \;"
 
 			else
 
@@ -258,15 +270,21 @@ function show_help() {
 Description:
 	A simple bash script to make selected media read only, to prevent any possible Ransomware attacks.
 	${ourScriptName} ${ourScriptVersion} - Created by binhex.
+
 Syntax:
 	${ourScriptName} [args]
+
 Where:
 	-h or --help
 		Displays this text.
 
-	-lf or --lock-files <yes|no>
+	-l or --lock <yes|no>
 		Define whether to make media read only or not.
 		No default.
+
+	-lt or --lock-type <files|folders|both>
+		Define whether to lock files, folders or both.
+		Defaults to '${defaultLockType}'.
 
 	-ms or --media-shares <comma seperated list of user shares>
 		Define the list of user share names to process.
@@ -297,24 +315,29 @@ Where:
 		Defaults to '${defaultDebug}'.
 
 Examples:
-	Make all files in a user share read only with no exclusions and debug turned on:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --debug 'yes'
-		
-	Make all files in a user share writeable with no exclusions and debug turned on:
-		${ourScriptName} --lock-files 'no' --media-shares 'Movies,TV' --debug 'yes'
+	Make all files and folders in a user share read only with no exclusions and debug turned on:
+		${ourScriptName} --lock 'yes' --lock-type 'both' --media-shares 'Movies,TV' --debug 'yes'
 
 	Make files in a user share read only with specific included file extensions:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --include-extensions '*.mkv,*.mp4'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --include-extensions '*.mkv,*.mp4'
 
 	Make files in a user share read only with excluded file extensions:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png'
+		${ourScriptName} --lock 'yes' --lock-type 'files'--media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png'
 
 	Make files in a user share read only with excluded file extensions and specific included folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
 
 	Make files in a user share read only with excluded file extensions and excluded folders:
-		${ourScriptName} --lock-files 'yes' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
 
+	Make all files in a user share writeable with no exclusions and debug turned on:
+		${ourScriptName} --lock 'no' --lock-type 'files' --media-shares 'Movies,TV' --debug 'yes'
+
+	Make all files and folders in a user share writeable with no exclusions and debug turned on:
+		${ourScriptName} --lock 'no' --lock-type 'both' --media-shares 'Movies,TV' --debug 'yes'
+
+Notes:
+	If you specify --lock-type 'both' then the specified media be read only, you will not be able to create new files/folders or alter any existing files/folders.
 ENDHELP
 }
 
@@ -322,8 +345,12 @@ while [ "$#" != "0" ]
 do
 	case "$1"
 	in
-		-lf|--lock-files)
-			lock_files=$2
+		-l|--lock)
+			lock=$2
+			shift
+			;;
+		-lt|--lock-type)
+			lock_type=$2
 			shift
 			;;
 		-ms|--media-shares)
@@ -372,8 +399,8 @@ echo "[info] Running ${ourScriptName} script..."
 
 echo "[info] Checking we have all required parameters before running..."
 
-if [[ -z "${lock_files}" ]]; then
-	echo "[warn] Lock files not defined via parameter -lf or --lock-files, displaying help..."
+if [[ -z "${lock}" ]]; then
+	echo "[warn] Lock files not defined via parameter -l or --lock, displaying help..."
 	echo ""
 	show_help
 	exit 1

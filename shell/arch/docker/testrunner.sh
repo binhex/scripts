@@ -208,12 +208,7 @@ function run_test() {
 
 	common_options="--container-name test --network-type bridge --retry-count 60"
 
-	if [[ "${app_name}" == "airsonic" ]]; then
-
-		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:4040'
-
-	elif [[ "${app_name}" == "code-server" ]]; then
+	if [[ "${app_name}" == "code-server" ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8500'

@@ -349,6 +349,7 @@ function run_test() {
 		"${app_name}" == "intellij" || \
 		"${app_name}" == "krusader" || \
 		"${app_name}" == "libreoffice" || \
+		"${app_name}" == "nicotineplus" || \
 		"${app_name}" == "preclear" || \
 		"${app_name}" == "pycharm" || \
 		"${app_name}" == "rider" || \

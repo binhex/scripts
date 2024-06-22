@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # script name
-readonly ourScriptName="$(basename -- "$0")"
+ourScriptName="$(basename -- "$0")"
 
 function child_process_monitor(){
 	echo "[info] Waiting for child processes to exit..."

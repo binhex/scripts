@@ -24,6 +24,17 @@ fi
 
 echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
+# if set to 'yes' then start netcat process to connect on port 1234 to
+# netcat running in vpn container, if connection is interrupted then
+# stop container by sending sigterm to pid 1
+export SHARED_NETWORK=$(echo "${SHARED_NETWORK}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
+if [[ "${SHARED_NETWORK}" == 'yes' ]]; then
+	nohup bash -c 'nc -d 127.0.0.1 1234 ; kill 1' &>> '/tmp/nc.log' &
+else
+	echo "[info] SHARED_NETWORK not defined (via -e SHARED_NETWORK), defaulting to 'no'" | ts '%Y-%m-%d %H:%M:%.S'
+	export SHARED_NETWORK="no"
+fi
+
 export PUID=$(echo "${PUID}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
 if [[ ! -z "${PUID}" ]]; then
 	echo "[info] PUID defined as '${PUID}'" | ts '%Y-%m-%d %H:%M:%.S'

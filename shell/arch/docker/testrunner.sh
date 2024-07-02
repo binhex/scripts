@@ -344,6 +344,7 @@ function run_test() {
 
 	# novnc related images
 	elif [[ \
+		"${app_name}" == "fleet" || \
 		"${app_name}" == "goland" || \
 		"${app_name}" == "hexchat" || \
 		"${app_name}" == "intellij" || \

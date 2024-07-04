@@ -28,8 +28,11 @@ echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 # netcat running in vpn container, if connection is interrupted then
 # stop container by sending sigterm to pid 1
 export SHARED_NETWORK=$(echo "${SHARED_NETWORK}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
-if [[ "${SHARED_NETWORK}" == 'yes' ]]; then
-	nohup bash -c 'nc -d 127.0.0.1 1234 ; kill 1' &>> '/tmp/nc.log' &
+if [[ ! -z "${SHARED_NETWORK}" ]]; then
+	echo "[info] SHARED_NETWORK defined as '${SHARED_NETWORK}'" | ts '%Y-%m-%d %H:%M:%.S'
+	if [[ "${SHARED_NETWORK}" == 'yes' ]]; then
+		nohup bash -c 'nc -d 127.0.0.1 1234 ; kill 1' &>> '/tmp/nc.log' &
+	fi
 else
 	echo "[info] SHARED_NETWORK not defined (via -e SHARED_NETWORK), defaulting to 'no'" | ts '%Y-%m-%d %H:%M:%.S'
 	export SHARED_NETWORK="no"

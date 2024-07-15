@@ -262,7 +262,7 @@ function symlink() {
 	# verify link type
 	if [[ "${link_type}" == "softlink" ]]; then
 		link_type="-s"
-	elif [[ "${link_type}" == "hardliunk" ]]; then
+	elif [[ "${link_type}" == "hardlink" ]]; then
 		link_type=""
 	else
 		logger "Unknown link type of '${link_type}' specified, exiting function..." "WARN"

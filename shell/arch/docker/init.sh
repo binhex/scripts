@@ -25,7 +25,9 @@ if [[ "${HOST_OS,,}" == "unraid" ]]; then
 	echo "[info] Host is running unRAID" | ts '%Y-%m-%d %H:%M:%.S'
 fi
 
-echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
+echo "[info] System information: $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
+
+echo -e "[info] Image tags: \n$(cat '/etc/image-release')" | ts '%Y-%m-%d %H:%M:%.S'
 
 # ENVVARS_COMMON_PLACEHOLDER
 

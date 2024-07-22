@@ -27,7 +27,7 @@ fi
 
 echo "[info] System information: $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
-echo -e "[info] Image tags: \n$(cat '/etc/image-release')" | ts '%Y-%m-%d %H:%M:%.S'
+echo "[info] Image tags: $(paste -s -d ',' < /etc/image-release)" | ts '%Y-%m-%d %H:%M:%.S'
 
 # ENVVARS_COMMON_PLACEHOLDER
 

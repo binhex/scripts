@@ -6,6 +6,9 @@ set -e
 # redirect new file descriptors and then tee stdout & stderr to supervisor log and console (captures output from this script)
 exec 3>&1 4>&2 &> >(tee -a /config/supervisord.log)
 
+# source in utilities script
+source '/usr/local/bin/utils.sh'
+
 cat << "EOF"
 Created by...
 ___.   .__       .__
@@ -23,6 +26,14 @@ if [[ "${HOST_OS,,}" == "unraid" ]]; then
 fi
 
 echo "[info] System information $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
+
+# ENVVARS_COMMON_PLACEHOLDER
+
+# ENVVARS_PLACEHOLDER
+
+# PERMISSIONS_PLACEHOLDER
+
+# CONFIG_PLACEHOLDER
 
 # if set to 'yes' then start netcat process to connect on port 1234 to
 # netcat running in vpn container, if connection is interrupted then
@@ -111,17 +122,6 @@ else
 	rm -rf /tmp/tmux*
 
 fi
-
-# source in utilities script
-source '/usr/local/bin/utils.sh'
-
-# ENVVARS_COMMON_PLACEHOLDER
-
-# ENVVARS_PLACEHOLDER
-
-# PERMISSIONS_PLACEHOLDER
-
-# CONFIG_PLACEHOLDER
 
 # set permissions to allow rw for all users (used when appending util output to supervisor log)
 chmod 666 "/config/supervisord.log"

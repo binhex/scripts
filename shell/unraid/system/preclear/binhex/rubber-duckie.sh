@@ -68,7 +68,7 @@ function find_all_disks_not_in_array() {
 		fi
 	done
 	if [[ -z "${disks_not_in_array_array[*]}" ]]; then
-		echo "[INFO] No disks to check"
+		echo "[INFO] No candidates for processing found, exiting..."
 		return 1
 	fi
 	echo "[DEBUG] Disks in the array (do not check) are '${disks_in_array_array[*]}'"

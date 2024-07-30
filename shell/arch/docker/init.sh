@@ -29,28 +29,6 @@ echo "[info] System information: $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
 echo "[info] Image tags: $(paste -s -d ',' < /etc/image-release)" | ts '%Y-%m-%d %H:%M:%.S'
 
-# ENVVARS_COMMON_PLACEHOLDER
-
-# ENVVARS_PLACEHOLDER
-
-# PERMISSIONS_PLACEHOLDER
-
-# CONFIG_PLACEHOLDER
-
-# if set to 'yes' then start netcat process to connect on port 1234 to
-# netcat running in vpn container, if connection is interrupted then
-# stop container by sending sigterm to pid 1
-export SHARED_NETWORK=$(echo "${SHARED_NETWORK}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
-if [[ ! -z "${SHARED_NETWORK}" ]]; then
-	echo "[info] SHARED_NETWORK defined as '${SHARED_NETWORK}'" | ts '%Y-%m-%d %H:%M:%.S'
-	if [[ "${SHARED_NETWORK}" == 'yes' ]]; then
-		nohup bash -c 'nc -d 127.0.0.1 1234 ; kill 1' &>> '/tmp/nc.log' &
-	fi
-else
-	echo "[info] SHARED_NETWORK not defined (via -e SHARED_NETWORK), defaulting to 'no'" | ts '%Y-%m-%d %H:%M:%.S'
-	export SHARED_NETWORK="no"
-fi
-
 export PUID=$(echo "${PUID}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
 if [[ ! -z "${PUID}" ]]; then
 	echo "[info] PUID defined as '${PUID}'" | ts '%Y-%m-%d %H:%M:%.S'
@@ -123,6 +101,28 @@ else
 	rm -f /tmp/* > /dev/null 2>&1 || true
 	rm -rf /tmp/tmux*
 
+fi
+
+# ENVVARS_COMMON_PLACEHOLDER
+
+# ENVVARS_PLACEHOLDER
+
+# PERMISSIONS_PLACEHOLDER
+
+# CONFIG_PLACEHOLDER
+
+# if set to 'yes' then start netcat process to connect on port 1234 to
+# netcat running in vpn container, if connection is interrupted then
+# stop container by sending sigterm to pid 1
+export SHARED_NETWORK=$(echo "${SHARED_NETWORK}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
+if [[ ! -z "${SHARED_NETWORK}" ]]; then
+	echo "[info] SHARED_NETWORK defined as '${SHARED_NETWORK}'" | ts '%Y-%m-%d %H:%M:%.S'
+	if [[ "${SHARED_NETWORK}" == 'yes' ]]; then
+		nohup bash -c 'nc -d 127.0.0.1 1234 ; kill 1' &>> '/tmp/nc.log' &
+	fi
+else
+	echo "[info] SHARED_NETWORK not defined (via -e SHARED_NETWORK), defaulting to 'no'" | ts '%Y-%m-%d %H:%M:%.S'
+	export SHARED_NETWORK="no"
 fi
 
 # set permissions to allow rw for all users (used when appending util output to supervisor log)

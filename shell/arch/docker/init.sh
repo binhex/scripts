@@ -29,6 +29,7 @@ echo "[info] System information: $(uname -a)" | ts '%Y-%m-%d %H:%M:%.S'
 
 echo "[info] Image tags: $(paste -s -d ',' < /etc/image-release)" | ts '%Y-%m-%d %H:%M:%.S'
 
+# NOTE Do not move PUID/PGID below PLACEHOLDERS, as they are referenced
 export PUID=$(echo "${PUID}" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
 if [[ ! -z "${PUID}" ]]; then
 	echo "[info] PUID defined as '${PUID}'" | ts '%Y-%m-%d %H:%M:%.S'

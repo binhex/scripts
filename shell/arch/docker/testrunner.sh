@@ -213,6 +213,11 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8500'
 
+	elif [[ "${app_name}" == "bitmagnet" ]]; then
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:3333'
+
 	elif [[ "${app_name}" == "crafty-4" ]]; then
 
 		# run tests

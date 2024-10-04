@@ -88,7 +88,9 @@ function compile_and_install_helper() {
 		git clone https://aur.archlinux.org/yay-bin.git "${git_dir}"
 	elif [[ "${aur_helper}" == 'paru' ]]; then
 		# download and install aur helper
-		git clone https://aur.archlinux.org/paru.git "${git_dir}"
+		# note switched to aur 'paru-git' for now as aur 'paru' does not currently
+		# compile due to pacman libalpm v15 bump
+		git clone https://aur.archlinux.org/paru-git.git "${git_dir}"
 	else
 		echo "[warn] AUR helper '${aur_helper}' not supported, exiting script..."
 		exit 1
@@ -181,9 +183,9 @@ function cleanup() {
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	init
-	#compile_and_install_helper
+	compile_and_install_helper
 	#install_precompiled_helper
-	install_binary_helper
+	#install_binary_helper
 	install_package_using_helper
 	cleanup
 else

@@ -240,7 +240,7 @@ function copy_to_install_path() {
 		fi
 
 		echo -e "[info] Copying source from extraction path to install path..."
-		echo -e "[info] cp -rf ${extract_path}/*/* ${install_path}"
+		echo -e "[info] cp -R ${extract_path}/*/* ${install_path}"
 		cp -R "${extract_path}"/*/* "${install_path}"
 
 	elif [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] && [[ -n "${match_asset_name}" ]]; then
@@ -251,14 +251,14 @@ function copy_to_install_path() {
 		fi
 
 		echo -e "[info] Copying binary asset from extraction path to install path..."
-		echo -e "[info] cp -rf ${extract_path}/* ${install_path}"
+		echo -e "[info] cp -R ${extract_path}/* ${install_path}"
 		cp -R "${extract_path}"/* "${install_path}"
 
 	else
 
 		echo -e "[info] Copying binary asset from downloaded path to install path..."
-		echo -e "[info] cp -rf ${download_path}/${match_asset_name} ${install_path}"
-		cp -R "${download_path}/${match_asset_name}" "${install_path}"
+		echo -e "[info] cp -R ${download_path}/* ${install_path}"
+		cp -R "${download_path}"/* "${install_path}"
 
 	fi
 

@@ -89,30 +89,37 @@ function github_downloader() {
 			exit 1
 		fi
 
-		echo -e "[info] Finding binary asset names that match '${download_assets}'..."
+		# split comma separated string into array from download_assets
+		IFS=',' read -ra download_assets_array <<< "${download_assets}"
 
-		match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_assets}")
+		for download_asset in "${download_assets_array[@]}"; do
 
-		if [[ -z "${match_asset_name}" ]]; then
+			echo -e "[info] Finding binary asset names that match '${download_asset}'..."
 
-			echo -e "[warn] No binary assets matching pattern available for download, showing all available assets..."
-			echo -e "[info] ${github_asset_names}"
-			echo -e "[info] Exiting script..." ; exit 1
+			match_asset_name=$(echo "${github_asset_names}" | grep -P -o -m 1 "${download_asset}")
 
-		else
+			if [[ -z "${match_asset_name}" ]]; then
 
-			echo -e "[info] Asset name matches, downloading binary asset '${match_asset_name}' from GitHub..."
+				echo -e "[warn] No binary assets matching pattern available for download, showing all available assets..."
+				echo -e "[info] ${github_asset_names}"
+				echo -e "[info] Exiting script..." ; exit 1
 
-			echo -e "[info] rcurl.sh -o ${download_path}/${match_asset_name} https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
-			if ! rcurl.sh -o "${download_path}/${match_asset_name}" "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"; then
-				echo -e "[info] Unable to download binary asset, exiting script..."
-				exit 1
+			else
+
+				echo -e "[info] Asset name matches, downloading binary asset '${match_asset_name}' from GitHub..."
+
+				echo -e "[info] rcurl.sh -o ${download_path}/${match_asset_name} https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"
+				if ! rcurl.sh -o "${download_path}/${match_asset_name}" "https://github.com/${github_owner}/${github_repo}/releases/download/${github_release}/${match_asset_name}"; then
+					echo -e "[info] Unable to download binary asset, exiting script..."
+					exit 1
+				fi
+
 			fi
 
-		fi
+			filename=$(basename "${match_asset_name}")
+			download_ext="${filename##*.}"
 
-		filename=$(basename "${match_asset_name}")
-		download_ext="${filename##*.}"
+		done
 
 	else
 
@@ -334,7 +341,7 @@ Where:
 		Defaults to '${defaultDownloadFilename}'.
 
 	-da or --download-assets <asset name>
-		Define name of the asset file(s) to download, asset name can use regex.
+		Define name of the asset file(s) to download, asset name can use regex, use comma to separate multiple assets.
 		No default.
 
 	-dp or --download-path <path>

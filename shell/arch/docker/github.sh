@@ -53,6 +53,25 @@ function identify_github_release_tag_name() {
 
 }
 
+function get_asset_names() {
+
+	echo -e "[info] Finding all GitHub asset names..."
+
+	if [ "${query_type}" == "pre-release" ]; then
+		echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/releases | jq -r '.[0].assets[] | .name' 2> /dev/null"
+		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].assets[] | .name' 2> /dev/null)
+	else
+		echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r '.assets[] | .name' 2> /dev/null"
+		github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r '.assets[] | .name' 2> /dev/null)
+	fi
+
+	if [[ -z "${github_asset_names}" ]]; then
+		echo -e "[info] Unable to identify binary assets available, exiting script..."
+		exit 1
+	fi
+
+}
+
 function github_downloader() {
 
 	echo -e "[info] Running GitHub downloader..."
@@ -74,20 +93,8 @@ function github_downloader() {
 
 	if [ -n "${download_assets}" ]; then
 
-		echo -e "[info] Finding all GitHub asset names..."
-
-		if [ "${query_type}" == "pre-release" ]; then
-			echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/releases | jq -r '.[0].assets[] | .name' 2> /dev/null"
-			github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r '.[0].assets[] | .name' 2> /dev/null)
-		else
-			echo -e "[info] curl -s https://api.github.com/repos/${github_owner}/${github_repo}/${query_type} | jq -r '.assets[] | .name' 2> /dev/null"
-			github_asset_names=$(curl -s "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r '.assets[] | .name' 2> /dev/null)
-		fi
-
-		if [[ -z "${github_asset_names}" ]]; then
-			echo -e "[info] Unable to identify binary assets available, exiting script..."
-			exit 1
-		fi
+		# call function to get asset names
+		get_asset_names
 
 		# split comma separated string into array from download_assets
 		IFS=',' read -ra download_assets_array <<< "${download_assets}"
@@ -465,10 +472,10 @@ do
 		*)
 			echo "[warn] ${ourScriptName}: ERROR: Unrecognised argument '$1'." >&2
 			show_help
-			 exit 1
-			 ;;
-	 esac
-	 shift
+			exit 1
+			;;
+	esac
+	shift
 done
 
 echo "[info] Checking we have all required parameters before proceeding..."

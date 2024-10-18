@@ -9,10 +9,11 @@ log_level="${defaultLogLevel}"
 create_virtualenv="${defaultCreateVirtualenv}"
 virtualenv_path="${defaultVirtualenvPath}"
 
-# logger function
+# get logger function from utils,sh
 source '/usr/local/bin/utils.sh'
 
-function virtualenv() {
+# helper function to create and activate virtualenv
+function create_and_activate_virtualenv() {
 
 	if [[ "${create_virtualenv}" == "yes" ]]; then
 
@@ -60,6 +61,12 @@ function pip_install() {
 
 	fi
 
+	# create virtualenv so we do not conflict with system packages
+	create_and_activate_virtualenv
+
+	# ensure we have required tooling for pip, may not always be required
+	pip install setuptools
+
 	if [[ -z "${pip_packages}" ]]; then
 
 		if [[ ! -f "${install_path}/requirements.txt" ]]; then
@@ -67,8 +74,6 @@ function pip_install() {
 			show_help
 			return 1
 		fi
-
-		virtualenv
 
 		logger "Installing Python pre-requisites via requirements.txt file '${install_path}/requirements.txt'" "INFO"
 
@@ -88,8 +93,6 @@ function pip_install() {
 		fi
 
 	else
-
-		virtualenv
 
 		logger "Installing Python package(s) '${pip_packages}'" "INFO"
 

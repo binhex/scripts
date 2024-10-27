@@ -11,8 +11,10 @@ fi
 # remove any build tools that maybe present from the build
 pacman -Ru dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils rust go --noconfirm 2> /dev/null || true
 
-# remove any cached packages that maybe present from the build
-rm -rf /home/nobody/.nuget/
+# delete dot dirs in home directory for non gui images (openbox package not installed)
+if ! pacman -Q | awk '{print $1}' | grep -q 'openbox'; then
+	rm -rf /home/nobody/.*
+fi
 
 # general cleanup
 yes|pacman -Scc

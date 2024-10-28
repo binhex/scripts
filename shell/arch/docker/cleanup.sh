@@ -13,7 +13,7 @@ pacman -Ru dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils rust go
 
 # delete dot dirs in home directory for non gui images (openbox package not installed)
 if ! pacman -Q | awk '{print $1}' | grep -q 'openbox'; then
-	rm -rf /home/nobody/.*
+	rm -rf /home/nobody/.cache /home/nobody/.cargo /home/nobody/.dotnet /home/nobody/.nuget /home/nobody/.rustup /home/nobody/.yarn
 fi
 
 # general cleanup

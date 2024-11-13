@@ -58,6 +58,13 @@ function check_prereqs() {
 		exit 1
 	fi
 
+	if [[ "${action}" != 'test' && "${action}" != 'list' ]]; then
+		echo "[warn] Action defined via -a or --action does not match 'test' or 'list', displaying help..."
+		echo ""
+		show_help
+		exit 1
+	fi
+
 	if [[ "${action}" == 'test' ]]; then
 		if [[ -z "${drive_name}" ]]; then
 			echo "[warn] Drive name not defined via parameter -dn or --drive-name, displaying help..."
@@ -119,7 +126,7 @@ function find_all_disks_not_in_array() {
 
 	local disks_in_array_array=()
 	local disks_not_in_scope_array=()
-	disks_not_in_array_array=()
+	local disks_not_in_array_array=()
 
 	echo "[INFO] Gathering potential candidates for processing, please wait whilst all disks are spun up..."
 	get_disk_name_and_serial
@@ -301,17 +308,21 @@ Where:
 
 Examples:
 	List drives not in the UNRAID array, candidates for testing:
-		${ourScriptName} --action 'list' --log-path '/tmp' --debug 'yes'
+		./${ourScriptName} --action 'list' --log-path '/tmp' --debug 'yes'
 
-	Test drive sdX for a non-destructive test with tst pattern 0xff:
-		${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff' --log-path '/tmp' --debug 'yes'
+	Test drive sdX with confirmation prompt, running a destructive test for all test patterns:
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-path '/tmp' --debug 'yes'
 
-	Test drive sdX with no confirmation prompt, number of blocks to process at a time set to 10000, running a destructive test for all test patterns:
-		${ourScriptName} --action 'test' --drive-name 'sdX' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0x55 0xff 0x00' --log-path '/tmp' --debug 'yes'
+	Test drive sdX for a non-destructive test with test pattern 0xff:
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff' --log-path '/tmp' --debug 'yes'
+
+	Test drive sdX with no confirmation prompt, number of blocks to process at a time set to 10000, running a destructive test for specific test patterns:
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00' --log-path '/tmp' --debug 'yes'
 
 Notes:
-	Non-destructive tests will result in longer process times. *
-	If -dt or --destructive-test is set to 'yes' then only a single pattern can be specified. **
+	*  Non-destructive tests will result in longer process times.
+	** If -dt or --destructive-test is set to 'yes' then only a single pattern can be specified.
+
 ENDHELP
 }
 

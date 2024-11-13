@@ -49,17 +49,17 @@ function logger() {
 
 function check_prereqs() {
 
-	echo "[info] Checking we have all required parameters before running..."
+	echo "[INFO] Checking we have all required parameters before running..."
 
 	if [[ -z "${action}" ]]; then
-		echo "[warn] Action not defined via parameter -a or --action, displaying help..."
+		echo "[WARN] Action not defined via parameter -a or --action, displaying help..."
 		echo ""
 		show_help
 		exit 1
 	fi
 
 	if [[ "${action}" != 'test' && "${action}" != 'list' ]]; then
-		echo "[warn] Action defined via -a or --action does not match 'test' or 'list', displaying help..."
+		echo "[WARN] Action defined via -a or --action does not match 'test' or 'list', displaying help..."
 		echo ""
 		show_help
 		exit 1
@@ -67,7 +67,7 @@ function check_prereqs() {
 
 	if [[ "${action}" == 'test' ]]; then
 		if [[ -z "${drive_name}" ]]; then
-			echo "[warn] Drive name not defined via parameter -dn or --drive-name, displaying help..."
+			echo "[WARN] Drive name not defined via parameter -dn or --drive-name, displaying help..."
 			echo ""
 			show_help
 			exit 2
@@ -75,7 +75,7 @@ function check_prereqs() {
 
 		if [[ "${destructive_test}" == 'no' ]]; then
 			if [[ "${#test_pattern}" -gt 4 ]]; then
-				echo "[warn] Non destructive tests only supports a single test pattern via -tp or --test-pattern, displaying help..."
+				echo "[WARN] Non destructive tests only supports a single test pattern via -tp or --test-pattern, displaying help..."
 				echo ""
 				show_help
 				exit 3
@@ -84,7 +84,7 @@ function check_prereqs() {
 
 	fi
 
-	echo "[info] Checking we have all required tooling before running..."
+	echo "[INFO] Checking we have all required tooling before running..."
 
 	tools="smartctl tmux badblocks blockdev grep sed"
 	for i in ${tools}; do
@@ -187,7 +187,7 @@ function check_smart_attributes() {
 			if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
 				echo "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
 			else
-				echo "[ERROR] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
+				echo "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
 				return 1
 			fi
 		fi
@@ -204,11 +204,11 @@ function run_badblocks_test() {
 	for disk in ${disk_name}; do
 		if [[ "${destructive_test}" == "yes" ]]; then
 			if [[ "${confirm}" == "yes" ]]; then
-				echo -n "Please confirm you wish to perform a DESTRUCTIVE test on drive '/dev/${disk}' by typing 'PROCEED': "
+				echo -n "[INFO] Please confirm you wish to perform a DESTRUCTIVE test on drive '/dev/${disk}' by typing 'PROCEED': "
 				read -r destructive_test_confirm
 
 				if [[ "${destructive_test_confirm}" != "PROCEED" ]]; then
-					echo "[info] Bad response '${destructive_test_confirm}', exiting script..."
+					echo "[INFO] Bad user response '${destructive_test_confirm}', exiting script..."
 					exit 1
 				fi
 			fi
@@ -313,6 +313,9 @@ Examples:
 	Test drive sdX with confirmation prompt, running a destructive test for all test patterns:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-path '/tmp' --debug 'yes'
 
+	Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns:
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --log-path '/tmp' --debug 'yes'
+
 	Test drive sdX for a non-destructive test with test pattern 0xff:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff' --log-path '/tmp' --debug 'yes'
 
@@ -367,7 +370,7 @@ do
 			exit 0
 			;;
 		*)
-			echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+			echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
 			echo ""
 			show_help
 			exit 1

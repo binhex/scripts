@@ -13,8 +13,7 @@
 # TODO finish off logger
 
 # script name and version
-readonly ourScriptName
-ourScriptName=$(basename -- "$0")
+readonly ourScriptName=$(basename -- "$0")
 readonly ourFriendlyScriptName="${ourScriptName%.*}"
 readonly ourScriptVersion="v2.0.0"
 

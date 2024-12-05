@@ -62,7 +62,7 @@ function check_prereqs() {
 		echo "[WARN] Action defined via -a or --action does not match 'test' or 'list', displaying help..."
 		echo ""
 		show_help
-		exit 1
+		exit 2
 	fi
 
 	if [[ "${action}" == 'test' ]]; then
@@ -70,7 +70,7 @@ function check_prereqs() {
 			echo "[WARN] Drive name not defined via parameter -dn or --drive-name, displaying help..."
 			echo ""
 			show_help
-			exit 2
+			exit 3
 		fi
 
 		if [[ "${destructive_test}" == 'no' ]]; then
@@ -78,10 +78,17 @@ function check_prereqs() {
 				echo "[WARN] Non destructive tests only supports a single test pattern via -tp or --test-pattern, displaying help..."
 				echo ""
 				show_help
-				exit 3
+				exit 4
 			fi
 		fi
 
+	fi
+
+	if [[ "${notify_service}" == 'ntfy' && -z "${ntfy_topic}" ]]; then
+		echo "[WARN] Notify Service defined as 'ntfy', but no topic spcified via -nt or --ntfy-topic, displaying help..."
+		echo ""
+		show_help
+		exit 5
 	fi
 
 	echo "[INFO] Checking we have all required tooling before running..."
@@ -102,7 +109,7 @@ function get_disk_name_and_serial() {
 }
 
 function filter_disks_not_in_scope() {
-	# TODO need to find out how to filter out cache drives that are not SSD or NVME, ie. spinners, as we do not want to accidently process cache drives!!
+
 	local disk_name="${1}"
 
 	# if we cannot determine smart info then its unlikely to be a spinning disk
@@ -186,13 +193,22 @@ function check_smart_attributes() {
 		if [[ "${smart_attribute_value}" != 0 ]]; then
 			if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
 				echo "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
+				if [[ "${notify_service}" == 'ntfy' ]]; then
+					ntfy "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${ntfy_topic}"
+				fi
 			else
 				echo "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
+				if [[ "${notify_service}" == 'ntfy' ]]; then
+					ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${ntfy_topic}"
+				fi
 				return 1
 			fi
 		fi
 	done
-	echo "[INFO] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
+	echo "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
+	if [[ "${notify_service}" == 'ntfy' ]]; then
+		ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${ntfy_topic}"
+	fi
 	return 0
 }
 
@@ -217,12 +233,6 @@ function run_badblocks_test() {
 			badblocks_destructive_test_flag=""
 		fi
 
-		test_pattern_flags=''
-		# construct test pattern flags
-		for pattern in ${test_pattern}; do
-			test_pattern_flags+="-t ${pattern} "
-		done
-
 		# get block size of disk
 		block_size=$(blockdev --getbsz "/dev/${disk}")
 
@@ -238,10 +248,13 @@ function run_badblocks_test() {
 			# -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
 			# -v = Verbose mode.
 			badblocks \
-			-b "${block_size}" \
-			-c "${num_blocks}" ${test_pattern_flags} \
-			-s "${badblocks_destructive_test_flag}" \
-			-v "/dev/${disk}"
+				-s \
+				-v \
+				-b "${block_size}" \
+				-c "${num_blocks}" \
+				-t "${test_pattern}" \
+				"${badblocks_destructive_test_flag}" \
+				"/dev/${disk}"
 		remove_serial_from_in_progress_filepath
 		if ! check_smart_attributes "${disk}"; then
 			exit 1
@@ -249,16 +262,33 @@ function run_badblocks_test() {
 	done
 }
 
+function ntfy() {
+
+	local message="${1}"
+	curl -s -d "${message}" "ntfy.sh/${ntfy_topic}" &> /dev/null
+}
+
 function main() {
-	echo "[INFO] Running script ${ourScriptName}..."
+	echo "[INFO] Script '${ourScriptName}' has started at '$(date)'"
 	check_prereqs
+
+	if [[ "${notify_service}" == 'ntfy' ]]; then
+		ntfy "Script '${ourScriptName}' has started at '$(date)'" "${ntfy_topic}"
+	fi
+
 	if [[ "${action}" == 'list' ]]; then
 		find_all_disks_not_in_array
 	fi
+
 	if [[ "${action}" == 'test' ]]; then
 		run_badblocks_test "${drive_name}"
 	fi
-	echo "[INFO] Script ${ourScriptName} finished"
+
+	if [[ "${notify_service}" == 'ntfy' ]]; then
+		ntfy "Script '${ourScriptName}' has finished at '$(date)'" "${ntfy_topic}"
+	fi
+
+	echo "[INFO] Script '${ourScriptName}' has finished at '$(date)'"
 }
 
 function show_help() {
@@ -295,8 +325,16 @@ Where:
 		Defaults to '${defaultDestructiveTest}'.
 
 	-tp or --test-pattern <0xaa 0x55 0xff 0x00>
-		Define the test pattern(s) to perform, space seperated - See Note **
+		Define the test pattern(s) to perform, space seperated - See Note ** ***
 		Defaults to '${defaultTestPattern}'.
+
+	-ns or --notify-service <ntfy>
+		Define the service used to notify the user when a test has been started or completed.
+		No default.
+
+	-nt or --ntfy-topic <topic>
+		Define the ntfy topic name.
+		No default.
 
 	-lp or --log-path <absolute path>
 		Define the absolute path to store the logs.
@@ -313,8 +351,8 @@ Examples:
 	Test drive sdX with confirmation prompt, running a destructive test for all test patterns:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-path '/tmp' --debug 'yes'
 
-	Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns:
-		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --log-path '/tmp' --debug 'yes'
+	Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns and sending push notifications to ntfy:
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic' --log-path '/tmp' --debug 'yes'
 
 	Test drive sdX for a non-destructive test with test pattern 0xff:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff' --log-path '/tmp' --debug 'yes'
@@ -325,6 +363,7 @@ Examples:
 Notes:
 	*  Non-destructive tests will result in longer process times.
 	** If -dt or --destructive-test is set to 'yes' then only a single pattern can be specified.
+	*** Each Badblocks pattern will take approximately 2 days to complete.
 
 ENDHELP
 }
@@ -355,6 +394,14 @@ do
 			;;
 		-tp| --test-pattern)
 			test_pattern=$2
+			shift
+			;;
+		-ns| --notify-service)
+			notify_service=$2
+			shift
+			;;
+		-nt| --ntfy-topic)
+			ntfy_topic=$2
 			shift
 			;;
 		-lp| --log-path)

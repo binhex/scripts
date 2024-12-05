@@ -35,13 +35,11 @@ function check_prereqs() {
 
     if [[ "${SAVE_PATH}" == "/" || "${SAVE_PATH}" == "/data" || "${SAVE_PATH}" == "/media" ]]; then
         echo "[warn] Exiting script as '--save-path' appears to be set to '/', '/data' or '/media', exiting script..."
-        show_help
         exit 3
     fi
 
     if [[ "${CONTENT_PATH}" == "${SAVE_PATH}" ]]; then
         echo "[warn] Exiting script as '--content-path' and '--save-path' appear to be the same, exiting script..."
-        show_help
         exit 4
     fi
 

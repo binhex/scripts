@@ -179,7 +179,12 @@ function delete_files_and_dirs(){
             if [[ "${file_type}" == "file" ]]; then
                 rm -f "${file}"
             elif [[ "${file_type}" == "directory" ]]; then
-                rm -rf "${file}"
+                if [[ "${file}" == "/" || "${file}" == "/data" || "${file}" == "/media" ]]; then
+                    logger 2 "Directory delete appears to be attempting to recursively delete to '/', '/data' or '/media', skipping..."
+                    continue
+                else
+                    rm -rf "${file}"
+                fi
             fi
         done 2>/dev/null || true
     done

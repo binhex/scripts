@@ -15,15 +15,17 @@ ourScriptPath=$(dirname "${ourScriptFilePath}")
 ourScriptVersion="v1.0.0"
 
 defaultSavePath="/data/completed"
-defaultDirectoryName="subs"
-defaultLogLevel=debug
+defaultFileName="rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url"
+defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*"
+
+defaultLogLevel=info
 defaultLogSizeMB=10
 defaultLogPath="${ourScriptPath}/logs"
 
 SAVE_PATH="${defaultSavePath}"
+FILE_NAME="${defaultFileName}"
 DIRECTORY_NAME="${defaultDirectoryName}"
 
-# Set default values for logging
 LOG_LEVEL="${defaultLogLevel}"
 LOG_SIZE="${defaultLogSizeMB}"
 LOG_PATH="${defaultLogPath}"
@@ -42,14 +44,20 @@ function check_prereqs() {
         exit 2
     fi
 
-    if [[ "${SAVE_PATH}" == "/" || "${SAVE_PATH}" == "/data" || "${SAVE_PATH}" == "/media" ]]; then
-        logger 1 "Exiting script as '--save-path' appears to be set to '/', '/data' or '/media', exiting script..."
+    if [[ -z "${ROOT_PATH:-}" ]]; then
+        logger 1 "Exiting script as --root-path appears to be set to an empty string..."
+        show_help
         exit 3
     fi
 
-    if [[ "${CONTENT_PATH}" == "${SAVE_PATH}" ]]; then
-        logger 1 "Exiting script as '--content-path' and '--save-path' appear to be the same, exiting script..."
+    if [[ "${SAVE_PATH}" == "/" || "${SAVE_PATH}" == "/data" || "${SAVE_PATH}" == "/media" ]]; then
+        logger 1 "Exiting script as '--save-path' appears to be set to '/', '/data' or '/media', exiting script..."
         exit 4
+    fi
+
+    if [[ "${SAVE_PATH}" == "${ROOT_PATH}" ]]; then
+        logger 1 "Exiting script as '--save-path' and '--root-path' appear to be the same, exiting script..."
+        exit 5
     fi
 
 }
@@ -87,14 +95,14 @@ function logger() {
 
     # Convert human-friendly log levels to numeric
     case "${LOG_LEVEL}" in
-        'debug') LOG_LEVEL=0 ;;
-        'info') LOG_LEVEL=1 ;;
-        'warn') LOG_LEVEL=2 ;;
-        'error') LOG_LEVEL=3 ;;
-        *) LOG_LEVEL=0 ;;
+        'debug') LOG_LEVEL_NUMERIC=0 ;;
+        'info') LOG_LEVEL_NUMERIC=1 ;;
+        'warn') LOG_LEVEL_NUMERIC=2 ;;
+        'error') LOG_LEVEL_NUMERIC=3 ;;
+        *) LOG_LEVEL_NUMERIC=0 ;;
     esac
 
-    if [[ ${log_level} -ge ${LOG_LEVEL} ]]; then
+    if [[ ${log_level} -ge ${LOG_LEVEL_NUMERIC} ]]; then
         case ${log_level} in
             "${log_level_debug}")
                 log_entry="[DEBUG] ${timestamp} :: ${log_message}"
@@ -150,17 +158,30 @@ function find_filenames(){
 
 }
 
-function delete_files(){
+function delete_files_and_dirs(){
 
     local param_regex="$1"
     shift
     local path="$1"
+    shift
+    local file_type="$1"
+
+    logger 1 "Looking for matching ${file_type} to delete for path: '${path}'..."
 
     IFS=',' read -r -a param_regex_array <<< "${param_regex}"
 
     for param_regex_iter in "${param_regex_array[@]}"; do
-        logger 1 "Deleting files with regex: ${param_regex_iter}"
-        find "${path}" -regextype egrep -iregex "${param_regex_iter}" -exec rm -rf {} \; 2>/dev/null || true
+        logger 0 "Searching for ${file_type} with regex: '${param_regex_iter}'..."
+        # Find matching files and log them, csse insensitive (iregex)
+        find "${path}" -regextype egrep -iregex "${param_regex_iter}" -print | \
+        while read -r file; do
+            logger 1 "Deleting ${file_type}: '${file}'"
+            if [[ "${file_type}" == "file" ]]; then
+                rm -f "${file}"
+            elif [[ "${file_type}" == "directory" ]]; then
+                rm -rf "${file}"
+            fi
+        done 2>/dev/null || true
     done
 
 }
@@ -168,14 +189,14 @@ function delete_files(){
 function detect_media_type() {
 
     local find_video_filepaths
-    find_video_filepaths="$(find_filenames '.*mkv' "${CONTENT_PATH}")"
+    find_video_filepaths="$(find_filenames '.*mkv' "${ROOT_PATH}")"
 
     if [[ -n "${find_video_filepaths}" ]]; then
-        delete_files "${FILE_NAME}" "${CONTENT_PATH}"
-        delete_files "${DIRECTORY_NAME}" "${CONTENT_PATH}"
-        delete_files ".*part" "${SAVE_PATH}"
+        delete_files_and_dirs "${FILE_NAME}" "${ROOT_PATH}" "file"
+        delete_files_and_dirs "${DIRECTORY_NAME}" "${ROOT_PATH}" "directory"
+        delete_files_and_dirs ".*part" "${SAVE_PATH}" "file"
     else
-        logger 1 "Files with extension '.mkv' not found in content path '${CONTENT_PATH}', exiting script..."
+        logger 1 "Media file type with extension '.mkv' NOT found in content path '${ROOT_PATH}', exiting script..."
     fi
 
 }
@@ -184,10 +205,15 @@ function main() {
 
     logger 1 "Running script '${ourScriptName}'..."
 
-    # Detect media type, if video file then delete extras, else do nothing
-    detect_media_type
+    logger 0  "debug Content Path: ${CONTENT_PATH}"
+    logger 1  "info Save Path: ${SAVE_PATH}"
+    logger 2  "warn Root Path: ${ROOT_PATH}"
+    logger 3  "error Root Path: ${ROOT_PATH}"
+
+    #detect_media_type
 
     logger 1 "Script '${ourScriptName}' finished"
+
 }
 
 
@@ -206,16 +232,20 @@ Where:
         Displays this text.
 
     -cp or --content-path <path>
-        Define the content path (same as root path for multi-file torrent) in qBittorrent.
+        Define the content path of the torrent download in qBittorrent.
         No default.
 
     -sp or --save-path <path>
         Define the save path in qBittorrent.
         Defaults to '${defaultSavePath}'.
 
+    -rp or --root-path <path>
+        Define the root path for the torrent download in qBittorrent.
+        No default.
+
     -f or --filename <path>
         Define the filename regex you wish to delete.
-        No default.
+        Defaults to '${defaultFileName}'.
 
     -d or --directory <path>
         Define the directory regex you wish to delete.
@@ -234,7 +264,7 @@ Where:
         Defaults to '${defaultLogSizeMB}'.
 
 Example:
-    /bin/bash -c "${ourScriptPath}/${ourScriptName} --content-path '%F' --save-path '%D' --filename 'rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url' --directory '.*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*'"
+    /bin/bash -c "${ourScriptPath}/${ourScriptName} --log-level 'info' --content-path '%F' --save-path '%D' --root-path '%R' --filename 'rarbg.*,.*sample.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url,.*exe,.*sh' --directory '.*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*'"
 
 Notes:
     Be careful, this script CAN delete files and folders!.
@@ -252,6 +282,10 @@ do
             ;;
         -sp|--save-path)
             SAVE_PATH=$2
+            shift
+            ;;
+        -rp|--root-path)
+            ROOT_PATH=$2
             shift
             ;;
         -f|--filename)

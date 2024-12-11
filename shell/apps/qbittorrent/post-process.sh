@@ -21,6 +21,7 @@ defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*"
 defaultLogLevel=info
 defaultLogSizeMB=10
 defaultLogPath="${ourScriptPath}/logs"
+defaultLogRotation=5
 
 SAVE_PATH="${defaultSavePath}"
 FILE_NAME="${defaultFileName}"
@@ -29,34 +30,35 @@ DIRECTORY_NAME="${defaultDirectoryName}"
 LOG_LEVEL="${defaultLogLevel}"
 LOG_SIZE="${defaultLogSizeMB}"
 LOG_PATH="${defaultLogPath}"
+LOG_ROTATION="${defaultLogRotation}"
 
 function check_prereqs() {
 
     if [[ -z "${CONTENT_PATH:-}" ]]; then
-        logger 1 "Exiting script as --content-path appears to be set to an empty string..."
+        logger 3 "Exiting script as --content-path appears to be set to an empty string..."
         show_help
         exit 1
     fi
 
     if [[ -z "${SAVE_PATH:-}" ]]; then
-        logger 1 "Exiting script as --save-path appears to be set to an empty string..."
+        logger 3 "Exiting script as --save-path appears to be set to an empty string..."
         show_help
         exit 2
     fi
 
     if [[ -z "${ROOT_PATH:-}" ]]; then
-        logger 1 "Exiting script as --root-path appears to be set to an empty string..."
+        logger 3 "Exiting script as --root-path appears to be set to an empty string..."
         show_help
         exit 3
     fi
 
     if [[ "${SAVE_PATH}" == "/" || "${SAVE_PATH}" == "/data" || "${SAVE_PATH}" == "/media" ]]; then
-        logger 1 "Exiting script as '--save-path' appears to be set to '/', '/data' or '/media', exiting script..."
+        logger 2 "Exiting script as '--save-path' appears to be set to '/', '/data' or '/media', exiting script..."
         exit 4
     fi
 
     if [[ "${SAVE_PATH}" == "${ROOT_PATH}" ]]; then
-        logger 1 "Exiting script as '--save-path' and '--root-path' appear to be the same, exiting script..."
+        logger 2 "Exiting script as '--save-path' and '--root-path' appear to be the same, exiting script..."
         exit 5
     fi
 
@@ -68,6 +70,7 @@ function logger() {
     shift
     local log_message="$*"
 
+    local log_level_numeric
     local log_entry
     local timestamp
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
@@ -79,12 +82,12 @@ function logger() {
     local log_level_error=3
 
     if [[ -z "${log_message}" ]]; then
-        logger 1 "[ERROR] ${timestamp} :: No log message passed to logger function"
+        echo "[ERROR] ${timestamp} :: No log message passed to logger function"
         exit 1
     fi
 
     if [[ -z "${LOG_PATH}" ]]; then
-        logger 1 "[ERROR] ${timestamp} :: Log path not defined. Exiting script..."
+        echo "[ERROR] ${timestamp} :: Log path not defined. Exiting script..."
         exit 1
     fi
 
@@ -95,14 +98,14 @@ function logger() {
 
     # Convert human-friendly log levels to numeric
     case "${LOG_LEVEL}" in
-        'debug') LOG_LEVEL_NUMERIC=0 ;;
-        'info') LOG_LEVEL_NUMERIC=1 ;;
-        'warn') LOG_LEVEL_NUMERIC=2 ;;
-        'error') LOG_LEVEL_NUMERIC=3 ;;
-        *) LOG_LEVEL_NUMERIC=0 ;;
+        'debug') log_level_numeric=0 ;;
+        'info') log_level_numeric=1 ;;
+        'warn') log_level_numeric=2 ;;
+        'error') log_level_numeric=3 ;;
+        *) log_level_numeric=0 ;;
     esac
 
-    if [[ ${log_level} -ge ${LOG_LEVEL_NUMERIC} ]]; then
+    if [[ ${log_level} -ge ${log_level_numeric} ]]; then
         case ${log_level} in
             "${log_level_debug}")
                 log_entry="[DEBUG] ${timestamp} :: ${log_message}"
@@ -135,10 +138,18 @@ function logger() {
 
 function rotate_log_file() {
 
-    # Convert human friendly size to bytes
+    # Convert human-friendly size to bytes
     local log_size_in_bytes=$((LOG_SIZE * 1024 * 1024))
 
     if [[ -f "${LOG_FILEPATH}" && $(stat -c%s "${LOG_FILEPATH}") -ge ${log_size_in_bytes} ]]; then
+        # Rotate log files
+        for ((i=LOG_ROTATION-1; i>=1; i--)); do
+            if [[ -f "${LOG_FILEPATH}.${i}" ]]; then
+                mv "${LOG_FILEPATH}.${i}" "${LOG_FILEPATH}.$((i+1))"
+            fi
+        done
+
+        # Move the current log file to .1
         mv "${LOG_FILEPATH}" "${LOG_FILEPATH}.1"
         touch "${LOG_FILEPATH}"
     fi
@@ -210,12 +221,11 @@ function main() {
 
     logger 1 "Running script '${ourScriptName}'..."
 
-    logger 0  "debug Content Path: ${CONTENT_PATH}"
-    logger 1  "info Save Path: ${SAVE_PATH}"
-    logger 2  "warn Root Path: ${ROOT_PATH}"
-    logger 3  "error Root Path: ${ROOT_PATH}"
+    logger 0  "Content Path: ${CONTENT_PATH}"
+    logger 0  "Save Path: ${SAVE_PATH}"
+    logger 0  "Root Path: ${ROOT_PATH}"
 
-    #detect_media_type
+    detect_media_type
 
     logger 1 "Script '${ourScriptName}' finished"
 
@@ -268,6 +278,10 @@ Where:
         Define the maximum logging file size in MB before being rotated.
         Defaults to '${defaultLogSizeMB}'.
 
+    -lr or --log-rotation <file count>
+        Define the maximum number of log files to be created.
+        Defaults to '${defaultLogRotation}'.
+
 Example:
     /bin/bash -c "${ourScriptPath}/${ourScriptName} --log-level 'info' --content-path '%F' --save-path '%D' --root-path '%R' --filename 'rarbg.*,.*sample.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url,.*exe,.*sh' --directory '.*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*'"
 
@@ -311,6 +325,10 @@ do
             ;;
         -ls|--log-size)
             LOG_SIZE=$2
+            shift
+            ;;
+        -lr|--log-rotation)
+            LOG_ROTATION=$2
             shift
             ;;
         -h|--help)

@@ -12,8 +12,8 @@ ourScriptName=$(basename -- "$0")
 # extract absolute path to this script
 ourScriptPath=$(dirname "$(realpath "$0")")
 
-# extract filename of this script without extension
-ourAppName=${ourScriptName##*/}
+# extract filename of this script without extension i.e. app name
+ourAppName="${ourScriptName%.*}"
 
 # script version
 ourScriptVersion="v1.0.0"

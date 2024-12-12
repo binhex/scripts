@@ -6,15 +6,19 @@ set -euo pipefail
 # TODO add in more logging and make use of logging levels
 # TODO add param to specify file types in content path to process (currently hard set to .mkv)
 
-# script name
+# extract filename of this script
 ourScriptName=$(basename -- "$0")
-# absolute filepath to this script
-ourScriptFilePath=$(realpath "$0")
-# absolute path to this script
-ourScriptPath=$(dirname "${ourScriptFilePath}")
+
+# extract absolute path to this script
+ourScriptPath=$(dirname "$(realpath "$0")")
+
+# extract filename of this script without extension
+ourAppName=${ourScriptName##*/}
+
+# script version
 ourScriptVersion="v1.0.0"
 
-defaultSavePath="/data/completed"
+# default values
 defaultFileName="rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url"
 defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*"
 
@@ -23,7 +27,6 @@ defaultLogSizeMB=10
 defaultLogPath="${ourScriptPath}/logs"
 defaultLogRotation=5
 
-SAVE_PATH="${defaultSavePath}"
 FILE_NAME="${defaultFileName}"
 DIRECTORY_NAME="${defaultDirectoryName}"
 
@@ -94,7 +97,7 @@ function logger() {
     mkdir -p "${LOG_PATH}"
 
     # Construct full filepath to log file
-    LOG_FILEPATH="${LOG_PATH}/${ourScriptName}.log"
+    LOG_FILEPATH="${LOG_PATH}/${ourAppName}.log"
 
     # Convert human-friendly log levels to numeric
     case "${LOG_LEVEL}" in
@@ -252,7 +255,7 @@ Where:
 
     -sp or --save-path <path>
         Define the save path in qBittorrent.
-        Defaults to '${defaultSavePath}'.
+        No default.
 
     -rp or --root-path <path>
         Define the root path for the torrent download in qBittorrent.

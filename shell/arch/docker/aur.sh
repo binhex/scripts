@@ -183,8 +183,8 @@ function cleanup() {
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
 	init
-	compile_and_install_helper
-	#install_precompiled_helper
+	#compile_and_install_helper
+	install_precompiled_helper
 	#install_binary_helper
 	install_package_using_helper
 	cleanup

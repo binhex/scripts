@@ -4,7 +4,8 @@
 set -e
 
 # define aur helper, normally 'yay' or 'paru'
-# note paru does not currently compile on arm64 - 20240407
+# note paru does not currently compile on arm64 without this fix:-
+# https://github.com/Morganamilo/paru/issues/1154#issuecomment-2002357898
 aur_helper="paru"
 
 function install_binary_helper() {
@@ -90,6 +91,7 @@ function compile_and_install_helper() {
 		# download and install aur helper
 		# note switched to aur 'paru-git' for now as aur 'paru' does not currently
 		# compile due to pacman libalpm v15 bump
+		pacman -S rust clank --needed --noconfirm
 		git clone https://aur.archlinux.org/paru-git.git "${git_dir}"
 	else
 		echo "[warn] AUR helper '${aur_helper}' not supported, exiting script..."

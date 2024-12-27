@@ -1,43 +1,31 @@
 #!/bin/bash
 
+# extract filename of this script with relative path
+ourScriptName="${BASH_SOURCE[-1]}"
+
+# extract filename only with no relative path
+ourScriptName=$(basename -- "${ourScriptName}")
+
+# extract absolute path to this script
+ourScriptPath=$(pwd)
+
+# extract filename of this script without extension i.e. app name
+ourAppName="${ourScriptName%.*}"
+
 # set defaults
-defaultLogLevel="WARN"
-defaultNumberLogs="3"
-defaultFileSize="102048"
 defaultGitHubDownloadPath="$(pwd)"
 defaultGitHubAssetNumber="0"
+defaultLogLevel=info
+defaultLogSizeMB=10
+defaultLogPath="${ourScriptPath}/logs"
+defaultLogRotation=5
 
-log_level="${defaultLogLevel}"
-number_of_logs_to_keep="${defaultNumberLogs}"
-file_size_limit_kb="${defaultFileSize}"
-download_path="${defaultGitHubDownloadPath}"
-github_asset_number="${defaultGitHubAssetNumber}"
-
-# get this scripts current path
-script_path=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-# get this scripts name
-script_name=$(basename "${BASH_SOURCE[0]}")
-
-# create associative array with permitted logging levels
-declare -A levels=([DEBUG]=0 [INFO]=1 [WARN]=2 [ERROR]=3)
-
-function logger() {
-
-	local log_message=$1
-	local log_priority=$2
-
-	# check if level is in array
-	if [[ -z "${log_level[${log_priority}]:-}" ]]; then
-		echo "[ERROR] Log level '${log_priority}' is not valid, exiting function"
-		return 1
-	fi
-
-	# check if level is high enough to log
-	if (( ${levels[$log_priority]} >= ${levels[$log_level]} )); then
-		echo "[${log_priority}] ${log_message}" | ts '%Y-%m-%d %H:%M:%.S'
-	fi
-}
+LOG_LEVEL="${defaultLogLevel}"
+LOG_SIZE="${defaultLogSizeMB}"
+LOG_PATH="${defaultLogPath}"
+LOG_ROTATION="${defaultLogRotation}"
+DOWNLOAD_PATH="${defaultGitHubDownloadPath}"
+GITHUB_ASSET_NUMBER="${defaultGitHubAssetNumber}"
 
 function download_github_release_asset() {
 
@@ -46,7 +34,7 @@ function download_github_release_asset() {
 		case "$1"
 		in
 			-dp|--download-path)
-				download_path=$2
+				DOWNLOAD_PATH=$2
 				shift
 				;;
 			-go|--github-owner)
@@ -58,7 +46,7 @@ function download_github_release_asset() {
 				shift
 				;;
 			-gan|--github-asset-number)
-				github_asset_number=$2
+				GITHUB_ASSET_NUMBER=$2
 				shift
 				;;
 			-gar|--github-asset-regex)
@@ -66,12 +54,12 @@ function download_github_release_asset() {
 				shift
 				;;
 			-ll|--log-level)
-				log_level=$2
+				LOG_LEVEL=$2
 				shift
 				;;
 			-h|--help)
 				show_help_download_github_release_asset
-				exit 0
+				return 0
 				;;
 			*)
 				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
@@ -85,122 +73,134 @@ function download_github_release_asset() {
 
 	# verify required options specified
 	if [[ -z "${github_owner}" ]]; then
-		logger "GitHub owner not specified, showing help..." "WARN"
+		shlog 2 "GitHub owner not specified, showing help..."
 		show_help_download_github_release_asset
 		return 1
 	fi
 
 	if [[ -z "${github_repo}" ]]; then
-		logger "GitHub repo not specified, showing help..." "WARN"
+		shlog 2 "GitHub repo not specified, showing help..."
 		show_help_download_github_release_asset
 		return 1
 	fi
 
 	if [[ -z "${github_asset_regex}" ]]; then
-		logger "GitHub asset regex not specified, showing help..." "WARN"
+		shlog 2 "GitHub asset regex not specified, showing help..."
 		show_help_download_github_release_asset
 		return 1
 	fi
 
 	# verify required tools installed
 	if ! command -v jq &> /dev/null; then
-		logger "jq not installed, please install jq before running this function..." "WARN"
+		shlog 2 "jq not installed, please install jq before running this function..."
 		return 1
 	fi
 
 	if ! command -v curl &> /dev/null; then
-		logger "curl not installed, please install curl before running this function..." "WARN"
+		shlog 2 "curl not installed, please install curl before running this function..."
 		return 1
 	fi
 
 	# get url for github release asset
-	asset_url=$(curl --silent "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r "[.[].assets[] | select(.name | test(\"${github_asset_regex}\")).browser_download_url][${github_asset_number}]")
+	asset_url=$(curl --silent "https://api.github.com/repos/${github_owner}/${github_repo}/releases" | jq -r "[.[].assets[] | select(.name | test(\"${github_asset_regex}\")).browser_download_url][${GITHUB_ASSET_NUMBER}]")
 
-	logger "Downloading asset from '${asset_url}' to '${download_path}'..." "INFO"
+	shlog 2 "Downloading asset from '${asset_url}' to '${DOWNLOAD_PATH}'..."
 
 	# download github release asset
-	curl -o "${download_path}/$(basename "${asset_url}")" -L "${asset_url}"
+	curl -o "${DOWNLOAD_PATH}/$(basename "${asset_url}")" -L "${asset_url}"
 }
 
-function log_rotate() {
+function shlog() {
 
-	while [ "$#" != "0" ]
-	do
-		case "$1"
-		in
-			-lp|--log-path)
-				log_path=$2
-				shift
-				;;
-			-nl|--number-logs)
-				number_of_logs_to_keep=$2
-				shift
-				;;
-			-fs|--file-size)
-				file_size_limit_kb=$2
-				shift
-				;;
-			-h|--help)
-				show_help_log_rotate
-				exit 0
-				;;
-			*)
-				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
-				echo ""
-				show_help_log_rotate
-				return 1
-				;;
-		esac
-		shift
-	done
+	local log_message_level="${1}"
+	shift
+	local log_message="$*"
 
-	# verify required options specified
-	if [[ -z "${log_path}" ]]; then
-		logger "Log path not specified, showing help..." "WARN"
-		show_help_log_rotate
+    local log_level_numeric
+    local log_entry
+    local timestamp
+    timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+
+    # Define log levels
+    local log_level_debug=0
+    local log_level_info=1
+    local log_level_warn=2
+    local log_level_error=3
+
+    if [[ -z "${log_message_level}" ]]; then
+        echo "[ERROR] ${timestamp} :: No log message level passed to log function, showing help..."
+        show_help_shlog
 		return 1
-	fi
+    fi
 
-	# wait for log file to exist before size checks proceed
-	while [[ ! -f "${log_path}" ]]; do
-		sleep 0.1
-	done
+    if [[ -z "${log_message}" ]]; then
+        echo "[ERROR] ${timestamp} :: No log message passed to log function, showing help..."
+        show_help_shlog
+		return 1
+    fi
 
-	logger "Log rotate script running, monitoring log file '${log_path}'" "INFO"
+    mkdir -p "${LOG_PATH}"
 
-	while true; do
+    # Construct full filepath to log file
+    LOG_FILEPATH="${LOG_PATH}/${ourAppName}.log"
 
-		file_size_kb=$(du -k "${log_path}" | cut -f1)
+    # Convert human-friendly log levels to numeric
+    case "${LOG_LEVEL,,}" in
+        'debug') log_level_numeric=0 ;;
+        'info') log_level_numeric=1 ;;
+        'warn') log_level_numeric=2 ;;
+        'error') log_level_numeric=3 ;;
+        *) log_level_numeric=0 ;;
+    esac
 
-		if [ "${file_size_kb}" -ge "${file_size_limit_kb}" ]; then
+    if [[ ${log_message_level} -ge ${log_level_numeric} ]]; then
+        case ${log_message_level} in
+            "${log_level_debug}")
+                log_entry="[DEBUG] ${timestamp} :: ${log_message}"
+                ;;
+            "${log_level_info}")
+                log_entry="[INFO] ${timestamp} :: ${log_message}"
+                ;;
+            "${log_level_warn}")
+                log_entry="[WARN] ${timestamp} :: ${log_message}"
+                ;;
+            "${log_level_error}")
+                log_entry="[ERROR] ${timestamp} :: ${log_message}"
+                ;;
+            *)
+                log_entry="[UNKNOWN] ${timestamp} :: ${log_message}"
+                ;;
+        esac
 
-			logger "'${log_path}' log file larger than limit ${file_size_limit_kb} kb, rotating logs..." "INFO"
+        # Print to console
+        echo "${log_entry}"
 
-			if [[ -f "${log_path}.${number_of_logs_to_keep}" ]]; then
-				logger "Deleting oldest log file '${log_path}.${number_of_logs_to_keep}'..." "INFO"
-				rm -f "${log_path}.${number_of_logs_to_keep}"
-			fi
+        # Rotate log file if necessary
+        rotate_log_file
 
-			for log_number in $(seq "${number_of_logs_to_keep}" -1 0); do
+        # Append to log file
+        echo "${log_entry}" >> "${LOG_FILEPATH}"
+    fi
 
-				if [[ -f "${log_path}.${log_number}" ]]; then
-					log_number_inc=$((log_number+1))
-					mv "${log_path}.${log_number}" "${log_path}.${log_number_inc}"
-				fi
+}
 
-			done
+function rotate_log_file() {
 
-			logger "Copying current log '${log_path}' to ${log_path}.0..." "INFO"
-			cp "${log_path}" "${log_path}.0"
+    # Convert human-friendly size to bytes
+    local log_size_in_bytes=$((LOG_SIZE * 1024 * 1024))
 
-			logger "Emptying current log '${log_path}' contents..." "INFO"
-			> "${log_path}"
+    if [[ -f "${LOG_FILEPATH}" && $(stat -c%s "${LOG_FILEPATH}") -ge ${log_size_in_bytes} ]]; then
+        # Rotate log files
+        for ((i=LOG_ROTATION-1; i>=1; i--)); do
+            if [[ -f "${LOG_FILEPATH}.${i}" ]]; then
+                mv "${LOG_FILEPATH}.${i}" "${LOG_FILEPATH}.$((i+1))"
+            fi
+        done
 
-		fi
-
-		sleep 30s
-
-	done
+        # Move the current log file to .1
+        mv "${LOG_FILEPATH}" "${LOG_FILEPATH}.1"
+        touch "${LOG_FILEPATH}"
+    fi
 
 }
 
@@ -222,13 +222,9 @@ function symlink() {
 				link_type=$2
 				shift
 				;;
-			-ll|--log-level)
-				log_level=$2
-				shift
-				;;
 			-h|--help)
 				show_help_symlink
-				exit 0
+				return 0
 				;;
 			*)
 				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
@@ -242,19 +238,19 @@ function symlink() {
 
 	# verify required options specified
 	if [[ -z "${src_path}" ]]; then
-		logger "Source path not specified, showing help..." "WARN"
+		shlog 2 "Source path not specified, showing help..."
 		show_help_symlink
 		return 1
 	fi
 
 	if [[ -z "${dst_path}" ]]; then
-		logger "Destination path not specified, showing help..." "WARN"
+		shlog 2 "Destination path not specified, showing help..."
 		show_help_symlink
 		return 1
 	fi
 
 	if [[ -z "${link_type}" ]]; then
-		logger "Link type not specified, showing help..." "WARN"
+		shlog 2 "Link type not specified, showing help..."
 		show_help_symlink
 		return 1
 	fi
@@ -265,15 +261,15 @@ function symlink() {
 	elif [[ "${link_type}" == "hardlink" ]]; then
 		link_type=""
 	else
-		logger "Unknown link type of '${link_type}' specified, exiting function..." "WARN"
+		shlog 2 "Unknown link type of '${link_type}' specified, exiting function..."
 		return 1
 	fi
 
 	# if container folder exists then rename and use as default restore
 	if [[ -d "${src_path}" && ! -L "${src_path}" ]]; then
-		logger "'${src_path}' path already exists, renaming..." "INFO"
+		shlog 2 "'${src_path}' path already exists, renaming..."
 		if ! stderr=$(mv "${src_path}" "${src_path}-backup" 2>&1 >/dev/null); then
-			logger "Unable to move src path '${src_path}' to backup path '${src_path}-backup' error is '${stderr}', exiting function..." "ERROR"
+			shlog 2 "Unable to move src path '${src_path}' to backup path '${src_path}-backup' error is '${stderr}', exiting function..."
 			return 1
 		fi
 	fi
@@ -281,32 +277,32 @@ function symlink() {
 	# if ${dst_path} doesnt exist then restore from backup
 	if [[ ! -d "${dst_path}" ]]; then
 		if [[ -d "${src_path}-backup" ]]; then
-			logger "'${dst_path}' path does not exist, copying defaults..." "INFO"
+			shlog 2 "'${dst_path}' path does not exist, copying defaults..."
 			if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
-				logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+				shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
 				return 1
 			fi
 			if ! stderr=$(rsync -av "${src_path}-backup/" "${dst_path}" 2>&1 >/dev/null); then
-				logger "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+				shlog 2 "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..."
 				return 1
 			fi
 		fi
 	else
-		logger "'${dst_path}' path already exists, skipping copy" "INFO"
+		shlog 2 "'${dst_path}' path already exists, skipping copy"
 	fi
 
 	# create soft link to ${src_path}/${folder} storing general settings
-	logger "Creating '${link_type}' from '${dst_path}' to '${src_path}'..." "INFO"
+	shlog 2 "Creating '${link_type}' from '${dst_path}' to '${src_path}'..."
 	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
-		logger "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..." "ERROR"
+		shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
 		return 1
 	fi
 	if ! stderr=$(rm -rf "${src_path}" 2>&1 >/dev/null); then
-		logger "Unable to recursively delete path '${src_path}' error is '${stderr}', exiting function..." "ERROR"
+		shlog 2 "Unable to recursively delete path '${src_path}' error is '${stderr}', exiting function..."
 		return 1
 	fi
 	if ! stderr=$(ln "${link_type}" "${dst_path}/" "${src_path}" 2>&1 >/dev/null); then
-		logger "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..." "ERROR"
+		shlog 2 "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..."
 		return 1
 	fi
 	if [[ -n "${PUID}" && -n "${PGID}" ]]; then
@@ -325,13 +321,9 @@ function dos2unix() {
 				file_path=$2
 				shift
 				;;
-			-ll|--log-level)
-				log_level=$2
-				shift
-				;;
 			-h|--help)
 				show_help_dos2unix
-				exit 0
+				return 0
 				;;
 			*)
 				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
@@ -345,14 +337,14 @@ function dos2unix() {
 
 	# verify required options specified
 	if [[ -z "${file_path}" ]]; then
-		logger "File path not specified, showing help..." "WARN"
+		shlog 2 "File path not specified, showing help..."
 		show_help_dos2unix
 		return 1
 	fi
 
 	# verify file path exists
 	if [ ! -f "${file_path}" ]; then
-		logger "File path '${file_path}' does not exist, exiting function..." "WARN"
+		shlog 2 "File path '${file_path}' does not exist, exiting function..."
 		return 1
 	fi
 
@@ -371,13 +363,9 @@ function trim() {
 				string=$2
 				shift
 				;;
-			-ll|--log-level)
-				log_level=$2
-				shift
-				;;
 			-h|--help)
 				show_help_dos2unix
-				exit 0
+				return 0
 				;;
 			*)
 				echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
@@ -391,7 +379,7 @@ function trim() {
 
 	# verify required options specified
 	if [[ -z "${string}" ]]; then
-		logger "String to trim not specified, showing help..." "WARN"
+		shlog 2 "String to trim not specified, showing help..."
 		show_help_trim
 		return 1
 	fi
@@ -410,8 +398,10 @@ function show_help_download_github_release_asset() {
 	cat <<ENDHELP
 Description:
 	A function to download assets from GitHub using curl and jq only.
+
 Syntax:
-	source "${script_path}/${script_name}" && download_github_release_asset [args]
+	source "${ourScriptPath}/${ourScriptName}" && download_github_release_asset [args]
+
 Where:
 	-h or --help
 		Displays this text.
@@ -436,13 +426,9 @@ Where:
 		Define GitHub asset to match.
 		No default.
 
-	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
-		Define logging level.
-		Defaults to '${defaultLogLevel}'.
-
 Examples:
 	Download AUR helper 'Paru' from the latest GitHub release with minimal supplied flags:
-		source "${script_path}/${script_name}" && download_github_release_asset --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru-v2.0.3-1.*aarch64.*'
+		source "${ourScriptPath}/${ourScriptName}" && download_github_release_asset --github-owner 'Morganamilo' --github-repo 'paru' --github-asset-regex 'paru-v2.0.3-1.*aarch64.*'
 
 ENDHELP
 }
@@ -451,8 +437,10 @@ function show_help_symlink() {
 	cat <<ENDHELP
 Description:
 	A function to symlink a source path to a destination path.
+
 Syntax:
-	source "${script_path}/${script_name}" && symlink [args]
+	source "${ourScriptPath}/${ourScriptName}" && symlink [args]
+
 Where:
 	-h or --help
 		Displays this text.
@@ -470,45 +458,12 @@ Where:
 		Define the symlink type.
 		No default.
 
-	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
-		Define logging level.
-		Defaults to '${defaultLogLevel}'.
-
 Examples:
 	Create softlink from /home/nobody to /config/code-server/home with debugging on:
-		source "${script_path}/${script_name}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink' --log-level 'WARN'
+		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink'
 
 	Create hardlink from /home/nobody to /config/code-server/home with debugging on:
-		source "${script_path}/${script_name}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink' --log-level 'WARN'
-
-ENDHELP
-}
-
-function show_help_log_rotate() {
-	cat <<ENDHELP
-Description:
-	A function to rotate log files
-Syntax:
-	source "${script_path}/${script_name}" && log_rotate [args]
-Where:
-	-h or --help
-		Displays this text.
-
-	-lp or --log-path <path>
-		Define path to log file.
-		No default.
-
-	-nl or --number-logs <number of logs>
-		Define number of log files to keep.
-		Defaults to '${defaultNumberLogs}'.
-
-	-fs or --file-size <size of log in kb>
-		Define size of each log file in Kb.
-		Defaults to '${defaultFileSize}'.
-
-Examples:
-	Log rotate rclone log file keeping 3 log files and switching log file when size exceeds 1-2-48 Kb::
-		source "${script_path}/${script_name}" && log_rotate --log-path '/config/rclone/logs/rclone.log' --number-logs '3' --file-size '102048'
+		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink'
 
 ENDHELP
 }
@@ -517,8 +472,10 @@ function show_help_dos2unix() {
 	cat <<ENDHELP
 Description:
 	A function to change line endings from dos to unix
+
 Syntax:
-	source "${script_path}/${script_name}" && dos2unix [args]
+	source "${ourScriptPath}/${ourScriptName}" && dos2unix [args]
+
 Where:
 	-h or --help
 		Displays this text.
@@ -527,13 +484,9 @@ Where:
 		Define file path to file to convert from DOS line endings to UNIX.
 		No default.
 
-	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
-		Define logging level.
-		Defaults to '${defaultLogLevel}'.
-
 Examples:
 	Convert line endings for wireguard config file 'config/wireguard/wg0.conf' with debugging on:
-		source "${script_path}/${script_name}" && dos2unix --file-path '/config/wireguard/wg0.conf' --log-level 'WARN'
+		source "${ourScriptPath}/${ourScriptName}" && dos2unix --file-path '/config/wireguard/wg0.conf'
 
 ENDHELP
 }
@@ -542,8 +495,10 @@ function show_help_trim() {
 	cat <<ENDHELP
 Description:
 	A function to trim whitespace from start and end of string
+
 Syntax:
-	source "${script_path}/${script_name}" && trim [args]
+	source "${ourScriptPath}/${ourScriptName}" && trim [args]
+
 Where:
 	-h or --help
 		Displays this text.
@@ -552,13 +507,50 @@ Where:
 		Define the string to trim whitespace from.
 		No default.
 
-	-ll or --log-level <DEBUG|INFO|WARN|ERROR>
-		Define logging level.
-		Defaults to '${defaultLogLevel}'.
-
 Examples:
 	Trim whitespace from the following string '    abc    ' with debugging on:
-		source "${script_path}/${script_name}" && trim --string '    abc    ' --log-level 'WARN'
+		source "${ourScriptPath}/${ourScriptName}" && trim --string '    abc    '
 
 ENDHELP
 }
+
+function show_help_shlog() {
+
+	cat <<ENDHELP
+Description:
+	A function to log messages to console and file with defined log level and rotation.
+
+Syntax:
+	source "${ourScriptPath}/${ourScriptName}" && shlog [args]
+
+Where:
+	-h or --help
+		Displays this text.
+
+	-ll or --log-level <debug|info|warn|error>
+		Define the logging level, debug being the most verbose and error being the least.
+		Defaults to '${defaultLogLevel}'.
+
+	-lp or --log-path <path>
+		Define the logging path.
+		Defaults to '${defaultLogPath}'.
+
+	-ls or --log-size <size>
+		Define the maximum logging file size in MB before being rotated.
+		Defaults to '${defaultLogSizeMB}'.
+
+	-lr or --log-rotation <file count>
+		Define the maximum number of log files to be created.
+		Defaults to '${defaultLogRotation}'.
+
+Examples:
+	Send a log message with the log level 1 (info):
+		source "\${ourScriptPath}/\${ourScriptName}" && shlog 1 'Debug message'
+
+	Send a log message with the log level 2 (warn):
+		source "${ourScriptPath}/${ourScriptName}" && shlog 2 'Debug message'
+
+ENDHELP
+
+}
+

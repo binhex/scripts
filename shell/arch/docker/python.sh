@@ -7,8 +7,8 @@ set -e
 defaultLogLevel="info"
 defaultCreateVirtualenv="no"
 defaultCreatePyEnv="no"
-defaultVirtualenvPath="${HOME}/.venv"
-defaultPyEnvPath="${HOME}/.pyenv"
+defaultVirtualenvPath="/usr/local/lib/venv"
+defaultPyEnvPath="/usr/local/lib/pyenv"
 defaultPyEnvVersion="3.12"
 
 log_level="${defaultLogLevel}"

@@ -19,8 +19,8 @@ ourAppName="${ourScriptName%.*}"
 ourScriptVersion="v1.0.0"
 
 # default values
-defaultFileName="rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url"
-defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*"
+defaultFileName="rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*srr,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url"
+defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*,.*proof.*"
 
 defaultLogLevel=info
 defaultLogSizeMB=10
@@ -213,10 +213,16 @@ function detect_media_type() {
     if [[ -n "${find_video_filepaths}" ]]; then
         delete_files_and_dirs "${FILE_NAME}" "${ROOT_PATH}" "file"
         delete_files_and_dirs "${DIRECTORY_NAME}" "${ROOT_PATH}" "directory"
-        delete_files_and_dirs ".*part" "${SAVE_PATH}" "file"
     else
-        logger 1 "Media file type with extension '.mkv' NOT found in content path '${ROOT_PATH}', exiting script..."
+        logger 1 "Media file type with extension '.mkv' NOT found in content path '${ROOT_PATH}', skipping file and directory deletion"
     fi
+
+}
+
+function delete_partial_files() {
+
+    logger 1 "Deleting .part files generated when selecting partial downloads in qBittorrent '${SAVE_PATH}/*.parts'..."
+    rm -f "${SAVE_PATH}/"*.parts
 
 }
 
@@ -229,6 +235,7 @@ function main() {
     logger 0  "Root Path: ${ROOT_PATH}"
 
     detect_media_type
+    delete_partial_files
 
     logger 1 "Script '${ourScriptName}' finished"
 

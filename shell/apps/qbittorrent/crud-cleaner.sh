@@ -19,8 +19,8 @@ ourAppName="${ourScriptName%.*}"
 ourScriptVersion="v1.0.0"
 
 # default values
-defaultFileName="rarbg.*,.*jpg,.*png,.*txt,.*nfo,.*lnk,.*srt,.*srr,.*sfv,.*sub,.*cmd,.*bat,.*ps1,.*zipx,.*url"
-defaultDirectoryName=".*subs.*,.*sample.*,.*featurettes.*,.*screenshots.*,.*proof.*"
+defaultFileName=".*lnk,.*cmd,.*bat,.*ps1,.*zipx,.*exe,.*sh"
+defaultDirectoryName=".*sample.*,.*featurettes.*,.*screenshots.*,.*proof.*"
 
 defaultLogLevel=info
 defaultLogSizeMB=10

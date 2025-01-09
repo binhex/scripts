@@ -16,7 +16,7 @@ function install_binary_helper() {
 	fi
 
 	# ensure we have a clean environment
-	cleanup
+	wipe_build
 
 	if [[ "${aur_helper}" == 'paru' ]]; then
 
@@ -41,7 +41,7 @@ function install_binary_helper() {
 function install_precompiled_helper() {
 
 	# ensure we have a clean environment
-	cleanup
+	wipe_build
 
 	if ! which "${aur_helper}" || true; then
 
@@ -76,7 +76,7 @@ function install_precompiled_helper() {
 function compile_and_install_helper() {
 
 	# ensure we have a clean environment
-	cleanup
+	wipe_build
 
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${build_dir}~g" "/etc/makepkg.conf"
@@ -104,7 +104,7 @@ function compile_and_install_helper() {
 function install_package_using_helper() {
 
 	# ensure we have a clean environment
-	cleanup
+	wipe_build
 
 	# prevent sudo prompt for password when installing compiled package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
@@ -171,7 +171,7 @@ function init() {
 
 }
 
-function cleanup() {
+function wipe_build() {
 
 	rm -rf /tmp/*
 
@@ -184,12 +184,19 @@ function cleanup() {
 
 # check we have aur packages to install
 if [[ -n "${aur_packages}" ]]; then
+
 	init
-	#compile_and_install_helper
-	install_precompiled_helper
-	#install_binary_helper
+	if ! command -v "${aur_helper}" &> /dev/null; then
+		#compile_and_install_helper
+		install_precompiled_helper
+		#install_binary_helper
+	fi
 	install_package_using_helper
-	cleanup
+	wipe_build
+
 else
+
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"
+	exit 0
+
 fi

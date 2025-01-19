@@ -197,6 +197,6 @@ if [[ -n "${aur_packages}" ]]; then
 else
 
 	echo "[info] No AUR packages defined via 'export aur_packages=<package name>'"
-	exit 0
+	return 0
 
 fi

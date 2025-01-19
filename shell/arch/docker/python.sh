@@ -125,6 +125,17 @@ function install_requirements() {
 }
 
 function install_pip() {
+	# define pacman packages
+	pacman_packages="python-pip"
+
+	# install compiled packages using pacman
+	if [[ -n "${pacman_packages}" ]]; then
+		pacman -S --needed ${pacman_packages} --noconfirm
+	fi
+
+}
+
+function install_pip_packages() {
 
 	if [[ -z "${pip_packages}" ]]; then
 		shlog 1 "--pp or --pip-packages not defined, skipping..."
@@ -158,6 +169,9 @@ function install_pip() {
 
 function main() {
 
+	# install python modules
+	install_pip
+
 	# install pyenv if required
 	create_pyenv
 
@@ -168,7 +182,7 @@ function main() {
 	install_requirements
 
 	# install python modules
-	install_pip
+	install_pip_packages
 
 }
 

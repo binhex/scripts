@@ -395,6 +395,9 @@ Examples:
 	GitHub release source download:
 		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'release'
 
+	GitHub release source download and compile:
+		github.sh --install-path '/tmp/compile' --github-owner 'rofl0r' --github-repo 'microsocks' --query-type 'release' --compile-src 'make install'
+
 	GitHub tags source download:
 		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'tags'
 

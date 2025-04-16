@@ -247,7 +247,12 @@ function run_badblocks_test() {
 		# get block size of disk
 		block_size=$(blockdev --getbsz "/dev/${disk}")
 
-		echo "[INFO] Running badblocks for disk '/dev/${disk}', this may take several days depending on the test pattern specified..."
+		if [[ "${notify_service}" == 'ntfy' ]]; then
+			ntfy "[INFO] Running badblocks for disk '/dev/${disk}' started at '$(date)', this may take several days depending on the test pattern specified"
+		fi
+
+		echo "[INFO] Running badblocks for disk '/dev/${disk}' started at '$(date)', this may take several days depending on the test pattern specified..."
+
 		add_serial_to_in_progress_filepath
 		# -b = Size of blocks in bytes.
 		# -c = Number of blocks which are tested at a time.
@@ -263,6 +268,13 @@ function run_badblocks_test() {
 			-t "${test_pattern}" \
 			"${badblocks_destructive_test_flag}" \
 			"/dev/${disk}"
+
+		if [[ "${notify_service}" == 'ntfy' ]]; then
+			ntfy "[INFO] badblocks finished for disk '/dev/${disk}' at '$(date)'."
+		fi
+
+		echo "[INFO] badblocks finished for disk '/dev/${disk}' at '$(date)'."
+
 		remove_serial_from_in_progress_filepath
 		if ! check_smart_attributes "${disk}"; then
 			exit 1
@@ -277,12 +289,8 @@ function ntfy() {
 }
 
 function main() {
-	echo "[INFO] Script '${ourScriptName}' has started at '$(date)'"
-	check_prereqs
 
-	if [[ "${notify_service}" == 'ntfy' ]]; then
-		ntfy "Script '${ourScriptName}' has started at '$(date)'" "${ntfy_topic}"
-	fi
+	check_prereqs
 
 	if [[ "${action}" == 'list' ]]; then
 		find_all_disks_not_in_array
@@ -296,7 +304,6 @@ function main() {
 		ntfy "Script '${ourScriptName}' has finished at '$(date)'" "${ntfy_topic}"
 	fi
 
-	echo "[INFO] Script '${ourScriptName}' has finished at '$(date)'"
 }
 
 function show_help() {

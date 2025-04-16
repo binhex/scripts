@@ -4,12 +4,10 @@
 #
 # detect drives not in unraid array
 # check smart attributes
-# run tmux session for each drive
 # run badblocks on each drive
 # compare smart attributes
 # if smart attributes do not match, then report back to user
 
-# TODO test tmux
 # TODO finish off logger
 
 # script name and version
@@ -22,7 +20,7 @@ readonly defaultConfirm='yes'
 readonly defaultNumBlocks="20000"
 readonly defaultDestructiveTest='no'
 readonly defaultDebug='no'
-readonly defaultTestPattern='0xaa 0x55 0xff 0x00'
+readonly defaultTestPattern='0x00'
 readonly defaultLogPath='/tmp'
 
 confirm="${defaultConfirm}"
@@ -93,7 +91,7 @@ function check_prereqs() {
 
 	echo "[INFO] Checking we have all required tooling before running..."
 
-	tools="smartctl tmux badblocks blockdev grep sed"
+	tools="smartctl badblocks blockdev grep sed"
 	for i in ${tools}; do
 		if ! command -v "${i}" > /dev/null 2>&1; then
 			echo "[CRIT] Required tool '${i}' is missing, please install and re-run the script, exiting..."
@@ -174,13 +172,25 @@ function read_serial_from_in_progress_filepath() {
 }
 
 function add_serial_to_in_progress_filepath() {
+    if [[ -z "${disk_serial}" ]]; then
+        echo "[ERROR] disk_serial is empty or undefined. Cannot add serial to in-progress file."
+        return 1
+    fi
+
 	echo "${disk_serial}" >> "${in_progress_filepath}"
 }
 
 function remove_serial_from_in_progress_filepath() {
-	sed -i "/${disk_serial}/d" "${in_progress_filepath}"
-	# remove any empty lines
-	sed -i '/^$/d' "${in_progress_filepath}"
+    if [[ -z "${disk_serial}" ]]; then
+        echo "[ERROR] disk_serial is empty or undefined. Cannot remove serial from in-progress file."
+        return 1
+    fi
+
+    # Remove the line containing the disk serial
+    sed -i "/${disk_serial}/d" "${in_progress_filepath}"
+
+    # Remove any empty lines
+    sed -i '/^$/d' "${in_progress_filepath}"
 }
 
 function check_smart_attributes() {
@@ -219,42 +229,40 @@ function run_badblocks_test() {
 
 	for disk in ${disk_name}; do
 		if [[ "${destructive_test}" == "yes" ]]; then
-			if [[ "${confirm}" == "yes" ]]; then
-				echo -n "[INFO] Please confirm you wish to perform a DESTRUCTIVE test on drive '/dev/${disk}' by typing 'PROCEED': "
-				read -r destructive_test_confirm
-
-				if [[ "${destructive_test_confirm}" != "PROCEED" ]]; then
-					echo "[INFO] Bad user response '${destructive_test_confirm}', exiting script..."
-					exit 1
-				fi
-			fi
 			badblocks_destructive_test_flag="-w"
 		else
 			badblocks_destructive_test_flag=""
 		fi
 
+		if [[ "${confirm}" == "yes" ]]; then
+			echo -n "[INFO] Please confirm you wish to perform a badblocks test on drive '/dev/${disk}' by typing 'YES': "
+			read -r confirm_drive
+
+			if [[ "${confirm_drive}" != "YES" ]]; then
+				echo "[INFO] Bad user response '${confirm_drive}', exiting script..."
+				exit 1
+			fi
+		fi
+
 		# get block size of disk
 		block_size=$(blockdev --getbsz "/dev/${disk}")
 
-		echo "[INFO] Running Badblocks for disk '/dev/${disk}', this may take several days depending on the test pattern specified..."
+		echo "[INFO] Running badblocks for disk '/dev/${disk}', this may take several days depending on the test pattern specified..."
 		add_serial_to_in_progress_filepath
-		# -d = Run daemonised in the background.
-		# -s = Create tmux named session, named after the device name
-		tmux new-session -d -s "/dev/${disk}" \
-			# -b = Size of blocks in bytes.
-			# -c = Number of blocks which are tested at a time.
-			# -t = Test pattern to use.
-			# -s = Show the progress of the scan.
-			# -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
-			# -v = Verbose mode.
-			badblocks \
-				-s \
-				-v \
-				-b "${block_size}" \
-				-c "${num_blocks}" \
-				-t "${test_pattern}" \
-				"${badblocks_destructive_test_flag}" \
-				"/dev/${disk}"
+		# -b = Size of blocks in bytes.
+		# -c = Number of blocks which are tested at a time.
+		# -t = Test pattern to use.
+		# -s = Show the progress of the scan.
+		# -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
+		# -v = Verbose mode.
+		badblocks \
+			-s \
+			-v \
+			-b "${block_size}" \
+			-c "${num_blocks}" \
+			-t "${test_pattern}" \
+			"${badblocks_destructive_test_flag}" \
+			"/dev/${disk}"
 		remove_serial_from_in_progress_filepath
 		if ! check_smart_attributes "${disk}"; then
 			exit 1
@@ -317,7 +325,7 @@ Where:
 		Defaults to '${defaultConfirm}'.
 
 	-nb or --num-blocks <integer>
-		Define the number of blocks to test at a time for Badblocks.
+		Define the number of blocks to test at a time for Badblocks - See Note ****
 		Defaults to '${defaultNumBlocks}'.
 
 	-dt or --destructive-test <yes|no>
@@ -351,6 +359,9 @@ Examples:
 	Test drive sdX with confirmation prompt, running a destructive test for all test patterns:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-path '/tmp' --debug 'yes'
 
+	Test drive sdX with confirmation prompt, running a destructive test with notify and specifying number of blocks (recommended):
+		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic' --log-path '/tmp' --debug 'yes'
+
 	Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns and sending push notifications to ntfy:
 		./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic' --log-path '/tmp' --debug 'yes'
 
@@ -363,7 +374,8 @@ Examples:
 Notes:
 	*  Non-destructive tests will result in longer process times.
 	** If -dt or --destructive-test is set to 'yes' then only a single pattern can be specified.
-	*** Each Badblocks pattern will take approximately 2 days to complete.
+	*** Each badblocks pattern will take approximately 2 days to complete.
+	**** Ensure to specify the number of blocks for optimal performance.
 
 ENDHELP
 }

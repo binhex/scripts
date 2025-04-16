@@ -56,14 +56,14 @@ function check_prereqs() {
 		exit 1
 	fi
 
-	if [[ "${action}" != 'test' && "${action}" != 'list' ]]; then
-		echo "[WARN] Action defined via -a or --action does not match 'test' or 'list', displaying help..."
+	if [[ "${action}" != 'test' && "${action}" != 'list' && "${action}" != 'check-smart' ]]; then
+		echo "[WARN] Action defined via -a or --action does not match 'test', 'list', or 'check-smart', displaying help..."
 		echo ""
 		show_help
 		exit 2
 	fi
 
-	if [[ "${action}" == 'test' ]]; then
+	if [[ "${action}" == 'test' || "${action}" == 'check-smart' ]]; then
 		if [[ -z "${drive_name}" ]]; then
 			echo "[WARN] Drive name not defined via parameter -dn or --drive-name, displaying help..."
 			echo ""
@@ -276,9 +276,7 @@ function run_badblocks_test() {
 		echo "[INFO] badblocks finished for disk '/dev/${disk}' at '$(date)'."
 
 		remove_serial_from_in_progress_filepath
-		if ! check_smart_attributes "${disk}"; then
-			exit 1
-		fi
+		check_smart_attributes "${disk}"
 	done
 }
 
@@ -290,26 +288,29 @@ function ntfy() {
 
 function main() {
 
-	check_prereqs
+	echo "Script '${ourScriptName}' started at '$(date)'"
 
-	if [[ "${action}" == 'list' ]]; then
-		find_all_disks_not_in_array
-	fi
+    check_prereqs
 
-	if [[ "${action}" == 'test' ]]; then
-		run_badblocks_test "${drive_name}"
-	fi
+    if [[ "${action}" == 'list' ]]; then
+        find_all_disks_not_in_array
+    fi
 
-	if [[ "${notify_service}" == 'ntfy' ]]; then
-		ntfy "Script '${ourScriptName}' has finished at '$(date)'" "${ntfy_topic}"
-	fi
+    if [[ "${action}" == 'test' ]]; then
+        run_badblocks_test "${drive_name}"
+    fi
 
+    if [[ "${action}" == 'check-smart' ]]; then
+        check_smart_attributes "${drive_name}"
+    fi
+
+	echo "Script '${ourScriptName}' has finished at '$(date)'"
 }
 
 function show_help() {
 	cat <<ENDHELP
 Description:
-	A simple bash script to test disks using Badblocks prior to including in an UNRAID array.
+	A simple bash script to test disks using badblocks prior to including in an UNRAID array.
 	${ourScriptName} ${ourScriptVersion} - Created by binhex.
 
 Syntax:
@@ -319,8 +320,8 @@ Where:
 	-h or --help
 		Displays this text.
 
-	-a or --action <list|test>
-		Define whether to list drives for testing or to run the test.
+	-a or --action <list|test|check-smart>
+		Define whether to list drives for testing, run badblocks, or check smart attributes.
 		No default.
 
 	-dn or --drive-name <drive name to test>
@@ -360,6 +361,9 @@ Where:
 		Defaults to '${defaultDebug}'.
 
 Examples:
+    Check S.M.A.R.T. attributes for a specific drive:
+        ./${ourScriptName} --action 'check-smart' --drive-name 'sdX'
+
 	List drives not in the UNRAID array, candidates for testing:
 		./${ourScriptName} --action 'list' --log-path '/tmp' --debug 'yes'
 

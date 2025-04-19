@@ -9,20 +9,14 @@ readonly ourScriptVersion="v2.0.0"
 readonly defaultConfirm='yes'
 readonly defaultNumBlocks="20000"
 readonly defaultDestructiveTest='no'
-readonly defaultDebug='no'
 readonly defaultTestPattern='0x00'
 readonly defaultLogLevel='info'
 
-confirm="${defaultConfirm}"
-num_blocks="${defaultNumBlocks}"
-destructive_test="${defaultDestructiveTest}"
-debug="${defaultDebug}"
-test_pattern="${defaultTestPattern}"
-log_level="${defaultLogLevel}"
-
-# construct required filepaths
-unraid_super_filepath='/boot/config/super.dat'
-in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+CONFIRM="${defaultConfirm}"
+NUM_BLOCKS="${defaultNumBlocks}"
+DESTRUCTIVE_TEST="${defaultDestructiveTest}"
+TEST_PATTERN="${defaultTestPattern}"
+LOG_LEVEL="${defaultLogLevel}"
 
 # Logger function
 function logger() {
@@ -35,12 +29,13 @@ function logger() {
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
     # Map log levels to numeric values
+    local log_levels
     declare -A log_levels
     log_levels=(["debug"]=0 ["info"]=1 ["warn"]=2 ["error"]=3 ["critical"]=4)
 
     # Determine the numeric value of the message log level and the configured log level
     local message_log_level_num=${log_levels[${message_log_level}]}
-    local configured_log_level_num=${log_levels[${log_level}]}
+    local configured_log_level_num=${log_levels[${LOG_LEVEL}]}
 
     # Only log messages that match or exceed the configured log level
     if [[ ${message_log_level_num} -ge ${configured_log_level_num} ]]; then
@@ -52,30 +47,30 @@ function check_prereqs() {
 
     logger info "Checking we have all required parameters before running..."
 
-    if [[ -z "${action}" ]]; then
+    if [[ -z "${ACTION}" ]]; then
         logger warn "Action not defined via parameter -a or --action, displaying help..."
         echo ""
         show_help
         exit 1
     fi
 
-    if [[ "${action}" != 'test' && "${action}" != 'list' && "${action}" != 'check-smart' ]]; then
+    if [[ "${ACTION}" != 'test' && "${ACTION}" != 'list' && "${ACTION}" != 'check-smart' ]]; then
         logger warn "Action defined via -a or --action does not match 'test', 'list', or 'check-smart', displaying help..."
         echo ""
         show_help
         exit 2
     fi
 
-    if [[ "${action}" == 'test' || "${action}" == 'check-smart' ]]; then
-        if [[ -z "${drive_name}" ]]; then
+    if [[ "${ACTION}" == 'test' || "${ACTION}" == 'check-smart' ]]; then
+        if [[ -z "${DRIVE_NAME}" ]]; then
             logger warn "Drive name not defined via parameter -dn or --drive-name, displaying help..."
             echo ""
             show_help
             exit 3
         fi
 
-        if [[ "${destructive_test}" == 'no' ]]; then
-            if [[ "${#test_pattern}" -gt 4 ]]; then
+        if [[ "${DESTRUCTIVE_TEST}" == 'no' ]]; then
+            if [[ "${#TEST_PATTERN}" -gt 4 ]]; then
                 logger warn "Non destructive tests only supports a single test pattern via -tp or --test-pattern, displaying help..."
                 echo ""
                 show_help
@@ -85,7 +80,7 @@ function check_prereqs() {
 
     fi
 
-    if [[ "${notify_service}" == 'ntfy' && -z "${ntfy_topic}" ]]; then
+    if [[ "${NOTIFY_SERVICE}" == 'ntfy' && -z "${NTFY_TOPIC}" ]]; then
         logger warn "Notify Service defined as 'ntfy', but no topic spcified via -nt or --ntfy-topic, displaying help..."
         echo ""
         show_help
@@ -107,9 +102,13 @@ function check_prereqs() {
 }
 
 function get_disk_name_and_serial() {
+
+    local disk_name_and_serial_filtered_disks_list
+
     # get name e.g. sda, sdb,... and serial number for each disk, filtering out loop*, md*, and nvme devices
     # use comma to separate name and serial number and a single space to separate each disk
     disk_name_and_serial_filtered_disks_list=$(lsblk --nodeps -no name,serial | tr -s '[:blank:]' ',' | grep -v '^loop*' | grep -v '^nvme*' | grep -v '^md*' | xargs)
+    echo "${disk_name_and_serial_filtered_disks_list}"
 }
 
 function filter_disks_not_in_scope() {
@@ -138,9 +137,11 @@ function find_all_disks_not_in_array() {
     local disks_in_array_array=()
     local disks_not_in_scope_array=()
     local disks_not_in_array_array=()
+    local disk_name_and_serial_filtered_disks_list
+    local unraid_super_filepath='/boot/config/super.dat'
 
-    logger info "Gathering potential candidates for processing, please wait whilst all disks are spun up..."
-    get_disk_name_and_serial
+    disk_name_and_serial_filtered_disks_list=$(get_disk_name_and_serial)
+
     for i in ${disk_name_and_serial_filtered_disks_list}; do
         disk_name=$(echo "${i}" | grep -P -o -m 1 '^[^,]+')
         disk_serial=$(echo "${i}" | grep -P -o -m 1 '[^,]+$')
@@ -156,27 +157,18 @@ function find_all_disks_not_in_array() {
         fi
     done
     if [[ -z "${disks_not_in_array_array[*]}" ]]; then
-        logger info "No candidates for processing found, exiting..."
-        return 1
+        echo "()"
     fi
-    if [[ "${debug}" == 'yes' ]]; then
-        logger debug "Disks in the array (do not check) are '${disks_in_array_array[*]}'"
-        logger debug "Disks NOT in scope (do not check) are '${disks_not_in_scope_array[*]}'"
-    fi
-    logger info "Disks NOT in the array (candidates for testing) are '${disks_not_in_array_array[*]}'"
 
-    for disk_entry in "${disks_not_in_array_array[@]}"; do
-        # Extract the device name (everything before the comma)
-        device_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
+    echo "${disks_not_in_array_array[*]}"
 
-        # Run smartctl -i on the device
-        logger info "Displaying S.M.A.R.T. information for device '/dev/${device_name}'..."
-        smartctl -i "/dev/${device_name}"
-    done
-    return 0
 }
 
 function read_serial_from_in_progress_filepath() {
+
+    # construct required filepaths
+    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+
     # filter out any disks being already processed
     if [ -f "${in_progress_filepath}" ]; then
         if grep -P -o -q -m 1 "${disk_serial}" < "${in_progress_filepath}"; then
@@ -187,6 +179,12 @@ function read_serial_from_in_progress_filepath() {
 }
 
 function add_serial_to_in_progress_filepath() {
+
+    local disk_serial="${1}"
+
+    # construct required filepaths
+    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+
     if [[ -z "${disk_serial}" ]]; then
         logger warn "disk_serial is empty or undefined. Cannot add serial to in-progress file."
         return 1
@@ -196,10 +194,16 @@ function add_serial_to_in_progress_filepath() {
 }
 
 function remove_serial_from_in_progress_filepath() {
+
+    local disk_serial="${1}"
+
     if [[ -z "${disk_serial}" ]]; then
         logger warn "disk_serial is empty or undefined. Cannot remove serial from in-progress file."
         return 1
     fi
+
+    # construct required filepaths
+    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
 
     # Remove the line containing the disk serial
     sed -i "/${disk_serial}/d" "${in_progress_filepath}"
@@ -212,27 +216,28 @@ function check_smart_attributes() {
 
     local disk="${1}"
     local smart_attributes_monitor_list="UDMA_CRC_Error_Count Reallocated_Event_Count Current_Pending_Sector"
+    local smart_attribute_value
 
     for i in ${smart_attributes_monitor_list}; do
         smart_attribute_value=$(smartctl -a "/dev/${disk}" | grep "${i}" | rev | cut -d ' ' -f1)
         if [[ "${smart_attribute_value}" != 0 ]]; then
             if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
-                if [[ "${notify_service}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${ntfy_topic}"
+                if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
                 fi
             else
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
-                if [[ "${notify_service}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${ntfy_topic}"
+                if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
                 fi
                 return 1
             fi
         fi
     done
     logger info "S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
-    if [[ "${notify_service}" == 'ntfy' ]]; then
-        ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${ntfy_topic}"
+    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
     fi
     return 0
 }
@@ -241,83 +246,107 @@ function check_smart_attributes() {
 function run_badblocks_test() {
 
     local disk_name="${1}"
+    shift
+    local disk_serial="${1}"
 
-    for disk in ${disk_name}; do
-        if [[ "${destructive_test}" == "yes" ]]; then
-            badblocks_destructive_test_flag="-w"
-        else
-            badblocks_destructive_test_flag=""
+    local block_size
+    local badblocks_destructive_test_flag
+    local confirm_drive
+
+    if [[ "${DESTRUCTIVE_TEST}" == "yes" ]]; then
+        badblocks_destructive_test_flag="-w"
+    else
+        badblocks_destructive_test_flag=""
+    fi
+
+    if [[ "${CONFIRM}" == "yes" ]]; then
+        logger info "Please confirm you wish to perform a badblocks test on drive '/dev/${disk_name}' by typing 'YES': "
+        read -r confirm_drive
+
+        if [[ "${confirm_drive}" != "YES" ]]; then
+            logger info "Bad user response '${confirm_drive}', exiting script..."
+            exit 1
         fi
+    fi
 
-        if [[ "${confirm}" == "yes" ]]; then
-            logger info "Please confirm you wish to perform a badblocks test on drive '/dev/${disk}' by typing 'YES': "
-            read -r confirm_drive
+    # get block size of disk
+    block_size=$(blockdev --getbsz "/dev/${disk_name}")
 
-            if [[ "${confirm_drive}" != "YES" ]]; then
-                logger info "Bad user response '${confirm_drive}', exiting script..."
-                exit 1
-            fi
-        fi
+    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
+    fi
 
-        # get block size of disk
-        block_size=$(blockdev --getbsz "/dev/${disk}")
+    logger info "Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified..."
 
-        if [[ "${notify_service}" == 'ntfy' ]]; then
-            ntfy "[INFO] Running badblocks for disk '/dev/${disk}' started at '$(date)', this may take several days depending on the test pattern specified"
-        fi
+    add_serial_to_in_progress_filepath "${disk_serial}"
+    # -b = Size of blocks in bytes.
+    # -c = Number of blocks which are tested at a time.
+    # -t = Test pattern to use.
+    # -s = Show the progress of the scan.
+    # -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
+    # -v = Verbose mode.
+    badblocks \
+        -s \
+        -v \
+        -b "${block_size}" \
+        -c "${NUM_BLOCKS}" \
+        -t "${TEST_PATTERN}" \
+        "${badblocks_destructive_test_flag}" \
+        "/dev/${disk_name}"
 
-        logger info "Running badblocks for disk '/dev/${disk}' started at '$(date)', this may take several days depending on the test pattern specified..."
+    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
+    fi
 
-        add_serial_to_in_progress_filepath
-        # -b = Size of blocks in bytes.
-        # -c = Number of blocks which are tested at a time.
-        # -t = Test pattern to use.
-        # -s = Show the progress of the scan.
-        # -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
-        # -v = Verbose mode.
-        badblocks \
-            -s \
-            -v \
-            -b "${block_size}" \
-            -c "${num_blocks}" \
-            -t "${test_pattern}" \
-            "${badblocks_destructive_test_flag}" \
-            "/dev/${disk}"
+    logger info "badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
 
-        if [[ "${notify_service}" == 'ntfy' ]]; then
-            ntfy "[INFO] badblocks finished for disk '/dev/${disk}' at '$(date)'."
-        fi
+    remove_serial_from_in_progress_filepath "${disk_serial}"
+    check_smart_attributes "${disk_name}"
 
-        logger info "badblocks finished for disk '/dev/${disk}' at '$(date)'."
-
-        remove_serial_from_in_progress_filepath
-        check_smart_attributes "${disk}"
-    done
 }
 
 function ntfy() {
 
     local message="${1}"
-    curl -s -d "${message}" "ntfy.sh/${ntfy_topic}" &> /dev/null
+    curl -s -d "${message}" "ntfy.sh/${NTFY_TOPIC}" &> /dev/null
 }
 
 function main() {
+
+    local disks_not_in_array_array
+    local disk_name
+    local disk_serial
+    local disk_entry
 
     logger info "Script '${ourScriptName}' started at '$(date)'"
 
     check_prereqs
 
-    if [[ "${action}" == 'list' ]]; then
-        find_all_disks_not_in_array
-    fi
+    disks_not_in_array_array=$(find_all_disks_not_in_array)
 
-    if [[ "${action}" == 'test' ]]; then
-        run_badblocks_test "${drive_name}"
-    fi
+    for disk_entry in "${disks_not_in_array_array[@]}"; do
 
-    if [[ "${action}" == 'check-smart' ]]; then
-        check_smart_attributes "${drive_name}"
-    fi
+        disk_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
+        disk_serial=$(echo "${disk_entry}" | cut -d ',' -f 2)
+
+        if [[ "${ACTION}" == 'list' ]]; then
+            logger info "Disks NOT in the array (candidates for testing) are '${disk_name}'"
+
+            # Run smartctl -i on the device
+            logger info "Displaying S.M.A.R.T. information for device '/dev/${disk_name}'..."
+            smartctl -i "/dev/${disk_name}"
+
+        fi
+
+        if [[ "${ACTION}" == 'test' ]]; then
+                run_badblocks_test "${disk_name}" "${disk_serial}"
+        fi
+
+        if [[ "${ACTION}" == 'check-smart' ]]; then
+            check_smart_attributes "${disk_name}"
+        fi
+
+    done
 
     logger info "Script '${ourScriptName}' has finished at '$(date)'"
 }
@@ -367,10 +396,6 @@ Where:
         Define the ntfy topic name.
         No default.
 
-    -lp or --log-path <absolute path>
-        Define the absolute path to store the logs.
-        Defaults to '${defaultLogPath}'.
-
     --ll or --log-level <debug|info|warn|error|critical>
         Define the log level for the script's output.
         Defaults to '${defaultLogLevel}'.
@@ -411,39 +436,39 @@ do
     case "$1"
     in
         -a|--action)
-            action=$2
+            ACTION=$2
             shift
             ;;
         -dn|--drive-name)
-            drive_name=$2
+            DRIVE_NAME=$2
             shift
             ;;
         -c|--confirm)
-            confirm=$2
+            CONFIRM=$2
             shift
             ;;
         -bs| --num-blocks)
-            num_blocks=$2
+            NUM_BLOCKS=$2
             shift
             ;;
         -dt| --destructive-test)
-            destructive_test=$2
+            DESTRUCTIVE_TEST=$2
             shift
             ;;
         -tp| --test-pattern)
-            test_pattern=$2
+            TEST_PATTERN=$2
             shift
             ;;
         -ns| --notify-service)
-            notify_service=$2
+            NOTIFY_SERVICE=$2
             shift
             ;;
         -nt| --ntfy-topic)
-            ntfy_topic=$2
+            NTFY_TOPIC=$2
             shift
             ;;
         -ll|--log-level)
-            log_level=$2
+            LOG_LEVEL=$2
             shift
             ;;
         -h|--help)

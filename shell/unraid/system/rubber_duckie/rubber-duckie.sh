@@ -225,12 +225,12 @@ function check_smart_attributes() {
             if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
                 if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
+                    ntfy "[FAILED] [${ourFriendlyScriptName}] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
                 fi
             else
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
                 if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
+                    ntfy "[FAILED] [${ourFriendlyScriptName}] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
                 fi
                 return 1
             fi
@@ -238,7 +238,7 @@ function check_smart_attributes() {
     done
     logger info "S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
+        ntfy "[PASSED] [${ourFriendlyScriptName}] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
     fi
     return 0
 }
@@ -279,7 +279,7 @@ function run_badblocks_test() {
     fi
 
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
+        ntfy "[INFO] [${ourFriendlyScriptName}] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
     fi
 
     logger info "Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified..."
@@ -309,7 +309,7 @@ function run_badblocks_test() {
                     0|25|50|75|100)
                         logger info "Progress: ${progress}% completed for disk '/dev/${disk_name}'"
                         if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                            ntfy "[INFO] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
+                            ntfy "[INFO] [${ourFriendlyScriptName}] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
                         fi
                         ;;
                 esac
@@ -317,7 +317,7 @@ function run_badblocks_test() {
         done
 
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
+        ntfy "[INFO] [${ourFriendlyScriptName}] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
     fi
 
     logger info "badblocks finished for disk '/dev/${disk_name}' at '$(date)'."

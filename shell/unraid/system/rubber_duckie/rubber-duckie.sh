@@ -20,6 +20,7 @@ LOG_LEVEL="${defaultLogLevel}"
 
 # Logger function
 function logger() {
+
     local message_log_level=$1
     shift
     local log_message="$*"
@@ -272,6 +273,11 @@ function run_badblocks_test() {
     # get block size of disk
     block_size=$(blockdev --getbsz "/dev/${disk_name}")
 
+    if [[ -z "${block_size}" ]]; then
+        logger error "Failed to get block size for disk '/dev/${disk_name}', exiting script..."
+        exit 1
+    fi
+
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
         ntfy "[INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
     fi
@@ -279,6 +285,9 @@ function run_badblocks_test() {
     logger info "Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified..."
 
     add_serial_to_in_progress_filepath "${disk_serial}"
+
+    # run badblocks and capture its output
+    #
     # -b = Size of blocks in bytes.
     # -c = Number of blocks which are tested at a time.
     # -t = Test pattern to use.
@@ -292,7 +301,20 @@ function run_badblocks_test() {
         -c "${NUM_BLOCKS}" \
         -t "${TEST_PATTERN}" \
         "${badblocks_destructive_test_flag}" \
-        "/dev/${disk_name}"
+        "/dev/${disk_name}" 2>&1 | while read -r line; do
+            # Extract the percentage from the output
+            if [[ "${line}" =~ ([0-9]+\.[0-9]+)% ]]; then
+                progress=${BASH_REMATCH[1]%%.*}  # Get the integer part of the percentage
+                case "${progress}" in
+                    0|25|50|75|100)
+                        logger info "Progress: ${progress}% completed for disk '/dev/${disk_name}'"
+                        if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+                            ntfy "[INFO] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
+                        fi
+                        ;;
+                esac
+            fi
+        done
 
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
         ntfy "[INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
@@ -301,7 +323,6 @@ function run_badblocks_test() {
     logger info "badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
 
     remove_serial_from_in_progress_filepath "${disk_serial}"
-    check_smart_attributes "${disk_name}"
 
 }
 
@@ -329,7 +350,7 @@ function main() {
         disk_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
         disk_serial=$(echo "${disk_entry}" | cut -d ',' -f 2)
 
-        if [[ "${ACTION}" == 'list' ]]; then
+        if [[ "${ACTION}" == 'list' || "${ACTION}" == 'test' ]]; then
             logger info "Disks NOT in the array (candidates for testing) are '${disk_name}'"
 
             # Run smartctl -i on the device
@@ -342,7 +363,7 @@ function main() {
                 run_badblocks_test "${disk_name}" "${disk_serial}"
         fi
 
-        if [[ "${ACTION}" == 'check-smart' ]]; then
+        if [[ "${ACTION}" == 'check-smart' || "${ACTION}" == 'test' ]]; then
             check_smart_attributes "${disk_name}"
         fi
 
@@ -405,22 +426,22 @@ Examples:
         ./${ourScriptName} --action 'check-smart' --drive-name 'sdX'
 
     List drives not in the UNRAID array, candidates for testing:
-        ./${ourScriptName} --action 'list' --log-level 'info'
+        ./${ourScriptName} --action 'list'
 
-    Test drive sdX with confirmation prompt, running a destructive test for all test patterns:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-level 'info'
+    Test drive sdX with confirmation prompt, running a destructive test for all test patterns with debug logging:
+        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-level 'debug'
 
     Test drive sdX with confirmation prompt, running a destructive test with notify and specifying number of blocks (recommended):
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic' --log-level 'info'
+        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic'
 
     Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns and sending push notifications to ntfy:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic' --log-level 'info'
+        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic'
 
     Test drive sdX for a non-destructive test with test pattern 0xff:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff' --log-level 'info'
+        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff'
 
     Test drive sdX with no confirmation prompt, number of blocks to process at a time set to 10000, running a destructive test for specific test patterns:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00' --log-level 'info'
+        ./${ourScriptName} --action 'test' --drive-name 'sdX' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00'
 
 Notes:
     *  Non-destructive tests will result in longer process times.

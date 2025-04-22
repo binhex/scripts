@@ -74,10 +74,11 @@ if [[ ! -f "/config/perms.txt" ]]; then
 	exit_code_chmod=$?
 	set -e
 
-	if (( ${exit_code_chown} != 0 || ${exit_code_chmod} != 0 )); then
+	if (( exit_code_chown != 0 || exit_code_chmod != 0 )); then
 		echo "[warn] Unable to chown/chmod '/config', assuming SMB mountpoint"
 	fi
 
+	echo "[info] Permissions reset on '/config'" | ts '%Y-%m-%d %H:%M:%.S'
 	echo "This file prevents permissions from being applied/re-applied to '/config', if you want to reset permissions then please delete this file and restart the container." > /config/perms.txt
 
 else

@@ -18,6 +18,8 @@ DESTRUCTIVE_TEST="${defaultDestructiveTest}"
 TEST_PATTERN="${defaultTestPattern}"
 LOG_LEVEL="${defaultLogLevel}"
 
+# TODO check if percentage notification works
+
 # Logger function
 function logger() {
 
@@ -62,7 +64,7 @@ function check_prereqs() {
         exit 2
     fi
 
-    if [[ "${ACTION}" == 'test' || "${ACTION}" == 'check-smart' ]]; then
+    if [[ "${ACTION}" == 'check-smart' ]]; then
         if [[ -z "${DRIVE_NAME}" ]]; then
             logger warn "Drive name not defined via parameter -dn or --drive-name, displaying help..."
             echo ""
@@ -158,7 +160,7 @@ function find_all_disks_not_in_array() {
         fi
     done
     if [[ -z "${disks_not_in_array_array[*]}" ]]; then
-        echo "()"
+        echo ""
     fi
 
     echo "${disks_not_in_array_array[*]}"
@@ -216,21 +218,29 @@ function remove_serial_from_in_progress_filepath() {
 function check_smart_attributes() {
 
     local disk="${1}"
-    local smart_attributes_monitor_list="UDMA_CRC_Error_Count Reallocated_Event_Count Current_Pending_Sector"
+    local smart_attributes_monitor_list="UDMA_CRC_Error_Count Reallocated_Event_Count Reallocated_Sector_Ct Current_Pending_Sector"
     local smart_attribute_value
 
     for i in ${smart_attributes_monitor_list}; do
         smart_attribute_value=$(smartctl -a "/dev/${disk}" | grep "${i}" | rev | cut -d ' ' -f1)
+
+        if [[ -z "${smart_attribute_value}" && ( "${i}" == 'Reallocated_Event_Count' || "${i}" == 'Reallocated_Sector_Ct' ) ]]; then
+            logger warn "Failed to get S.M.A.R.T. attribute '${i}' for disk '/dev/${disk}', skipping check..."
+            continue
+        else
+            logger error "Failed to get S.M.A.R.T. attribute '${i}' for disk '/dev/${disk}', exiting script..."
+            exit 1
+        fi
         if [[ "${smart_attribute_value}" != 0 ]]; then
             if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
                 if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[${ourFriendlyScriptName}] [FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
+                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
                 fi
             else
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
                 if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[${ourFriendlyScriptName}] [FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
+                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
                 fi
                 return 1
             fi
@@ -238,7 +248,7 @@ function check_smart_attributes() {
     done
     logger info "S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[${ourFriendlyScriptName}] [PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
+        ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
     fi
     return 0
 }
@@ -250,9 +260,12 @@ function run_badblocks_test() {
     shift
     local disk_serial="${1}"
 
+    local temp_file
     local block_size
     local badblocks_destructive_test_flag
     local confirm_drive
+
+    temp_file=$(mktemp)
 
     if [[ "${DESTRUCTIVE_TEST}" == "yes" ]]; then
         badblocks_destructive_test_flag="-w"
@@ -261,7 +274,7 @@ function run_badblocks_test() {
     fi
 
     if [[ "${CONFIRM}" == "yes" ]]; then
-        logger info "Please confirm you wish to perform a badblocks test on drive '/dev/${disk_name}' by typing 'YES': "
+        echo -n "Please confirm you wish to perform a badblocks test on drive '/dev/${disk_name}' by typing 'YES': "
         read -r confirm_drive
 
         if [[ "${confirm_drive}" != "YES" ]]; then
@@ -279,7 +292,7 @@ function run_badblocks_test() {
     fi
 
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[${ourFriendlyScriptName}] [INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
+        ntfy "[INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
     fi
 
     logger info "Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified..."
@@ -301,7 +314,15 @@ function run_badblocks_test() {
         -c "${NUM_BLOCKS}" \
         -t "${TEST_PATTERN}" \
         "${badblocks_destructive_test_flag}" \
-        "/dev/${disk_name}" 2>&1 | while read -r line; do
+        "/dev/${disk_name}" 2>&1 | tee "${temp_file}"
+        while read -r line; do
+            echo "${line}"
+            # Check for the specific error message
+            if [[ "${line}" == *"badblocks: invalid last block"* ]]; then
+                logger error "badblocks encountered an error: 'invalid last block', possible faulty drive, displaying S.M.A.R.T. before exiting script..."
+                smartctl -a "/dev/${disk_name}"
+                exit 1
+            fi
             # Extract the percentage from the output
             if [[ "${line}" =~ ([0-9]+\.[0-9]+)% ]]; then
                 progress=${BASH_REMATCH[1]%%.*}  # Get the integer part of the percentage
@@ -309,15 +330,16 @@ function run_badblocks_test() {
                     0|25|50|75|100)
                         logger info "Progress: ${progress}% completed for disk '/dev/${disk_name}'"
                         if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                            ntfy "[${ourFriendlyScriptName}] [INFO] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
+                            ntfy "[INFO] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
                         fi
                         ;;
                 esac
             fi
-        done
+        done < "${temp_file}"
+        rm -f "${temp_file}"
 
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[${ourFriendlyScriptName}] [INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
+        ntfy "[INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
     fi
 
     logger info "badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
@@ -329,7 +351,7 @@ function run_badblocks_test() {
 function ntfy() {
 
     local message="${1}"
-    curl -s -d "${message}" "ntfy.sh/${NTFY_TOPIC}" &> /dev/null
+    curl -s -d "[${ourFriendlyScriptName}] ${message}" "ntfy.sh/${NTFY_TOPIC}" &> /dev/null
 }
 
 function main() {
@@ -344,6 +366,11 @@ function main() {
     check_prereqs
 
     disks_not_in_array_array=$(find_all_disks_not_in_array)
+
+    if [[ -z "${disks_not_in_array_array}" ]]; then
+        logger info "No disks found that are not in the array, exiting script..."
+        exit 0
+    fi
 
     for disk_entry in "${disks_not_in_array_array[@]}"; do
 

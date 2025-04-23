@@ -42,7 +42,7 @@ function logger() {
 
     # Only log messages that match or exceed the configured log level
     if [[ ${message_log_level_num} -ge ${configured_log_level_num} ]]; then
-        echo "[$timestamp] [${message_log_level^^}] $log_message"
+        echo "[$timestamp] [${message_log_level,,}] $log_message"
     fi
 }
 
@@ -137,11 +137,12 @@ function filter_disks_not_in_scope() {
 
 function find_all_disks_not_in_array() {
 
-    local disks_in_array_array=()
     local disks_not_in_scope_array=()
-    local disks_not_in_array_array=()
     local disk_name_and_serial_filtered_disks_list
     local unraid_super_filepath='/boot/config/super.dat'
+    DISKS_NOT_IN_ARRAY_ARRAY=()
+
+    logger info "Identifying all disks not in the array, this may take a while whilst all drives are spun up and interrogated..."
 
     disk_name_and_serial_filtered_disks_list=$(get_disk_name_and_serial)
 
@@ -153,17 +154,17 @@ function find_all_disks_not_in_array() {
             continue
         fi
         if grep -P -o -q -a -m 1 "${disk_serial}" < "${unraid_super_filepath}"; then
-            disks_in_array_array+=("${i}")
             continue
         else
-            disks_not_in_array_array+=("${i}")
+            DISKS_NOT_IN_ARRAY_ARRAY+=("${i}")
         fi
     done
-    if [[ -z "${disks_not_in_array_array[*]}" ]]; then
-        echo ""
+    if [[ -z "${DISKS_NOT_IN_ARRAY_ARRAY[*]}" ]]; then
+        logger warn "No disks not in the array found, exiting script..."
+        exit 1
     fi
 
-    echo "${disks_not_in_array_array[*]}"
+    return 0
 
 }
 
@@ -222,20 +223,21 @@ function check_smart_attributes() {
     local smart_attribute_value
 
     for i in ${smart_attributes_monitor_list}; do
+        # Get the SMART attribute value
         smart_attribute_value=$(smartctl -a "/dev/${disk}" | grep "${i}" | rev | cut -d ' ' -f1)
 
-        if [[ -z "${smart_attribute_value}" && ( "${i}" == 'Reallocated_Event_Count' || "${i}" == 'Reallocated_Sector_Ct' ) ]]; then
-            logger warn "Failed to get S.M.A.R.T. attribute '${i}' for disk '/dev/${disk}', skipping check..."
+        # Skip if the attribute is not found
+        if [[ -z "${smart_attribute_value}" ]]; then
+            logger warn "S.M.A.R.T. attribute '${i}' not found for disk '/dev/${disk}', skipping..."
             continue
-        else
-            logger error "Failed to get S.M.A.R.T. attribute '${i}' for disk '/dev/${disk}', exiting script..."
-            exit 1
         fi
+
+        # Check if the SMART attribute value is non-zero
         if [[ "${smart_attribute_value}" != 0 ]]; then
             if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
                 if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
+                    ntfy "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
                 fi
             else
                 logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
@@ -246,13 +248,13 @@ function check_smart_attributes() {
             fi
         fi
     done
-    logger info "S.M.A.R.T. attribute for disk '/dev/${disk}' all passed"
+
+    logger info "S.M.A.R.T. attributes for disk '/dev/${disk}' all passed"
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[PASSED] S.M.A.R.T. attribute for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
+        ntfy "[PASSED] S.M.A.R.T. attributes for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
     fi
     return 0
 }
-
 
 function run_badblocks_test() {
 
@@ -356,7 +358,7 @@ function ntfy() {
 
 function main() {
 
-    local disks_not_in_array_array
+    local DISKS_NOT_IN_ARRAY_ARRAY
     local disk_name
     local disk_serial
     local disk_entry
@@ -365,14 +367,14 @@ function main() {
 
     check_prereqs
 
-    disks_not_in_array_array=$(find_all_disks_not_in_array)
+    find_all_disks_not_in_array
 
-    if [[ -z "${disks_not_in_array_array}" ]]; then
+    if [[ -z "${DISKS_NOT_IN_ARRAY_ARRAY}" ]]; then
         logger info "No disks found that are not in the array, exiting script..."
         exit 0
     fi
 
-    for disk_entry in "${disks_not_in_array_array[@]}"; do
+    for disk_entry in "${DISKS_NOT_IN_ARRAY_ARRAY[@]}"; do
 
         disk_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
         disk_serial=$(echo "${disk_entry}" | cut -d ',' -f 2)
@@ -455,20 +457,23 @@ Examples:
     List drives not in the UNRAID array, candidates for testing:
         ./${ourScriptName} --action 'list'
 
+    Check S.M.A.R.T. attributes for failure:
+        ./${ourScriptName} --action 'check-smart' --drive-name 'sdX'
+
     Test drive sdX with confirmation prompt, running a destructive test for all test patterns with debug logging:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --log-level 'debug'
+        ./${ourScriptName} --action 'test' --destructive-test 'yes' --log-level 'debug'
 
     Test drive sdX with confirmation prompt, running a destructive test with notify and specifying number of blocks (recommended):
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic'
+        ./${ourScriptName} --action 'test' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic'
 
     Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns and sending push notifications to ntfy:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic'
+        ./${ourScriptName} --action 'test' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic'
 
     Test drive sdX for a non-destructive test with test pattern 0xff:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --destructive-test 'no' --test-pattern '0xff'
+        ./${ourScriptName} --action 'test' --destructive-test 'no' --test-pattern '0xff'
 
     Test drive sdX with no confirmation prompt, number of blocks to process at a time set to 10000, running a destructive test for specific test patterns:
-        ./${ourScriptName} --action 'test' --drive-name 'sdX' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00'
+        ./${ourScriptName} --action 'test' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00'
 
 Notes:
     *  Non-destructive tests will result in longer process times.

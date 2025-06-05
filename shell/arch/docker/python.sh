@@ -242,6 +242,9 @@ Examples:
 	Install Python version 3.12 (latest) using pyenv, create virtual environment and install Python module 'sickchill' using pip:
 		./python.sh --create-virtualenv 'yes' --create-pyenv 'yes' --pyenv-version '3.12' --pip-packages 'sickchill' --log-level 'info'
 
+	Install Python version 3.12 (latest) using pyenv, install Python modules specified in requirements.txt, create virtual environment and install Python module 'sickchill' using pip:
+		./python.sh --create-virtualenv 'yes' --requirements-path '/opt/sickchill' --create-pyenv 'yes' --pyenv-version '3.12' --pip-packages 'sickchill' --log-level 'info'
+
 	Install Python version 3.12 (latest) using pyenv, create virtual environment at location /tmp using virtualenv and install Python modules specified in requirements.txt file:
 		./python.sh --create-virtualenv 'yes' --create-pyenv 'yes' --pyenv-version '3.12' --pyenv-path '/tmp' --requirements-path '/opt/sickchill' --log-level 'info'
 

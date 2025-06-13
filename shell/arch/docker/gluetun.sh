@@ -94,7 +94,6 @@ function configure_incoming_port_for_application {
 	fi
 	APPLICATION_PID=$!
 	echo "[INFO] Started ${APPLICATION_NAME} with PID '${APPLICATION_PID}'"
-	echo "${APPLICATION_PID}"
 }
 
 function show_help() {

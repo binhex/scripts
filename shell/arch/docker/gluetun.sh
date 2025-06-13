@@ -105,7 +105,7 @@ Description:
   This script can either monitor VPN port changes and restart applications, or simply pass through commands.
 	${ourScriptName} ${ourScriptversion} - Created by binhex.
 Syntax:
-  ${0} [options] [command and arguments]
+  ./${ourScriptName} [options] [command and arguments]
 Where:
   -h or --help
   Displays this text.
@@ -133,13 +133,13 @@ Environment Variables:
 
 Examples:
   Monitor VPN port and configure Nicotine+:
-  CONFIGURE_INCOMING_PORT=yes ${0} --application-name nicotineplus /usr/bin/nicotine
+  CONFIGURE_INCOMING_PORT=yes ./${ourScriptName} --application-name nicotineplus /usr/bin/nicotine
 
   Monitor VPN port with custom settings:
-  CONFIGURE_INCOMING_PORT=yes ${0} --control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
+  CONFIGURE_INCOMING_PORT=yes ./${ourScriptName} --control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
 
   Simply execute a command without VPN monitoring:
-  ${0} /usr/bin/some-application --some-flag
+  ./${ourScriptName} /usr/bin/some-application --some-flag
 
 Notes:
   - When CONFIGURE_INCOMING_PORT=yes, the script monitors gluetun for port changes and restarts the application

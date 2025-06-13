@@ -79,41 +79,32 @@ function incoming_port_watchdog {
 }
 
 function configure_incoming_port_for_application {
-	local application_name="$1"
-	shift
 	local incoming_port="$1"
 	shift
 
-	if [[ "${application_name,,}" == 'nicotineplus' ]]; then
+	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		echo "[INFO] Configuring Nicotine+ with VPN incoming port: $incoming_port"
 		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
-	elif [[ "${application_name,,}" == 'qbittorrent' ]]; then
-		echo "[INFO] Configuring ${application_name} with VPN incoming port: $incoming_port"
+	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
 		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
 	else
-		echo "[ERROR] Unknown application name '${application_name}'"
+		echo "[ERROR] Unknown application name '${APPLICATION_NAME}'"
 		return 1
 	fi
 	APPLICATION_PID=$!
-	echo "[INFO] Started ${application_name} with PID '${APPLICATION_PID}'"
+	echo "[INFO] Started ${APPLICATION_NAME} with PID '${APPLICATION_PID}'"
 	echo "${APPLICATION_PID}"
 }
 
 function show_help() {
   cat <<ENDHELP
 Description:
-  This script can either monitor VPN port changes and restart applications, or simply pass through commands.
+  A simple bash script to monitor the VPN incoming port from gluetun and configure a predefined list of applications.
 	${ourScriptName} ${ourScriptversion} - Created by binhex.
 Syntax:
   ./${ourScriptName} [options] [command and arguments]
 Where:
-  -h or --help
-  Displays this text.
-
-  -an or --application-name <nicotineplus|qbittorrent>
-  Define the application name to configure with the VPN incoming port.
-  No default.
-
   -csp or --control-server-port <port>
   Define the gluetun control server port.
   Defaults to '${control_server_port}'.
@@ -126,25 +117,28 @@ Where:
   Define whether debug mode is enabled.
   If not set, debug mode is disabled.
 
+  -h or --help
+  Displays this text.
+
 Environment Variables:
   CONFIGURE_INCOMING_PORT
-  Set to 'yes' to enable VPN port monitoring and application configuration.
-  Set to 'no' or leave unset to simply execute the provided command.
+		Set to 'yes' to enable VPN port monitoring and application configuration.
+	APPLICATION_NAME
+		Set to the name of the application to configure with the VPN incoming port.
+		Example: 'nicotineplus' or 'qbittorrent'.
 
 Examples:
   Monitor VPN port and configure Nicotine+:
-  CONFIGURE_INCOMING_PORT=yes ./${ourScriptName} --application-name nicotineplus /usr/bin/nicotine
+  ./${ourScriptName} /usr/bin/nicotine
 
   Monitor VPN port with custom settings:
-  CONFIGURE_INCOMING_PORT=yes ./${ourScriptName} --control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
+  ./${ourScriptName} --control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
 
   Simply execute a command without VPN monitoring:
   ./${ourScriptName} /usr/bin/some-application --some-flag
 
 Notes:
-  - When CONFIGURE_INCOMING_PORT=yes, the script monitors gluetun for port changes and restarts the application
-  - When CONFIGURE_INCOMING_PORT is not 'yes', the script simply executes the provided command
-  - The application must support a --port argument to configure the listening port
+  - Env Vars 'CONFIGURE_INCOMING_PORT' and 'APPLICATION_NAME' are normally set by the container runtime.
 ENDHELP
 }
 
@@ -152,10 +146,6 @@ while [ "$#" != "0" ]
 do
   case "$1"
   in
-  -an|--application-name)
-    application_name="${2,,}"
-    shift
-    ;;
   -csp|--control-server-port)
 		control_server_port="${2}"
     shift
@@ -179,12 +169,7 @@ do
   shift
 done
 
-if [[ "${CONFIGURE_INCOMING_PORT,,}" == 'yes' ]]; then
-	echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
-	# Pass remaining arguments to the function
-	SCRIPT_ARGS=("${remaining_args[@]}")
-	incoming_port_watchdog
-else
+if [[ "${CONFIGURE_INCOMING_PORT,,}" != 'yes' || -z "${APPLICATION_NAME}" ]]; then
 	echo "[INFO] Configuration of VPN incoming port is disabled, executing provided command..."
 	if [[ ${#remaining_args[@]} -gt 0 ]]; then
 		echo "[INFO] Executing: ${remaining_args[*]}"
@@ -193,4 +178,9 @@ else
 		echo "[INFO] No command provided to execute"
 		exit 0
 	fi
+else
+	echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
+	# Pass remaining arguments to the function
+	SCRIPT_ARGS=("${remaining_args[@]}")
+	incoming_port_watchdog
 fi

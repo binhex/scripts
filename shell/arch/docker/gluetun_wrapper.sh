@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Basic download and wrapper script for gluetun.sh
+
 gluetun_script_name='gluetun.sh'
 gluetun_filepath="/usr/local/bin/${gluetun_script_name}"
 github_url="https://raw.githubusercontent.com/binhex/scripts/refs/heads/master/shell/arch/docker/${gluetun_script_name}"

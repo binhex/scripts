@@ -84,10 +84,10 @@ function configure_incoming_port_for_application {
 
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
-		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
+		exec "${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
-		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
+		exec "${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
 	else
 		echo "[ERROR] Unknown application name '${APPLICATION_NAME}'"
 		return 1

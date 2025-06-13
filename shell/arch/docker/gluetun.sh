@@ -62,7 +62,7 @@ function incoming_port_watchdog {
 			fi
 
 			# Start new application process with new port
-			configure_incoming_port_for_application "nicotineplus" "${vpn_current_incoming_port}"
+			configure_incoming_port_for_application "${vpn_current_incoming_port}"
 			vpn_previous_incoming_port="${vpn_current_incoming_port}"
 		else
 				if [[ "${debug}" == "yes" ]]; then
@@ -83,7 +83,7 @@ function configure_incoming_port_for_application {
 	shift
 
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
-		echo "[INFO] Configuring Nicotine+ with VPN incoming port: $incoming_port"
+		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
 		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"

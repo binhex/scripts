@@ -137,6 +137,9 @@ Examples:
   Simply execute a command without VPN monitoring:
   ./${ourScriptName} /usr/bin/some-application --some-flag
 
+	Manually executing the script for debug:
+	CONFIGURE_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
+
 Notes:
   - Env Vars 'CONFIGURE_INCOMING_PORT' and 'APPLICATION_NAME' are normally set by the container runtime.
 ENDHELP

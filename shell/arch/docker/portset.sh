@@ -95,9 +95,7 @@ function nicotineplus_configure() {
 }
 
 function qbittorrent_configure() {
-	kill_process
 	echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
-	start_process
 }
 
 function application_configure() {

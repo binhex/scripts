@@ -120,7 +120,7 @@ Where:
   Displays this text.
 
 Environment Variables:
-  GLUETUN_INCOMING_PORT
+  CONFIGURE_INCOMING_PORT
 		Set to 'yes' to enable VPN port monitoring and application configuration.
 	APPLICATION_NAME
 		Set to the name of the application to configure with the VPN incoming port.
@@ -137,10 +137,10 @@ Examples:
   ./${ourScriptName} /usr/bin/some-application --some-flag
 
 	Manually executing the script for debug:
-	GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
+	CONFIGURE_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
 
 Notes:
-  - Env Vars 'GLUETUN_INCOMING_PORT' and 'APPLICATION_NAME' are normally set by the container runtime.
+  - Env Vars 'CONFIGURE_INCOMING_PORT' and 'APPLICATION_NAME' are normally set by the container runtime.
 ENDHELP
 }
 
@@ -171,7 +171,7 @@ do
   shift
 done
 
-if [[ "${GLUETUN_INCOMING_PORT,,}" != 'yes' || -z "${APPLICATION_NAME}" ]]; then
+if [[ "${CONFIGURE_INCOMING_PORT,,}" != 'yes' || -z "${APPLICATION_NAME}" ]]; then
 	echo "[INFO] Configuration of VPN incoming port is disabled, executing provided command..."
 	if [[ ${#remaining_args[@]} -gt 0 ]]; then
 		echo "[INFO] Executing: ${remaining_args[*]}"

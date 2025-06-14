@@ -101,8 +101,10 @@ function show_help() {
 Description:
   A simple bash script to monitor the VPN incoming port from gluetun and configure a predefined list of applications.
 	${ourScriptName} ${ourScriptversion} - Created by binhex.
+
 Syntax:
   ./${ourScriptName} [options] [command and arguments]
+
 Where:
   -csp or --control-server-port <port>
   Define the gluetun control server port.

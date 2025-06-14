@@ -54,13 +54,6 @@ function incoming_port_watchdog {
 				echo "[INFO] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${vpn_current_incoming_port}' are different, configuring application..."
 			fi
 
-			# Kill existing application process if it exists
-			if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
-				echo "[INFO] Killing existing application process with PID: ${APPLICATION_PID}"
-				kill "${APPLICATION_PID}"
-				wait "${APPLICATION_PID}" 2>/dev/null
-			fi
-
 			# Start new application process with new port
 			configure_incoming_port_for_application "${vpn_current_incoming_port}"
 			vpn_previous_incoming_port="${vpn_current_incoming_port}"
@@ -78,22 +71,45 @@ function incoming_port_watchdog {
 	done
 }
 
+function start_process() {
+	"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
+	APPLICATION_PID=$!
+	echo "[INFO] Started ${APPLICATION_NAME} with PID '${APPLICATION_PID}'"
+}
+
+function kill_process() {
+	# Kill existing application process if it exists
+	if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
+		echo "[INFO] Killing existing application process with PID: ${APPLICATION_PID}"
+		kill "${APPLICATION_PID}"
+		wait "${APPLICATION_PID}" 2>/dev/null
+	fi
+}
+
+function configure_nicotineplus() {
+	kill_process
+	echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
+	start_process
+}
+
+function configure_qbittorrent() {
+	kill_process
+	echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
+	start_process
+}
+
 function configure_incoming_port_for_application {
 	local incoming_port="$1"
 	shift
 
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
-		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
-		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
+		configure_nicotineplus
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
-		"${SCRIPT_ARGS[@]}" --port "${incoming_port}" &
+		configure_qbittorrent
 	else
 		echo "[ERROR] Unknown application name '${APPLICATION_NAME}'"
 		return 1
 	fi
-	APPLICATION_PID=$!
-	echo "[INFO] Started ${APPLICATION_NAME} with PID '${APPLICATION_PID}'"
 }
 
 function show_help() {

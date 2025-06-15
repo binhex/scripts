@@ -34,7 +34,16 @@ function incoming_port_watchdog {
 	local vpn_city_ip
 
 	while true; do
-		# Get the current forwarded port
+
+		if ! curl -s "${control_server_url}"; then
+			echo "[ERROR] Unable to connect to gluetun Control Server at '${control_server_url}', are you running this container in the gluetun containers network?, exiting..."
+			exit 1
+		fi
+
+		if [[ "${debug}" == "yes" ]]; then
+			echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
+		fi
+
 		vpn_current_incoming_port=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
 		vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
 		vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')

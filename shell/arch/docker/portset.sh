@@ -2,9 +2,9 @@
 
 # Script to get the incoming port from gluetun and configure a predefined list of applications. This script will block.
 #
-# In order for the script to work you need the following configured for gluetun
-# 1. Ensure VPN provider supports incoming port assignment and that its turned on via xxxxx env var.
-# 2. Ensure the applicaiton is using the gluetun container as its network.
+# In order for the script to work you need the following configured for gluetun:
+# 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
+# 2. Ensure the application is using the gluetun container as its network.
 
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"

@@ -21,7 +21,7 @@ readonly defaultDebug="no"
 
 # read env var values if not empty, else use defaults
 QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrentConfigFilepath}}"
-QBITTORRENT_WEBUI_PORT="${APPLICATION_PORT:-${defaultQbittorrentWebuiPort}}"
+QBITTORRENT_WEBUI_PORT="${QBITTORRENT_WEBUI_PORT:-${defaultQbittorrentWebuiPort}}"
 QBITTORRENT_BIND_ADAPTER="${QBITTORRENT_BIND_ADAPTER:-${defaultQbittorrentBindAdapter}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
 CONFIGURE_INCOMING_PORT="${CONFIGURE_INCOMING_PORT:-${defaultConfigureIncomingPort}}"
@@ -40,6 +40,17 @@ function incoming_port_watchdog {
 	local vpn_public_ip
 	local vpn_country_ip
 	local vpn_city_ip
+
+	if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
+		echo "[INFO] Configuration of VPN incoming port is disabled."
+		if [[ ${#remaining_args[@]} -gt 0 ]]; then
+			echo "[INFO] Executing: ${remaining_args[*]}"
+			exec "${remaining_args[@]}"
+		else
+			echo "[INFO] No command provided to execute, exiting script..."
+			exit 0
+		fi
+	fi
 
 	if ! curl -s "${control_server_url}" >/dev/null 2>&1; then
 		echo "[ERROR] Unable to connect to gluetun Control Server at '${control_server_url}', are you running this container in the gluetun containers network?, exiting..."
@@ -163,7 +174,7 @@ Syntax:
 Where:
   -an or --application-name <name>
 		Define the name of the application to configure for incoming port.
-		Defaults to '${APPLICATION_NAME}'.
+		No default.
 
   -qcf or --qbittorrent-config-filepath <path>
 		Define the file path to the qBittorrent configuration file.
@@ -191,7 +202,7 @@ Where:
 
   --debug
 		Define whether debug mode is enabled.
-		If not set, debug mode is disabled.
+		Defautlts to not set.
 
   -h or --help
 		Displays this text.
@@ -279,18 +290,12 @@ do
   shift
 done
 
-if [[ "${CONFIGURE_INCOMING_PORT,,}" != 'yes' || -z "${APPLICATION_NAME}" ]]; then
-	echo "[INFO] Configuration of VPN incoming port is disabled, executing provided command..."
-	if [[ ${#remaining_args[@]} -gt 0 ]]; then
-		echo "[INFO] Executing: ${remaining_args[*]}"
-		exec "${remaining_args[@]}"
-	else
-		echo "[INFO] No command provided to execute"
-		exit 0
-	fi
-else
-	echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
-	# Pass remaining arguments to the function
-	SCRIPT_ARGS=("${remaining_args[@]}")
-	incoming_port_watchdog
+if [[ -z "${APPLICATION_NAME}" ]]; then
+	echo "[INFO] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', showing help..."
+	show_help
 fi
+
+echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
+# Pass remaining arguments to the function
+SCRIPT_ARGS=("${remaining_args[@]}")
+incoming_port_watchdog

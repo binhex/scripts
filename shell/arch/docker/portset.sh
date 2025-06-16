@@ -32,7 +32,38 @@ DEBUG="${DEBUG:-${defaultDebug}}"
 SCRIPT_ARGS=("$@")
 
 # Initialize array for remaining arguments
-remaining_args=()
+REMAINING_ARGS=()
+
+function start_process() {
+	local arguments="${1}"
+	shift
+
+	echo "[INFO] Starting '${APPLICATION_NAME}' with incoming port '${INCOMING_PORT}'"
+	# shellcheck disable=SC2086
+	"${SCRIPT_ARGS[@]}" ${arguments}
+	APPLICATION_PID=$!
+	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}'"
+}
+
+function kill_process() {
+	# Kill existing application process if it exists
+	if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
+		echo "[INFO] Killing existing application process with PID '${APPLICATION_PID}'"
+		kill "${APPLICATION_PID}"
+		wait "${APPLICATION_PID}" 2>/dev/null
+		echo "[INFO] Application process with PID '${APPLICATION_PID}' has been killed"
+	fi
+}
+
+function get_vpn_adapter_name() {
+	VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
+	if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
+		echo "[ERROR] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
+		exit 1
+	elif [[ "${DEBUG}" == "yes" ]]; then
+		echo "[DEBUG] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
+	fi
+}
 
 function incoming_port_watchdog {
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
@@ -43,9 +74,9 @@ function incoming_port_watchdog {
 
 	if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
 		echo "[INFO] Configuration of VPN incoming port is disabled."
-		if [[ ${#remaining_args[@]} -gt 0 ]]; then
-			echo "[INFO] Executing: ${remaining_args[*]}"
-			exec "${remaining_args[@]}"
+		if [[ ${#REMAINING_ARGS[@]} -gt 0 ]]; then
+			echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
+			exec "${REMAINING_ARGS[@]}"
 		else
 			echo "[INFO] No command provided to execute, exiting script..."
 			exit 0
@@ -60,6 +91,9 @@ function incoming_port_watchdog {
 	if [[ "${DEBUG}" == "yes" ]]; then
 		echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
 	fi
+
+	# run any initial setup of the application prior to port configuration
+	application_initial_setup
 
 	while true; do
 
@@ -82,8 +116,7 @@ function incoming_port_watchdog {
 				echo "[INFO] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${INCOMING_PORT}' are different, configuring application..."
 			fi
 
-			# Start new application process with new port
-			application_configure
+			application_configure_incoming_port
 			vpn_previous_incoming_port="${INCOMING_PORT}"
 		else
 				if [[ "${DEBUG}" == "yes" ]]; then
@@ -99,27 +132,31 @@ function incoming_port_watchdog {
 	done
 }
 
-function kill_process() {
-	# Kill existing application process if it exists
-	if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
-		echo "[INFO] Killing existing application process with PID '${APPLICATION_PID}'"
-		kill "${APPLICATION_PID}"
-		wait "${APPLICATION_PID}" 2>/dev/null
-		echo "[INFO] Application process with PID '${APPLICATION_PID}' has been killed"
-	fi
-}
-
-function nicotineplus_start_process() {
-	echo "[INFO] Starting '${APPLICATION_NAME}' with incoming port '${INCOMING_PORT}'"
-	"${SCRIPT_ARGS[@]}" --port "${INCOMING_PORT}" &
-	APPLICATION_PID=$!
-	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}'"
-}
-
 function nicotineplus_configure_incoming_port() {
 	kill_process
 	echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port: ${INCOMING_PORT}"
-	nicotineplus_start_process
+	start_process "--port ${INCOMING_PORT} &"
+}
+
+function qbittorrent_configure_bind_adapter() {
+
+	if [[ "${QBITTORRENT_BIND_ADAPTER,,}" == 'yes' ]]; then
+		echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"
+
+			# get vpn adapter name (wg0/tun0/tap0)
+			get_vpn_adapter_name
+
+			# set network interface binding to vpn virtual adapter (wg0/tun0/tap0) for qbittorrent on startup
+			sed -i -e "s~^Connection\\\\Interface\=.*~Connection\\\\Interface\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
+			sed -i -e "s~^Connection\\\\InterfaceName\=.*~Connection\\\\InterfaceName\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
+			sed -i -e "s~^Session\\\\Interface\=.*~Session\\\\Interface\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
+			sed -i -e "s~^Session\\\\InterfaceName\=.*~Session\\\\InterfaceName\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
+
+			# forcibly set allow anonymous access from localhost to api (used to change incoming port)
+			sed -i -e 's~^WebUI\\LocalHostAuth=.*~WebUI\\LocalHostAuth=false~g' "${QBITTORRENT_CONFIG_FILEPATH}"
+	else
+		echo "[INFO] Not binding '${APPLICATION_NAME}' to gluetun network interface"
+	fi
 }
 
 function qbittorrent_configure_incoming_port() {
@@ -141,24 +178,33 @@ function qbittorrent_configure_incoming_port() {
 
 }
 
-function qbittorrent_configure_bind_adapter() {
-	if [[ "${QBITTORRENT_BIND_ADAPTER,,}" == 'yes' ]]; then
-		echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"
+function qbittorrent_start() {
+	echo "[info] Removing session lock file (if it exists)..."
+	rm -f /config/qBittorrent/data/BT_backup/session.lock
+
+	timeout 10 yes | nohup /usr/bin/qbittorrent-nox --webui-port="${QBITTORRENT_WEBUI_PORT}" --profile=/config >> '/config/supervisord.log' 2>&1 &
+}
+
+function application_initial_setup() {
+
+	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		qbittorrent_configure_bind_adapter
+		qbittorrent_start
 	else
-		echo "[INFO] Not binding '${APPLICATION_NAME}' to gluetun network interface"
+		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."
+		exit 1
 	fi
 }
 
-function application_configure() {
+function application_configure_incoming_port() {
 
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		nicotineplus_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		qbittorrent_configure_incoming_port
-		qbittorrent_configure_bind_adapter
 	else
-		echo "[ERROR] Unknown application name '${APPLICATION_NAME}'"
-		return 1
+		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."
+		exit 1
 	fi
 }
 
@@ -284,7 +330,7 @@ do
     ;;
   *)
     # Save unrecognized arguments for passthrough
-    remaining_args+=("$1")
+    REMAINING_ARGS+=("$1")
     ;;
   esac
   shift
@@ -297,5 +343,5 @@ fi
 
 echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
 # Pass remaining arguments to the function
-SCRIPT_ARGS=("${remaining_args[@]}")
+SCRIPT_ARGS=("${REMAINING_ARGS[@]}")
 incoming_port_watchdog

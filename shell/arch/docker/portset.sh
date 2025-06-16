@@ -157,6 +157,12 @@ function qbittorrent_configure_bind_adapter() {
 			# get vpn adapter name (wg0/tun0/tap0)
 			get_vpn_adapter_name
 
+			mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
+			if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+				echo "[INFO] Creating qBittorrent configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'"
+				touch "${QBITTORRENT_CONFIG_FILEPATH}"
+			fi
+
 			# set network interface binding to vpn virtual adapter (wg0/tun0/tap0) for qbittorrent on startup
 			sed -i -e "s~^Connection\\\\Interface\=.*~Connection\\\\Interface\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
 			sed -i -e "s~^Connection\\\\InterfaceName\=.*~Connection\\\\InterfaceName\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"

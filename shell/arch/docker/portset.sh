@@ -181,8 +181,7 @@ function qbittorrent_configure_incoming_port() {
 function qbittorrent_start() {
 	echo "[info] Removing session lock file (if it exists)..."
 	rm -f /config/qBittorrent/data/BT_backup/session.lock
-
-	timeout 10 yes | nohup /usr/bin/qbittorrent-nox --webui-port="${QBITTORRENT_WEBUI_PORT}" --profile=/config >> '/config/supervisord.log' 2>&1 &
+	start_process
 }
 
 function application_initial_setup() {
@@ -252,6 +251,8 @@ Where:
 
   -h or --help
 		Displays this text.
+Notes:
+  - Any additional arguments provided after the options will be passed to the specified application.
 
 Environment Variables:
 	APPLICATION_NAME

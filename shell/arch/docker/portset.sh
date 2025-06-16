@@ -12,11 +12,13 @@ readonly ourScriptversion="1.0.0"
 
 # default values
 readonly defaultDebug="no"
-readonly defaultControlServerPort="8000"
+readonly defaultGluetunControlServerPort="8000"
 readonly defaultPollDelay="10"
+readonly defaultBindAdapter="yes"
 
 debug="${defaultDebug}"
-control_server_port="${defaultControlServerPort}"
+qbittorrent_bind_adapter="${defaultBindAdapter}"
+gluetun_control_server_port="${defaultGluetunControlServerPort}"
 poll_delay="${defaultPollDelay}"
 
 # Read all command line arguments
@@ -26,7 +28,7 @@ SCRIPT_ARGS=("$@")
 remaining_args=()
 
 function incoming_port_watchdog {
-	local control_server_url="http://127.0.0.1:${control_server_port}/v1"
+	local control_server_url="http://127.0.0.1:${gluetun_control_server_port}/v1"
 	local vpn_current_incoming_port
 	local vpn_previous_incoming_port
 	local vpn_public_ip
@@ -97,14 +99,22 @@ function nicotineplus_start_process() {
 	echo "[INFO] Started ${APPLICATION_NAME} with PID '${APPLICATION_PID}'"
 }
 
-function nicotineplus_configure() {
+function nicotineplus_configure_incoming_port() {
 	kill_process
 	echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
 	nicotineplus_start_process
 }
 
-function qbittorrent_configure() {
+function qbittorrent_configure_incoming_port() {
 	echo "[INFO] Configuring ${APPLICATION_NAME} with VPN incoming port: $incoming_port"
+}
+
+function qbittorrent_configure_bind_adapter() {
+	if [[ "${qbittorrent_bind_adapter,,}" == 'yes' ]]; then
+		echo "[INFO] Binding ${APPLICATION_NAME} to gluetun network interface"
+	else
+		echo "[INFO] Not binding ${APPLICATION_NAME} to gluetun network interface"
+	fi
 }
 
 function application_configure() {
@@ -112,9 +122,10 @@ function application_configure() {
 	shift
 
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
-		nicotineplus_configure
+		nicotineplus_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		qbittorrent_configure
+		qbittorrent_configure_incoming_port
+		qbittorrent_configure_bind_adapter
 	else
 		echo "[ERROR] Unknown application name '${APPLICATION_NAME}'"
 		return 1
@@ -131,20 +142,24 @@ Syntax:
   ./${ourScriptName} [options] [command and arguments]
 
 Where:
-  -csp or --control-server-port <port>
-  Define the gluetun control server port.
-  Defaults to '${control_server_port}'.
+  -qba or --qbittorrent-bind-adapter <yes|no>
+		Define whether to bind qBittorrent to the gluetun network interface.
+		Defaults to '${qbittorrent_bind_adapter}'.
+
+  -gcsp or --gluetun-control-server-port <port>
+		Define the Gluetun Control Server port.
+		Defaults to '${gluetun_control_server_port}'.
 
   -pd or --poll-delay <seconds>
-  Define the polling delay in seconds between port checks.
-  Defaults to '${poll_delay}'.
+		Define the polling delay in seconds between incoming port checks.
+		Defaults to '${poll_delay}'.
 
   --debug
-  Define whether debug mode is enabled.
-  If not set, debug mode is disabled.
+		Define whether debug mode is enabled.
+		If not set, debug mode is disabled.
 
   -h or --help
-  Displays this text.
+		Displays this text.
 
 Environment Variables:
   CONFIGURE_INCOMING_PORT
@@ -158,7 +173,7 @@ Examples:
   ./${ourScriptName} /usr/bin/nicotine
 
   Monitor VPN port with custom settings:
-  ./${ourScriptName} --control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
+  ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
 
   Simply execute a command without VPN monitoring:
   ./${ourScriptName} /usr/bin/some-application --some-flag
@@ -175,8 +190,12 @@ while [ "$#" != "0" ]
 do
   case "$1"
   in
-  -csp|--control-server-port)
-		control_server_port="${2}"
+  -qba|--qbittorrent-bind-adapter)
+		qbittorrent_bind_adapter="${2}"
+    shift
+    ;;
+  -gcsp|--gluetun-control-server-port)
+		gluetun_control_server_port="${2}"
     shift
     ;;
   -pd|--poll-delay)

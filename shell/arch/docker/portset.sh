@@ -38,7 +38,7 @@ function start_process() {
 	local arguments="${1}"
 	shift
 
-	echo "[INFO] Starting '${APPLICATION_NAME}' with incoming port '${INCOMING_PORT}'"
+	echo "[INFO] Starting '${APPLICATION_NAME}'..."
 	# shellcheck disable=SC2086
 	"${SCRIPT_ARGS[@]}" ${arguments}
 	APPLICATION_PID=$!

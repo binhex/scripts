@@ -56,6 +56,17 @@ function kill_process() {
 }
 
 function get_vpn_adapter_name() {
+
+	if [[ -n "${VPN_INTERFACE}" ]]; then
+		VPN_ADAPTER_NAME="${VPN_INTERFACE}"
+		if [[ "${DEBUG}" == "yes" ]]; then
+			echo "[DEBUG] Using VPN interface from environment variable: '${VPN_ADAPTER_NAME}'"
+		fi
+	else
+		if [[ "${DEBUG}" == "yes" ]]; then
+			echo "[DEBUG] No VPN interface specified in environment variable, attempting to determine automatically..."
+		fi
+	fi
 	VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
 	if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
 		echo "[ERROR] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."

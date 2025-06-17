@@ -40,13 +40,11 @@ function start_process() {
 	local arguments="${1}"
 	shift
 
-	echo "[INFO] Starting '${APPLICATION_NAME}'..."
+	echo "[INFO] Starting '${APPLICATION_NAME}' in '${mode}' mode..."
 	if [[ "${mode}" == "background" ]]; then
-		echo "[INFO] Running in background mode"
 		# shellcheck disable=SC2086
 		nohup "${SCRIPT_ARGS[@]}" ${arguments} &
 	else
-		echo "[INFO] Running in foreground mode"
 		# shellcheck disable=SC2086
 		"${SCRIPT_ARGS[@]}" ${arguments}
 	fi

@@ -113,8 +113,8 @@ function incoming_port_watchdog {
 		vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
 		vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
 
-		echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
-		
+		echo "[INFO] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
+
 		if [[ "${DEBUG}" == "yes" ]]; then
 			echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
 			echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"

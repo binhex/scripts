@@ -35,12 +35,22 @@ SCRIPT_ARGS=("$@")
 REMAINING_ARGS=()
 
 function start_process() {
+	local mode="${1}"
+	shift
 	local arguments="${1}"
 	shift
 
 	echo "[INFO] Starting '${APPLICATION_NAME}'..."
-	# shellcheck disable=SC2086
-	nohup "${SCRIPT_ARGS[@]}" ${arguments} &
+	if [[ "${mode}" == "background" ]]; then
+		echo "[INFO] Running in background mode"
+		# shellcheck disable=SC2086
+		nohup "${SCRIPT_ARGS[@]}" ${arguments} &
+	else
+		echo "[INFO] Running in foreground mode"
+		# shellcheck disable=SC2086
+		"${SCRIPT_ARGS[@]}" ${arguments}
+	fi
+
 	APPLICATION_PID=$!
 	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}'"
 }
@@ -147,7 +157,7 @@ function incoming_port_watchdog {
 function nicotineplus_configure_incoming_port() {
 	kill_process
 	echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port: ${INCOMING_PORT}"
-	start_process "--port ${INCOMING_PORT} &"
+	start_process "background" "--port ${INCOMING_PORT}"
 }
 
 function qbittorrent_configure_bind_adapter() {
@@ -199,7 +209,7 @@ function qbittorrent_configure_incoming_port() {
 function qbittorrent_start() {
 	echo "[info] Removing qBittorrent session lock file (if it exists)..."
 	rm -f /config/qBittorrent/data/BT_backup/session.lock
-	start_process
+	start_process "background"
 }
 
 function application_initial_setup() {

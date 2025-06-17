@@ -197,9 +197,9 @@ function qbittorrent_configure_incoming_port() {
 }
 
 function qbittorrent_start() {
-	echo "[info] Removing session lock file (if it exists)..."
+	echo "[info] Removing qBittorrent session lock file (if it exists)..."
 	rm -f /config/qBittorrent/data/BT_backup/session.lock
-	start_process
+	start_process "&"
 }
 
 function application_initial_setup() {

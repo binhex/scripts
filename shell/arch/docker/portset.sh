@@ -40,7 +40,7 @@ function start_process() {
 
 	echo "[INFO] Starting '${APPLICATION_NAME}'..."
 	# shellcheck disable=SC2086
-	"${SCRIPT_ARGS[@]}" ${arguments}
+	nohup "${SCRIPT_ARGS[@]}" ${arguments} &
 	APPLICATION_PID=$!
 	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}'"
 }
@@ -199,7 +199,7 @@ function qbittorrent_configure_incoming_port() {
 function qbittorrent_start() {
 	echo "[info] Removing qBittorrent session lock file (if it exists)..."
 	rm -f /config/qBittorrent/data/BT_backup/session.lock
-	start_process "--daemon"
+	start_process
 }
 
 function application_initial_setup() {

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 # Script to get the incoming port from gluetun and configure a predefined list of applications. This script will block.
 #
 # In order for the script to work you need the following configured for gluetun:
@@ -160,36 +159,30 @@ function nicotineplus_configure_incoming_port() {
 }
 
 function qbittorrent_create_config_file() {
-
-	if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
-		echo "[INFO] qBittorrent configuration file does not exist, creating default configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'..."
-
-		# create qBittorrent configuration file with default settings
-		cat <<EOF > "${QBITTORRENT_CONFIG_FILEPATH}"
-[AutoRun]
-enabled=false
-program=
-
+	echo "[INFO] Creating qBittorrent configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'"
+	cat <<EOF > "${QBITTORRENT_CONFIG_FILEPATH}"
 [BitTorrent]
-Session\Interface=wg0
-Session\InterfaceName=wg0
+Session\Interface=${VPN_ADAPTER_NAME}
+Session\InterfaceName=${VPN_ADAPTER_NAME}
+Session\Port=${INCOMING_PORT}
+
+[LegalNotice]
+Accepted=true
 
 [Preferences]
-General\Locale=en
-Connection\PortRangeMin=6881
 Connection\UPnP=false
-Connection\Interface=wg0
-Connection\InterfaceName=wg0
+Connection\Interface=${VPN_ADAPTER_NAME}
+Connection\InterfaceName=${VPN_ADAPTER_NAME}
 General\UseRandomPort=false
 WebUI\CSRFProtection=false
 WebUI\LocalHostAuth=false
 WebUI\UseUPnP=false
 WebUI\Address=*
 WebUI\ServerDomains=*
+WebUI\Port=${QBITTORRENT_WEBUI_PORT}
 EOF
 
-		echo "[INFO] Created qBittorrent configuration file"
-	fi
+	echo "[INFO] Created qBittorrent configuration file"
 }
 
 function qbittorrent_update_or_add_config_section() {
@@ -219,41 +212,28 @@ function qbittorrent_update_or_add_config_section() {
 	fi
 }
 
-function qbittorrent_configure_bind_adapter() {
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\CSRFProtection=false" "${VPN_ADAPTER_NAME}"
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\LocalHostAuth=false" "${VPN_ADAPTER_NAME}"
+function qbittorrent_configure_other() {
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\UseUPnP=false" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\UPnP=false" "${VPN_ADAPTER_NAME}"
 	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "General\\\\UseRandomPort=false" "${VPN_ADAPTER_NAME}"
-
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\Interface" "${VPN_ADAPTER_NAME}"
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
-
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\Interface" "${VPN_ADAPTER_NAME}"
-	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
 }
 
+function qbittorrent_configure_protection() {
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\CSRFProtection=false" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\LocalHostAuth=false" "${VPN_ADAPTER_NAME}"
+}
 
+function qbittorrent_configure_bind_adapter() {
 	if [[ "${QBITTORRENT_BIND_ADAPTER,,}" == 'yes' ]]; then
 		echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"
 
 			# get vpn adapter name (wg0/tun0/tap0)
 			get_vpn_adapter_name
 
-			mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
-			if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
-				echo "[INFO] Creating qBittorrent configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'"
-				touch "${QBITTORRENT_CONFIG_FILEPATH}"
-			fi
-
-			# set network interface binding to vpn virtual adapter (wg0/tun0/tap0) for qbittorrent on startup
-			sed -i -e "s~^Connection\\\\Interface\=.*~Connection\\\\Interface\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
-			sed -i -e "s~^Connection\\\\InterfaceName\=.*~Connection\\\\InterfaceName\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
-			sed -i -e "s~^Session\\\\Interface\=.*~Session\\\\Interface\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
-			sed -i -e "s~^Session\\\\InterfaceName\=.*~Session\\\\InterfaceName\=${VPN_ADAPTER_NAME}~g" "${QBITTORRENT_CONFIG_FILEPATH}"
-
-			# forcibly set allow anonymous access from localhost to api (used to change incoming port)
-			sed -i -e 's~^WebUI\\LocalHostAuth=.*~WebUI\\LocalHostAuth=false~g' "${QBITTORRENT_CONFIG_FILEPATH}"
-	else
-		echo "[INFO] Not binding '${APPLICATION_NAME}' to gluetun network interface"
+		qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\Interface" "${VPN_ADAPTER_NAME}"
+		qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
+		qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\Interface" "${VPN_ADAPTER_NAME}"
+		qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
 	fi
 }
 
@@ -276,6 +256,18 @@ function qbittorrent_configure_incoming_port() {
 
 }
 
+function qbittorrent_config() {
+	mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
+	if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+		qbittorrent_create_config_file
+	else
+		echo "[INFO] qBittorrent configuration file already exists at '${QBITTORRENT_CONFIG_FILEPATH}'"
+		qbittorrent_configure_protection
+		qbittorrent_configure_bind_adapter
+		qbittorrent_configure_other
+	fi
+}
+
 function qbittorrent_start() {
 	echo "[info] Removing qBittorrent session lock file (if it exists)..."
 	rm -f /config/qBittorrent/data/BT_backup/session.lock
@@ -285,7 +277,7 @@ function qbittorrent_start() {
 function application_initial_setup() {
 
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		qbittorrent_configure_bind_adapter
+		qbittorrent_config
 		qbittorrent_start
 	else
 		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."

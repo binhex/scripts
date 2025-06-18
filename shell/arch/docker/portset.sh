@@ -6,6 +6,7 @@
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
 # 2. Ensure the application is using the gluetun container as its network.
 
+set -x
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptversion="1.0.0"
@@ -261,18 +262,18 @@ function qbittorrent_configure_incoming_port() {
 
 	echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
 
-		# identify protocol, used by curl to connect to api
-		if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
-			web_protocol="https"
-		else
-			web_protocol="http"
-		fi
+	# identify protocol, used by curl to connect to api
+	if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+		web_protocol="https"
+	else
+		web_protocol="http"
+	fi
 
-		# note -k flag required to support insecure connection (self signed certs) when https used
-		set -x
-		curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
-		curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
-		set +x
+	# note -k flag required to support insecure connection (self signed certs) when https used
+	set -x
+	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
+	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
+	set +x
 }
 
 function qbittorrent_config() {

@@ -269,9 +269,10 @@ function qbittorrent_configure_incoming_port() {
 		fi
 
 		# note -k flag required to support insecure connection (self signed certs) when https used
+		set -x
 		curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
 		curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
-
+		set +x
 }
 
 function qbittorrent_config() {

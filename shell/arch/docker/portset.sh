@@ -16,7 +16,7 @@ readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorren
 readonly defaultQbittorrentWebuiPort="8080"
 readonly defaultQbittorrentBindAdapter="yes"
 readonly defaultGluetunControlServerPort="8000"
-readonly defaultConfigureIncomingPort="yes"
+readonly defaultConfigureIncomingPort="no"
 readonly defaultPollDelay="10"
 readonly defaultDebug="no"
 
@@ -159,7 +159,78 @@ function nicotineplus_configure_incoming_port() {
 	start_process "background" "--port ${INCOMING_PORT}"
 }
 
+function qbittorrent_create_config_file() {
+
+	if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+		echo "[INFO] qBittorrent configuration file does not exist, creating default configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'..."
+
+		# create qBittorrent configuration file with default settings
+		cat <<EOF > "${QBITTORRENT_CONFIG_FILEPATH}"
+[AutoRun]
+enabled=false
+program=
+
+[BitTorrent]
+Session\Interface=wg0
+Session\InterfaceName=wg0
+
+[Preferences]
+General\Locale=en
+Connection\PortRangeMin=6881
+Connection\UPnP=false
+Connection\Interface=wg0
+Connection\InterfaceName=wg0
+General\UseRandomPort=false
+WebUI\CSRFProtection=false
+WebUI\LocalHostAuth=false
+WebUI\UseUPnP=false
+WebUI\Address=*
+WebUI\ServerDomains=*
+EOF
+
+		echo "[INFO] Created qBittorrent configuration file"
+	fi
+}
+
+function qbittorrent_update_or_add_config_section() {
+
+	local config_file="${1}"
+	shift
+	local section="${1}"
+	shift
+	local key="${1}"
+	shift
+	local value="${1}"
+	shift
+
+	# Check if the entry exists in the file
+	if grep -q "^${key}=" "${config_file}"; then
+			# Entry exists, update it
+			sed -i -e "s~^${key}=.*~${key}=${value}~g" "${config_file}"
+	else
+			# Entry doesn't exist, add it to the correct section
+			if grep -q "^\[${section}\]" "${config_file}"; then
+					# Section exists, add the entry after the section header
+					sed -i "/^\[${section}\]/a ${key}=${value}" "${config_file}"
+			else
+					# Section doesn't exist, create it with the entry
+					echo -e "\n[${section}]\n${key}=${value}" >> "${config_file}"
+			fi
+	fi
+}
+
 function qbittorrent_configure_bind_adapter() {
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\CSRFProtection=false" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\LocalHostAuth=false" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "General\\\\UseRandomPort=false" "${VPN_ADAPTER_NAME}"
+
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\Interface" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
+
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\Interface" "${VPN_ADAPTER_NAME}"
+	qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
+}
+
 
 	if [[ "${QBITTORRENT_BIND_ADAPTER,,}" == 'yes' ]]; then
 		echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"

@@ -286,7 +286,7 @@ function application_initial_setup() {
 }
 
 function application_configure_incoming_port() {
-
+	set -x
 	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		nicotineplus_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
@@ -295,6 +295,7 @@ function application_configure_incoming_port() {
 		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."
 		exit 1
 	fi
+	set +x
 }
 
 function show_help() {

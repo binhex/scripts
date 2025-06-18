@@ -59,10 +59,12 @@ function start_process() {
 function kill_process() {
 	# Kill existing application process if it exists
 	if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
-		echo "[INFO] Killing existing application process with PID '${APPLICATION_PID}'"
+		echo "[INFO] Killing ${APPLICATION_NAME} process with PID '${APPLICATION_PID}'"
 		kill "${APPLICATION_PID}"
 		wait "${APPLICATION_PID}" 2>/dev/null
-		echo "[INFO] Application process with PID '${APPLICATION_PID}' has been killed"
+		echo "[INFO] ${APPLICATION_NAME} process with PID '${APPLICATION_PID}' has been killed"
+	else
+		echo "[INFO] No PID found for ${APPLICATION_NAME}, ignoring kill"
 	fi
 }
 
@@ -124,9 +126,8 @@ function main {
 		vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
 		vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
 
-		echo "[INFO] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
-
 		if [[ "${DEBUG}" == "yes" ]]; then
+			echo "[INFO] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
 			echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
 			echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
 			echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"

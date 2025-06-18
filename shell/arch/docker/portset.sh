@@ -43,7 +43,6 @@ function start_process() {
 	local arguments="${1}"
 	shift
 
-	echo "[INFO] Starting '${APPLICATION_NAME}' in '${mode}' mode..."
 	if [[ "${mode}" == "background" ]]; then
 		# shellcheck disable=SC2086
 		nohup "${SCRIPT_ARGS[@]}" ${arguments} &
@@ -53,7 +52,7 @@ function start_process() {
 	fi
 
 	APPLICATION_PID=$!
-	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}'"
+	echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}' in '${mode}' mode"
 }
 
 function kill_process() {
@@ -140,8 +139,7 @@ function main {
 				echo "[INFO] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${INCOMING_PORT}' are different, configuring application..."
 			fi
 
-			qbittorrent_configure_incoming_port
-			nicotine_configure_incoming_port
+			application_configure_incoming_port
 			vpn_previous_incoming_port="${INCOMING_PORT}"
 		else
 				if [[ "${DEBUG}" == "yes" ]]; then
@@ -162,6 +160,15 @@ function application_initial_setup_and_run() {
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		qbittorrent_config
 		qbittorrent_start
+	fi
+}
+
+function application_configure_incoming_port() {
+
+	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		qbittorrent_configure_incoming_port
+	elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
+		nicotine_configure_incoming_port
 	fi
 }
 

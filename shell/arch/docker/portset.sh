@@ -6,7 +6,6 @@
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
 # 2. Ensure the application is using the gluetun container as its network.
 
-set -x
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptversion="1.0.0"
@@ -22,10 +21,10 @@ readonly defaultDebug="no"
 
 # read env var values if not empty, else use defaults
 QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrentConfigFilepath}}"
-QBITTORRENT_WEBUI_PORT="${QBITTORRENT_WEBUI_PORT:-${defaultQbittorrentWebuiPort}}"
 QBITTORRENT_BIND_ADAPTER="${QBITTORRENT_BIND_ADAPTER:-${defaultQbittorrentBindAdapter}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
 CONFIGURE_INCOMING_PORT="${CONFIGURE_INCOMING_PORT:-${defaultConfigureIncomingPort}}"
+APPLICATION_PORT="${APPLICATION_PORT:-${defaultQbittorrentWebuiPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
@@ -167,7 +166,6 @@ function application_initial_setup_and_run() {
 function application_configure_incoming_port() {
 
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		sleep 5s
 		qbittorrent_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		nicotine_configure_incoming_port
@@ -198,7 +196,7 @@ WebUI\LocalHostAuth=false
 WebUI\UseUPnP=false
 WebUI\Address=*
 WebUI\ServerDomains=*
-WebUI\Port=${QBITTORRENT_WEBUI_PORT}
+WebUI\Port=${APPLICATION_PORT}
 EOF
 
 	echo "[INFO] Created qBittorrent configuration file"
@@ -269,11 +267,13 @@ function qbittorrent_configure_incoming_port() {
 		web_protocol="http"
 	fi
 
+	if [[ "${DEBUG}" == "yes" ]]; then
+		echo "[INFO] Sending POST requests to URL '${web_protocol}://localhost:${APPLICATION_PORT}'..."
+	fi
+
 	# note -k flag required to support insecure connection (self signed certs) when https used
-	set -x
-	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
-	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${QBITTORRENT_WEBUI_PORT}/api/v2/app/setPreferences" &> /dev/null
-	set +x
+	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
+	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
 }
 
 function qbittorrent_config() {
@@ -324,7 +324,7 @@ Where:
 
   -qwp or --qbittorrent-webui-port <port>
 		Define the web UI port for qBittorrent.
-		Defaults to '${QBITTORRENT_WEBUI_PORT}'.
+		Defaults to '${APPLICATION_PORT}'.
 
   -qba or --qbittorrent-bind-adapter <yes|no>
 		Define whether to bind qBittorrent to the gluetun network interface.
@@ -354,10 +354,10 @@ Notes:
 Environment Variables:
 	APPLICATION_NAME
 		Set the name of the application to configure with the VPN incoming port.
+  APPLICATION_PORT
+		Set the web UI port for the applicaton.
   QBITTORRENT_CONFIG_FILEPATH
 		Set the file path to the qBittorrent configuration file.
-  QBITTORRENT_WEBUI_PORT
-		Set the web UI port for qBittorrent.
 	QBITTORRENT_BIND_ADAPTER
 		Set to the name of the application to configure with the VPN incoming port.
 	GLUETUN_CONTROL_SERVER_PORT
@@ -372,17 +372,14 @@ Notes:
   - Command line arguments take precedence over environment variables.
 
 Examples:
-  Monitor VPN port and configure Nicotine+:
-  ./${ourScriptName} /usr/bin/nicotine
+  Start process and monitor VPN port for changes:
+		./${ourScriptName} /usr/bin/nicotine
 
-  Monitor VPN port with custom settings:
-  ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
-
-  Simply execute a command without VPN monitoring:
-  ./${ourScriptName} /usr/bin/some-application --some-flag
+  Start process and monitor VPN port for changes using custom port for gluetun Control Server and specific poll interval:
+		./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
 
 	Manually executing the script for debug:
-	CONFIGURE_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
+		CONFIGURE_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
 
 ENDHELP
 }
@@ -395,12 +392,12 @@ do
 		APPLICATION_NAME="${2}"
     shift
     ;;
-  -qcf|--qbittorrent-config-filepath)
-		QBITTORRENT_CONFIG_FILEPATH="${2}"
+  -ap|--application-port)
+		APPLICATION_PORT="${2}"
     shift
     ;;
-  -qwp|--qbittorrent-webui-port)
-		QBITTORRENT_WEBUI_PORT="${2}"
+  -qcf|--qbittorrent-config-filepath)
+		QBITTORRENT_CONFIG_FILEPATH="${2}"
     shift
     ;;
   -qba|--qbittorrent-bind-adapter)

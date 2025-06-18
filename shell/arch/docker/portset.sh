@@ -34,6 +34,9 @@ SCRIPT_ARGS=("$@")
 # Initialize array for remaining arguments
 REMAINING_ARGS=()
 
+# utility functions
+####
+
 function start_process() {
 	local mode="${1}"
 	shift
@@ -84,7 +87,7 @@ function get_vpn_adapter_name() {
 	fi
 }
 
-function incoming_port_watchdog {
+function main {
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
 	local vpn_previous_incoming_port
 	local vpn_public_ip
@@ -111,8 +114,8 @@ function incoming_port_watchdog {
 		echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
 	fi
 
-	# run any initial setup of the application prior to port configuration
-	application_initial_setup
+	# run any initial setup of the application prior to port configuration and then start the application (excludes nicotineplus, as this is done in the configure function)
+	application_initial_setup_and_run
 
 	while true; do
 
@@ -136,7 +139,8 @@ function incoming_port_watchdog {
 				echo "[INFO] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${INCOMING_PORT}' are different, configuring application..."
 			fi
 
-			application_configure_incoming_port
+			qbittorrent_configure_incoming_port
+			nicotine_configure_incoming_port
 			vpn_previous_incoming_port="${INCOMING_PORT}"
 		else
 				if [[ "${DEBUG}" == "yes" ]]; then
@@ -152,11 +156,16 @@ function incoming_port_watchdog {
 	done
 }
 
-function nicotineplus_configure_incoming_port() {
-	kill_process
-	echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port: ${INCOMING_PORT}"
-	start_process "background" "--port ${INCOMING_PORT}"
+function application_initial_setup_and_run() {
+
+	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		qbittorrent_config
+		qbittorrent_start
+	fi
 }
+
+# qBittorrent functions
+####
 
 function qbittorrent_create_config_file() {
 	echo "[INFO] Creating qBittorrent configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'"
@@ -274,28 +283,14 @@ function qbittorrent_start() {
 	start_process "background"
 }
 
-function application_initial_setup() {
+# nicotineplus functions
+####
 
-	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		qbittorrent_config
-		qbittorrent_start
-	else
-		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."
-		exit 1
-	fi
-}
-
-function application_configure_incoming_port() {
-	set -x
-	if [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
-		nicotineplus_configure_incoming_port
-	elif [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
-		qbittorrent_configure_incoming_port
-	else
-		echo "[ERROR] Unknown application name '${APPLICATION_NAME}', exiting script..."
-		exit 1
-	fi
-	set +x
+function nicotine_configure_incoming_port() {
+	echo "[INFO] Killing '${APPLICATION_NAME}' process as we cannot reconfigure incoming port while it is running..."
+	kill_process
+	echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+	start_process "background" "--port ${INCOMING_PORT}"
 }
 
 function show_help() {
@@ -436,4 +431,4 @@ fi
 echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
 # Pass remaining arguments to the function
 SCRIPT_ARGS=("${REMAINING_ARGS[@]}")
-incoming_port_watchdog
+main

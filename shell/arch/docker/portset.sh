@@ -166,6 +166,7 @@ function application_initial_setup_and_run() {
 function application_configure_incoming_port() {
 
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		sleep 5s
 		qbittorrent_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		nicotine_configure_incoming_port

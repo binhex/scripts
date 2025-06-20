@@ -131,19 +131,10 @@ function get_vpn_adapter_name() {
 }
 
 function get_incoming_port() {
-
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   local vpn_public_ip
   local vpn_country_ip
   local vpn_city_ip
-
-  INCOMING_PORT=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
-  vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
-  vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
-  vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
-
-}
-function main {
 
   if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
     echo "[INFO] Configuration of VPN incoming port is disabled."
@@ -164,6 +155,14 @@ function main {
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
   fi
+
+  INCOMING_PORT=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
+  vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
+  vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
+  vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
+}
+
+function main {
 
   # get incoming port
   get_incoming_port

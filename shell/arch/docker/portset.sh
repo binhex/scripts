@@ -40,12 +40,21 @@ REMAINING_ARGS=()
 function curl_with_retry() {
   local url="${1}"
   shift
-  local max_retries="${1}"
-  shift
-  local retry_delay="${1}"
-  shift
-  local curl_args=("$@")
 
+  # Check if second argument is a number (max_retries)
+  local max_retries=3  # Default
+  local retry_delay=2  # Default
+
+  if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
+    max_retries="${1}"
+    shift
+    if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
+      retry_delay="${1}"
+      shift
+    fi
+  fi
+
+  local curl_args=("$@")  # Remaining arguments are curl options
   local retry_count=0
   local result
   local exit_code

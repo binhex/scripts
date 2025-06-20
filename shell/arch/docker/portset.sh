@@ -8,7 +8,7 @@
 set -x
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
-readonly ourScriptVersion="1.0.0"
+readonly ourScriptVersion="v1.0.0"
 
 # default values
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"

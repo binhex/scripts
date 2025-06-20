@@ -68,7 +68,6 @@ function kill_process() {
 }
 
 function get_vpn_adapter_name() {
-
 	if [[ -n "${VPN_INTERFACE}" ]]; then
 		VPN_ADAPTER_NAME="${VPN_INTERFACE}"
 		if [[ "${DEBUG}" == "yes" ]]; then
@@ -156,7 +155,6 @@ function main {
 }
 
 function application_initial_setup_and_run() {
-
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		qbittorrent_config
 		qbittorrent_start
@@ -164,7 +162,6 @@ function application_initial_setup_and_run() {
 }
 
 function application_configure_incoming_port() {
-
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
 		wait_for_port_to_be_listening "${APPLICATION_PORT}"
 		qbittorrent_configure_incoming_port
@@ -204,7 +201,6 @@ EOF
 }
 
 function qbittorrent_update_or_add_config_section() {
-
 	local config_file="${1}"
 	shift
 	local section="${1}"
@@ -281,7 +277,6 @@ function wait_for_port_to_be_listening() {
 }
 
 function qbittorrent_configure_incoming_port() {
-
 	local web_protocol
 
 	echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
@@ -296,10 +291,11 @@ function qbittorrent_configure_incoming_port() {
 	if [[ "${DEBUG}" == "yes" ]]; then
 		echo "[INFO] Sending POST requests to URL '${web_protocol}://localhost:${APPLICATION_PORT}'..."
 	fi
-
+	set -x
 	# note -k flag required to support insecure connection (self signed certs) when https used
-	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
-	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
+	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences"
+	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences"
+	set +x
 }
 
 function qbittorrent_config() {

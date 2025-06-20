@@ -125,7 +125,7 @@ function main {
 		vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
 
 		if [[ "${DEBUG}" == "yes" ]]; then
-			echo "[INFO] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
+			echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
 			echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
 			echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
 			echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
@@ -141,15 +141,9 @@ function main {
 			application_configure_incoming_port
 			vpn_previous_incoming_port="${INCOMING_PORT}"
 		else
-				if [[ "${DEBUG}" == "yes" ]]; then
-					echo "[DEBUG] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${INCOMING_PORT}' are the same, nothing to do."
-				fi
+			echo "[INFO] Previous VPN port forward '${vpn_previous_incoming_port}' and current VPN port forward '${INCOMING_PORT}' are the same, checking again in ${POLL_DELAY} seconds..."
 		fi
 
-		# Sleep for a bit before checking again
-		if [[ "${DEBUG}" == "yes" ]]; then
-			echo "[DEBUG] sleeping for '${POLL_DELAY}' seconds before next invocation..."
-		fi
 		sleep "${POLL_DELAY}"
 	done
 }

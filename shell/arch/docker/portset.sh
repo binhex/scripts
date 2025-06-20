@@ -238,16 +238,13 @@ function application_verify_incoming_port() {
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     if ! qbittorrent_verify_incoming_port; then
       return 1
-    else
-      return 0
     fi
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     if ! nicotine_verify_incoming_port; then
       return 1
-    else
-      return 0
     fi
   fi
+  return 0
 }
 
 # qBittorrent functions

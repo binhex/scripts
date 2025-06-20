@@ -4,7 +4,7 @@
 #
 # In order for the script to work you need the following configured for gluetun:
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
-# 2. Ensure the application is using the gluetun container as its network.
+# 2. Ensure the application running this script is sharing the gluetun container's network.
 
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
@@ -73,7 +73,6 @@ function check_process() {
 }
 
 function kill_process() {
-  # Kill existing application process if it exists
   if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
     echo "[INFO] Killing ${APPLICATION_NAME} process with PID '${APPLICATION_PID}'"
     kill "${APPLICATION_PID}"

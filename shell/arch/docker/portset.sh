@@ -160,6 +160,13 @@ function get_incoming_port() {
   vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
   vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
   vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
+    echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
+    echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
+    echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
+  fi
 }
 
 function main {
@@ -174,13 +181,6 @@ function main {
 
     # get current incoming port
     get_incoming_port
-
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
-      echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
-      echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
-      echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
-    fi
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]]; then
       if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then

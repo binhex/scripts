@@ -40,21 +40,12 @@ REMAINING_ARGS=()
 function curl_with_retry() {
   local url="${1}"
   shift
+  local max_retries="${1}"
+  shift
+  local retry_delay="${1}"
+  shift
+  local curl_args=("$@")
 
-  # Check if second argument is a number (max_retries)
-  local max_retries=3  # Default
-  local retry_delay=2  # Default
-
-  if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
-    max_retries="${1}"
-    shift
-    if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
-      retry_delay="${1}"
-      shift
-    fi
-  fi
-
-  local curl_args=("$@")  # Remaining arguments are curl options
   local retry_count=0
   local result
   local exit_code
@@ -216,10 +207,14 @@ function get_incoming_port() {
   fi
 
   # Get port and IP information using curl_with_retry
-  INCOMING_PORT=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s | jq -r '.port')
-  vpn_public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s | jq -r '.public_ip')
-  vpn_country_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s | jq -r '.country')
-  vpn_city_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s | jq -r '.city')
+  portforwarded_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s)
+  public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s)
+
+  # parse results
+  INCOMING_PORT="$(echo "${portforwarded_response}" | jq -r '.port')"
+  vpn_public_ip="$(echo "${public_ip}" | jq -r '.public_ip')"
+  vpn_country_ip="$(echo "${public_ip}" | jq -r '.country')"
+  vpn_city_ip="$(echo "${public_ip}" | jq -r '.city')"
 
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
@@ -343,7 +338,8 @@ function qbittorrent_verify_incoming_port() {
   fi
 
   # Get current preferences from qBittorrent API using curl_with_retry
-  current_port=$(curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" 10 1 -k -s | jq -r '.listen_port')
+  preferences_response=$(curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" 10 1 -k -s)
+  current_port="$(echo "${preferences_response}" | jq -r '.listen_port')"
 
   if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current qBittorrent listen port: '${current_port}', Expected: '${INCOMING_PORT}'"

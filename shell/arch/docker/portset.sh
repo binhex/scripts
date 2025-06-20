@@ -7,7 +7,8 @@
 # 2. Ensure the application is using the gluetun container as its network.
 
 # script name and path
-readonly ourScriptName="$(basename -- "$0")"
+readonly ourScriptName
+ourScriptName="$(basename -- "$0")"
 readonly ourScriptversion="1.0.0"
 
 # default values
@@ -130,11 +131,20 @@ function get_vpn_adapter_name() {
   fi
 }
 
-function main {
+function get_incoming_port() {
+
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   local vpn_public_ip
   local vpn_country_ip
   local vpn_city_ip
+
+  INCOMING_PORT=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
+  vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
+  vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
+  vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
+
+}
+function main {
 
   if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
     echo "[INFO] Configuration of VPN incoming port is disabled."
@@ -156,15 +166,16 @@ function main {
     echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
   fi
 
+  # get incoming port
+  get_incoming_port
+
   # run any initial setup of the application prior to port configuration and then start the application (excludes nicotineplus, as this is done in the configure function)
   application_config_and_start
 
   while true; do
 
-    INCOMING_PORT=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
-    vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
-    vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
-    vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
+    # get incoming port
+    get_incoming_port
 
     if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"

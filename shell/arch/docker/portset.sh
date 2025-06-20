@@ -237,6 +237,12 @@ function application_verify_incoming_port() {
     else
       return 0
     fi
+  elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
+    if ! nicotine_verify_incoming_port; then
+      return 1
+    else
+      return 0
+    fi
   fi
 }
 
@@ -411,8 +417,9 @@ function nicotine_start() {
 }
 
 function nicotine_config() {
+  local config_file='/home/nobody/.config/nicotine/config'
   echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
-  sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" '/home/nobody/.config/nicotine/config'
+  sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
 }
 
 function nicotine_configure_incoming_port() {
@@ -425,6 +432,30 @@ function nicotine_configure_incoming_port() {
   kill_process
   nicotine_config
   nicotine_start
+}
+
+function nicotine_verify_incoming_port() {
+  local config_file='/home/nobody/.config/nicotine/config'
+  local expected_line="portrange = (${INCOMING_PORT}, ${INCOMING_PORT})"
+
+  echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Looking for line: '${expected_line}' in config file '${config_file}'"
+  fi
+
+  # Check if the expected portrange line exists in the config file
+  if grep -Fxq "${expected_line}" "${config_file}"; then
+    echo "[INFO] ${APPLICATION_NAME} incoming port matches VPN port '${INCOMING_PORT}'"
+    return 0
+  else
+    echo "[WARN] ${APPLICATION_NAME} incoming port does not match VPN port '${INCOMING_PORT}'"
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Current portrange line in config:"
+      grep "^portrange" "${config_file}" || echo "[DEBUG] No portrange line found"
+    fi
+    return 1
+  fi
 }
 
 function show_help() {

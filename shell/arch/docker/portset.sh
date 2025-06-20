@@ -8,7 +8,7 @@
 set -x
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
-readonly ourScriptversion="1.0.0"
+readonly ourScriptVersion="1.0.0"
 
 # default values
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
@@ -225,6 +225,8 @@ function get_incoming_port() {
 }
 
 function main {
+
+  echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
 
   # get initial incoming port
   get_incoming_port
@@ -511,7 +513,7 @@ function show_help() {
   cat <<ENDHELP
 Description:
   A simple bash script to monitor the VPN incoming port from gluetun and configure a predefined list of applications.
-  ${ourScriptName} ${ourScriptversion} - Created by binhex.
+  ${ourScriptName} ${ourScriptVersion} - Created by binhex.
 
 Syntax:
   ./${ourScriptName} [options] [command and arguments]

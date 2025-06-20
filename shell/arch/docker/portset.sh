@@ -566,8 +566,8 @@ do
     GLUETUN_CONTROL_SERVER_PORT="${2}"
     shift
     ;;
-  -cipd|--configure-incoming-port)
-    CONFIGURE_INCOMING_PORT="${2}"
+  -cip|--configure-incoming-port)
+    CONFIGURE_INCOMING_PORT="${2,,}"
     shift
     ;;
   -pd|--poll-delay)

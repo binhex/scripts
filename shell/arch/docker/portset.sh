@@ -7,8 +7,7 @@
 # 2. Ensure the application is using the gluetun container as its network.
 
 # script name and path
-readonly ourScriptName
-ourScriptName="$(basename -- "$0")"
+readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptversion="1.0.0"
 
 # default values

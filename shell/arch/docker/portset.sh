@@ -181,7 +181,7 @@ function main {
     # get current incoming port
     get_incoming_port
 
-    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" || ! $(application_verify_incoming_port) ]]; then
+    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
       if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
         echo "[INFO] No previous VPN port forward found, assuming first run, configuring application..."
       else

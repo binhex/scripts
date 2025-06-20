@@ -37,6 +37,53 @@ REMAINING_ARGS=()
 # utility functions
 ####
 
+function curl_with_retry() {
+  local url="${1}"
+  shift
+  local max_retries="${1:-3}"  # Default to 3 retries
+  shift
+  local retry_delay="${1:-2}"  # Default to 2 seconds delay
+  shift
+  local curl_args=("$@")       # Any additional curl arguments
+
+  local retry_count=0
+  local result
+  local exit_code
+
+  while [[ "${retry_count}" -lt "${max_retries}" ]]; do
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Attempting curl request to '${url}', attempt $((retry_count + 1))/${max_retries}"
+    fi
+
+    # Execute curl with all provided arguments
+    result=$(curl "${curl_args[@]}" "${url}" 2>/dev/null)
+    exit_code=$?
+
+    if [[ "${exit_code}" -eq 0 ]]; then
+      if [[ "${DEBUG}" == "yes" ]]; then
+        echo "[DEBUG] Curl request successful on attempt $((retry_count + 1))"
+      fi
+      echo "${result}"
+      return 0
+    else
+      retry_count=$((retry_count + 1))
+      if [[ "${DEBUG}" == "yes" ]]; then
+        echo "[DEBUG] Curl request failed with exit code ${exit_code}, attempt ${retry_count}/${max_retries}"
+      fi
+
+      if [[ "${retry_count}" -lt "${max_retries}" ]]; then
+        if [[ "${DEBUG}" == "yes" ]]; then
+          echo "[DEBUG] Retrying in ${retry_delay} seconds..."
+        fi
+        sleep "${retry_delay}"
+      fi
+    fi
+  done
+
+  echo "[ERROR] Curl request to '${url}' failed after ${max_retries} attempts"
+  return 1
+}
+
 function start_process() {
   local mode="${1}"
   shift
@@ -134,10 +181,13 @@ function get_incoming_port() {
   local vpn_public_ip
   local vpn_country_ip
   local vpn_city_ip
+  local max_retries=5
+  local retry_count=0
+  local retry_delay=10
 
   if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
     echo "[INFO] Configuration of VPN incoming port is disabled."
-    if [[ ${#REMAINING_ARGS[@]} -gt 0 ]]; then
+    if [[ "${#REMAINING_ARGS[@]}" -gt 0 ]]; then
       echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
       exec "${REMAINING_ARGS[@]}"
     else
@@ -146,19 +196,24 @@ function get_incoming_port() {
     fi
   fi
 
-  if ! curl -s "${control_server_url}" >/dev/null 2>&1; then
-    echo "[ERROR] Unable to connect to gluetun Control Server at '${control_server_url}', are you running this container in the gluetun containers network?, exiting..."
-    exit 1
+  # Test connection to gluetun Control Server
+  if ! curl_with_retry "${control_server_url}" "${max_retries}" "${retry_delay}" -s >/dev/null; then
+    echo "[ERROR] Failed to connect to gluetun Control Server after ${max_retries} attempts"
+    echo "[INFO] Giving up on VPN port configuration, executing remaining arguments..."
+    if [[ "${#REMAINING_ARGS[@]}" -gt 0 ]]; then
+      echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
+      exec "${REMAINING_ARGS[@]}"
+    else
+      echo "[INFO] No command provided to execute, exiting script..."
+      exit 1
+    fi
   fi
 
-  if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Successfully connected to gluetun Control Server at '${control_server_url}'"
-  fi
-
-  INCOMING_PORT=$(curl -s "${control_server_url}/openvpn/portforwarded" | jq -r '.port')
-  vpn_public_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.public_ip')
-  vpn_country_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.country')
-  vpn_city_ip=$(curl -s "${control_server_url}/publicip/ip" | jq -r '.city')
+  # Get port and IP information using curl_with_retry
+  INCOMING_PORT=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 3 2 -s | jq -r '.port')
+  vpn_public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 3 2 -s | jq -r '.public_ip')
+  vpn_country_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 3 2 -s | jq -r '.country')
+  vpn_city_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 3 2 -s | jq -r '.city')
 
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
@@ -271,8 +326,6 @@ function qbittorrent_start() {
 function qbittorrent_verify_incoming_port() {
   local web_protocol
   local current_port
-  local max_retries=3
-  local retry_count=0
 
   echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
@@ -283,33 +336,26 @@ function qbittorrent_verify_incoming_port() {
       web_protocol="http"
   fi
 
-  while [[ ${retry_count} -lt ${max_retries} ]]; do
-      # Get current preferences from qBittorrent API
-      current_port=$(curl -k -s "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" | jq -r '.listen_port')
+  # Get current preferences from qBittorrent API using curl_with_retry
+  current_port=$(curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" 3 2 -k -s | jq -r '.listen_port')
 
-      if [[ "${DEBUG}" == "yes" ]]; then
-          echo "[DEBUG] Current qBittorrent listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
-      fi
+  if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Current qBittorrent listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
+  fi
 
-      # Check if the port was retrieved successfully and matches
-      if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
-          echo "[WARN] Unable to retrieve current port from qBittorrent API, attempt $((retry_count + 1))/${max_retries}"
-          retry_count=$((retry_count + 1))
-          sleep 2
-          continue
-      fi
+  # Check if the port was retrieved successfully and matches
+  if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
+      echo "[WARN] Unable to retrieve current port from qBittorrent API"
+      return 1
+  fi
 
-      if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
-          echo "[INFO] qBittorrent incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
-          return 0
-      else
-          echo "[WARN] qBittorrent incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
-          return 1
-      fi
-  done
-
-  echo "[ERROR] Failed to verify qBittorrent port after ${max_retries} attempts"
-  return 1
+  if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
+      echo "[INFO] qBittorrent incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+      return 0
+  else
+      echo "[WARN] qBittorrent incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+      return 1
+  fi
 }
 
 function qbittorrent_create_config_file() {
@@ -404,9 +450,9 @@ function qbittorrent_configure_incoming_port() {
     echo "[INFO] Sending POST requests to URL '${web_protocol}://localhost:${APPLICATION_PORT}'..."
   fi
 
-  # note -k flag required to support insecure connection (self signed certs) when https used
-  curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
-  curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
+  # Use curl_with_retry for API calls
+  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json={\"random_port\": false}" >/dev/null
+  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" >/dev/null
 }
 
 # nicotineplus functions

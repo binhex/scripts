@@ -164,15 +164,15 @@ function get_incoming_port() {
 
 function main {
 
-  # get incoming port
+  # get initial incoming port
   get_incoming_port
 
-  # run any initial setup of the application prior to port configuration and then start the application (excludes nicotineplus, as this is done in the configure function)
+  # run any initial setup of the application prior to port configuration and then start the application
   application_config_and_start
 
   while true; do
 
-    # get incoming port
+    # get current incoming port
     get_incoming_port
 
     if [[ "${DEBUG}" == "yes" ]]; then

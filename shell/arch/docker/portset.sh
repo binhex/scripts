@@ -166,6 +166,7 @@ function application_initial_setup_and_run() {
 function application_configure_incoming_port() {
 
 	if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+		wait_for_port_to_be_listening "${APPLICATION_PORT}"
 		qbittorrent_configure_incoming_port
 	elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
 		nicotine_configure_incoming_port
@@ -254,6 +255,31 @@ function qbittorrent_configure_bind_adapter() {
 	fi
 }
 
+function wait_for_port_to_be_listening() {
+	local port="${1}"
+	shift
+	local timeout="${1:-30}"  # Default timeout of 30 seconds
+	shift
+
+	local elapsed=0
+	local sleep_interval=1
+
+	echo "[INFO] Waiting for port ${port} to be listening..."
+
+	while ! nc -z localhost "${port}" && [[ ${elapsed} -lt ${timeout} ]]; do
+		echo "[DEBUG] Port ${port} not yet listening, waiting..."
+		sleep "${sleep_interval}"
+		elapsed=$((elapsed + sleep_interval))
+	done
+
+	if nc -z localhost "${port}"; then
+		echo "[INFO] Port ${port} is now listening"
+	else
+		echo "[ERROR] Timeout reached after ${timeout} seconds, port ${port} is still not listening"
+		exit 1
+	fi
+}
+
 function qbittorrent_configure_incoming_port() {
 
 	local web_protocol
@@ -271,7 +297,6 @@ function qbittorrent_configure_incoming_port() {
 		echo "[INFO] Sending POST requests to URL '${web_protocol}://localhost:${APPLICATION_PORT}'..."
 	fi
 
-	sleep 5s
 	# note -k flag required to support insecure connection (self signed certs) when https used
 	curl -k -i -X POST -d "json={\"random_port\": false}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null
 	curl -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" &> /dev/null

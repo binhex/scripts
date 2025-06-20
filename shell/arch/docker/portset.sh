@@ -325,8 +325,6 @@ General\UseRandomPort=false
 WebUI\CSRFProtection=false
 WebUI\LocalHostAuth=false
 WebUI\UseUPnP=false
-WebUI\Address=*
-WebUI\ServerDomains=*
 WebUI\Port=${APPLICATION_PORT}
 EOF
 

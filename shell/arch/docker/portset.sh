@@ -173,7 +173,7 @@ function main {
   # get initial incoming port
   get_incoming_port
 
-  # run any initial setup of the application prior to port configuration and then start the application
+  # run any initial pre-start configuration of the application and then start the application
   application_config_and_start
 
   while true; do
@@ -182,10 +182,19 @@ function main {
     get_incoming_port
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
-      if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
-        echo "[INFO] No previous VPN port forward found, assuming first run, configuring application..."
-      else
-        echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are different, configuring application..."
+
+      if [[ -z "${INCOMING_PORT}" ]]; then
+        echo "[WARN] Incoming port is not set, this may be due to the VPN not being connected or the gluetun Control Server not being available, checking again in ${POLL_DELAY} seconds..."
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+
+      if [[ "${DEBUG}" == 'yes' ]]; then
+        if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
+          echo "[DEBUG] No previous VPN port forward found, assuming first run, configuring application..."
+        else
+          echo "[DEBUG] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are different, configuring application..."
+        fi
       fi
 
       # ensure process with PID is running
@@ -207,32 +216,32 @@ function main {
 }
 
 function application_config_and_start() {
-  if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_config
     qbittorrent_start
-  elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
+  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_config
     nicotine_start
   fi
 }
 
 function application_configure_incoming_port() {
-  if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
     qbittorrent_configure_incoming_port
-  elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
+  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_configure_incoming_port
   fi
 }
 
 function application_verify_incoming_port() {
-  if [[ "${APPLICATION_NAME,,}" == 'qbittorrent' ]]; then
+  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     if ! qbittorrent_verify_incoming_port; then
       return 1
     else
       return 0
     fi
-  elif [[ "${APPLICATION_NAME,,}" == 'nicotineplus' ]]; then
+  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     if ! nicotine_verify_incoming_port; then
       return 1
     else
@@ -369,7 +378,7 @@ function qbittorrent_configure_protection() {
 }
 
 function qbittorrent_configure_bind_adapter() {
-  if [[ "${QBITTORRENT_BIND_ADAPTER,,}" == 'yes' ]]; then
+  if [[ "${QBITTORRENT_BIND_ADAPTER}" == 'yes' ]]; then
     echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"
 
       # get vpn adapter name (wg0/tun0/tap0)
@@ -538,7 +547,7 @@ do
   case "$1"
   in
   -an|--application-name)
-    APPLICATION_NAME="${2}"
+    APPLICATION_NAME="${2,,}"
     shift
     ;;
   -ap|--application-port)
@@ -550,7 +559,7 @@ do
     shift
     ;;
   -qba|--qbittorrent-bind-adapter)
-    QBITTORRENT_BIND_ADAPTER="${2}"
+    QBITTORRENT_BIND_ADAPTER="${2,,}"
     shift
     ;;
   -gcsp|--gluetun-control-server-port)

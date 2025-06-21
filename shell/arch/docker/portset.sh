@@ -5,7 +5,7 @@
 # In order for the script to work you need the following configured for gluetun:
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
 # 2. Ensure the application running this script is sharing the gluetun container's network.
-
+set -x
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptVersion="v1.0.0"

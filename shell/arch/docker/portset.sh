@@ -5,7 +5,7 @@
 # In order for the script to work you need the following configured for gluetun:
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
 # 2. Ensure the application running this script is sharing the gluetun container's network.
-set -x
+
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptVersion="v1.0.0"
@@ -455,8 +455,8 @@ function qbittorrent_configure_incoming_port() {
   fi
 
   # Use curl_with_retry for API calls
-  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -s -X POST -d "json={\"random_port\": false}" >/dev/null
-  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -s -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" >/dev/null
+  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -i -X POST -d "json={\"random_port\": false}" >/dev/null
+  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" >/dev/null
 }
 
 # nicotineplus functions

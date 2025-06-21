@@ -341,7 +341,16 @@ function qbittorrent_verify_incoming_port() {
 
   # Get current preferences from qBittorrent API using curl_with_retry
   preferences_response=$(curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" 10 1 -k -s)
-  current_port="$(echo "${preferences_response}" | jq -r '.listen_port')"
+
+  # Validate the response before parsing with jq
+  if [[ -n "${preferences_response}" ]] && echo "${preferences_response}" | jq . >/dev/null 2>&1; then
+    current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
+  else
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Invalid or empty response from qBittorrent API: '${preferences_response}'"
+    fi
+    current_port=""
+  fi
 
   if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current qBittorrent listen port: '${current_port}', Expected: '${INCOMING_PORT}'"

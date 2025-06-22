@@ -16,7 +16,7 @@ readonly defaultQbittorrentWebuiPort="8080"
 readonly defaultQbittorrentBindAdapter="yes"
 readonly defaultGluetunControlServerPort="8000"
 readonly defaultConfigureIncomingPort="no"
-readonly defaultPollDelay="10"
+readonly defaultPollDelay="30"
 readonly defaultDebug="no"
 
 # read env var values if not empty, else use defaults

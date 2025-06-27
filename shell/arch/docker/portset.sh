@@ -340,7 +340,7 @@ function application_verify_incoming_port() {
 function deluge_config() {
 
   local pid_filepath="/config/deluged.pid"
-  local config_filepath="/config/deluge.conf"
+  local config_filepath="/config/core.conf"
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' with pre-defined configuration file '${INCOMING_PORT}'..."
 
@@ -362,6 +362,7 @@ function deluge_config() {
     "listen_random_port": null,
     "listen_reuse_port": true,
     "listen_use_sys_port": false,
+    "outgoing_interface": "${VPN_IP_ADDRESS}",
     "random_port": false,
     "upnp": false
 }
@@ -370,6 +371,7 @@ EOF
   else
     echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${config_filepath}'"
     deluge_configure_listen_interface
+    deluge_configure_outgoing_interface
     deluge_configure_listen_port
     deluge_configure_other
   fi
@@ -395,6 +397,12 @@ function deluge_configure_listen_interface() {
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN listen interface '${VPN_IP_ADDRESS}'"
   /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}"
+}
+
+function deluge_configure_outgoing_interface() {
+
+  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN outgoing interface '${VPN_IP_ADDRESS}'"
+  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}"
 }
 
 # qBittorrent functions

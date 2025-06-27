@@ -387,15 +387,16 @@ function deluge_configure_outgoing_interface() {
 ####
 
 function qbittorrent_config() {
-  mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
-  if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
-    qbittorrent_create_config_file
-  else
-    echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${QBITTORRENT_CONFIG_FILEPATH}'"
-    qbittorrent_configure_protection
-    qbittorrent_configure_bind_adapter
-    qbittorrent_configure_other
-  fi
+  qbittorrent_configure_api
+  # mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
+  # if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+  #   qbittorrent_create_config_file
+  # else
+  #   echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${QBITTORRENT_CONFIG_FILEPATH}'"
+  #   qbittorrent_configure_protection
+  #   qbittorrent_configure_bind_adapter
+  #   qbittorrent_configure_other
+  # fi
 }
 
 function qbittorrent_start() {
@@ -457,6 +458,43 @@ function qbittorrent_update_or_add_config_section() {
           # Section doesn't exist, create it with the entry
           echo -e "\n[${section}]\n${key}=${value}" >> "${config_file}"
       fi
+  fi
+}
+
+function qbittorrent_configure_api() {
+  if [[ "${QBITTORRENT_BIND_ADAPTER}" == 'yes' ]]; then
+    local web_protocol
+
+    echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface via API"
+
+    # get vpn adapter name (wg0/tun0/tap0)
+    get_vpn_adapter_name
+
+    # identify protocol, used by curl to connect to api
+    if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+      web_protocol="https"
+    else
+      web_protocol="http"
+    fi
+
+    # Set network interface binding via API
+    local interface_json="{
+      \"web_ui_upnp\": false,
+      \"upnp\": false,
+      \"random_port\": false,
+      \"web_ui_csrf_protection\": false,
+      \"bypass_local_auth\": false,
+      \"current_network_interface\": \"${VPN_ADAPTER_NAME}\",
+      \"current_interface_name\": \"${VPN_ADAPTER_NAME}\",
+      \"web_ui_csrf_protection\": false,
+      \"bypass_local_auth\": false
+    }"
+
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Setting network interface binding: ${interface_json}"
+    fi
+
+    curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
   fi
 }
 

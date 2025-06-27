@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 # Script to get the incoming port from gluetun and configure a predefined list of applications. This script will block.
 #
 # In order for the script to work you need the following configured for gluetun:
@@ -339,52 +338,31 @@ function application_verify_incoming_port() {
 
 function deluge_config() {
 
-  local pid_filepath="/config/deluged.pid"
-  local config_filepath="/config/deluge.conf"
+  echo "[INFO] Configuring '${APPLICATION_NAME}' for VPN..."
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with pre-defined configuration file '${INCOMING_PORT}'..."
-
-  if [[ ! -f "${config_filepath}" ]]; then
-    cat <<EOF > "${config_filepath}"
-{
-}{
-    "allow_remote": true,
-    "auto_managed": true,
-    "autoadd_location": "/data/watched",
-    "daemon_port": 58846,
-    "download_location": "/data/incomplete",
-    "download_location_paths_list": [],
-    "listen_interface": "${VPN_IP_ADDRESS}",
-    "listen_ports": [
-        ${INCOMING_PORT},
-        ${INCOMING_PORT}
-    ],
-    "listen_random_port": null,
-    "listen_reuse_port": true,
-    "listen_use_sys_port": false,
-    "outgoing_interface": "${VPN_IP_ADDRESS}",
-    "random_port": false,
-    "upnp": false
-}
-EOF
-
-  else
-    echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${config_filepath}'"
-    deluge_configure_listen_interface
-    deluge_configure_outgoing_interface
-    deluge_configure_listen_port
-    deluge_configure_other
-  fi
+  deluge_configure_random_port
+  deluge_configure_listen_interface
+  deluge_configure_outgoing_interface
+  deluge_configure_listen_port
+  deluge_configure_other
 
 }
 
 function deluge_start() {
+
+  local pid_filepath="/config/deluged.pid"
 
   echo "[info] Removing deluge pid file (if it exists)..."
   rm -f "${pid_filepath}"
 
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process
+}
+
+function deluge_configure_random_port() {
+
+  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN random port set to 'false'"
+  /usr/bin/deluge-console -c /config "config --set random_port false"
 }
 
 function deluge_configure_incoming_port() {
@@ -421,8 +399,13 @@ function qbittorrent_config() {
 }
 
 function qbittorrent_start() {
+
+  local session_lock_filepath="/config/qBittorrent/data/BT_backup/session.lock"
+
   echo "[info] Removing ${APPLICATION_NAME} session lock file (if it exists)..."
-  rm -f /config/qBittorrent/data/BT_backup/session.lock
+  rm -f "${session_lock_filepath}"
+
+  echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process
 }
 

@@ -16,7 +16,6 @@ readonly ourScriptVersion="v1.0.0"
 
 # default values
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
-readonly defaultApplicationPort="8080"
 readonly defaultQbittorrentBindAdapter="yes"
 readonly defaultGluetunControlServerPort="8000"
 readonly defaultConfigureIncomingPort="no"
@@ -28,7 +27,6 @@ QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrent
 QBITTORRENT_BIND_ADAPTER="${QBITTORRENT_BIND_ADAPTER:-${defaultQbittorrentBindAdapter}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
 CONFIGURE_INCOMING_PORT="${CONFIGURE_INCOMING_PORT:-${defaultConfigureIncomingPort}}"
-APPLICATION_PORT="${APPLICATION_PORT:-${defaultApplicationPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
@@ -661,7 +659,7 @@ Where:
 
   -ap or --application-port <port>
     Define the web UI port for the application.
-    Defaults to '${APPLICATION_PORT}'.
+    No default.
 
   -qcf or --qbittorrent-config-filepath <path>
     Define the file path to the qBittorrent configuration file.
@@ -774,6 +772,11 @@ done
 
 if [[ -z "${APPLICATION_NAME}" ]]; then
   echo "[INFO] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', showing help..."
+  show_help
+fi
+
+if [[ -z "${APPLICATION_PORT}" ]]; then
+  echo "[INFO] No application port specified via argument '-ap|--application-port' or environment variable 'APPLICATION_PORT', showing help..."
   show_help
 fi
 

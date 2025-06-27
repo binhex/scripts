@@ -96,53 +96,13 @@ function curl_with_retry() {
 }
 
 function start_process() {
-  # Parse multiple commands separated by &&
-  readarray -t commands < <(parse_multiple_commands)
 
-  if [[ "${#commands[@]}" -gt 1 ]]; then
-    # Multiple commands - start ALL in background
-    for ((i=0; i<${#commands[@]}; i++)); do
-      echo "[INFO] Starting background process: ${commands[i]}"
-      nohup ${commands[i]} &
-      local pid=$!
-      echo "[INFO] Started background process with PID ${pid}"
-
-      # Set the last process PID as the main APPLICATION_PID for tracking
-      if [[ $i -eq $((${#commands[@]}-1)) ]]; then
-        APPLICATION_PID=${pid}
-      fi
-    done
-  else
-    # Single command - start in background
-    echo "[INFO] Starting single process: ${REMAINING_ARGS[*]}"
-    nohup "${REMAINING_ARGS[@]}" &
-    APPLICATION_PID=$!
-  fi
+  # Single command - start in background
+  echo "[INFO] Starting single process: ${REMAINING_ARGS[*]}"
+  nohup "${REMAINING_ARGS[@]}" &
+  APPLICATION_PID=$!
 
   echo "[INFO] Started '${APPLICATION_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
-}
-
-function parse_multiple_commands() {
-  local commands=()
-  local current_command=()
-
-  for arg in "${REMAINING_ARGS[@]}"; do
-    if [[ "${arg}" == "&&" ]]; then
-      if [[ "${#current_command[@]}" -gt 0 ]]; then
-        commands+=("${current_command[*]}")
-        current_command=()
-      fi
-    else
-      current_command+=("${arg}")
-    fi
-  done
-
-  # Add the last command
-  if [[ "${#current_command[@]}" -gt 0 ]]; then
-    commands+=("${current_command[*]}")
-  fi
-
-  echo "${commands[@]}"
 }
 
 function check_process() {

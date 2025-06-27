@@ -98,21 +98,53 @@ function curl_with_retry() {
 }
 
 function start_process() {
-  local mode="${1}"
-  shift
-  local arguments="${1}"
-  shift
+  # Parse multiple commands separated by &&
+  readarray -t commands < <(parse_multiple_commands)
 
-  if [[ "${mode}" == "background" ]]; then
-    # shellcheck disable=SC2086
-    nohup "${SCRIPT_ARGS[@]}" ${arguments} &
+  if [[ "${#commands[@]}" -gt 1 ]]; then
+    # Multiple commands - start ALL in background
+    for ((i=0; i<${#commands[@]}; i++)); do
+      echo "[INFO] Starting background process: ${commands[i]}"
+      nohup ${commands[i]} &
+      local pid=$!
+      echo "[INFO] Started background process with PID ${pid}"
+
+      # Set the last process PID as the main APPLICATION_PID for tracking
+      if [[ $i -eq $((${#commands[@]}-1)) ]]; then
+        APPLICATION_PID=${pid}
+      fi
+    done
   else
-    # shellcheck disable=SC2086
-    "${SCRIPT_ARGS[@]}" ${arguments}
+    # Single command - start in background
+    echo "[INFO] Starting single process: ${REMAINING_ARGS[*]}"
+    nohup "${REMAINING_ARGS[@]}" &
+    APPLICATION_PID=$!
   fi
 
-  APPLICATION_PID=$!
-  echo "[INFO] Started '${APPLICATION_NAME}' with PID '${APPLICATION_PID}' in '${mode}' mode"
+  echo "[INFO] Started '${APPLICATION_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
+}
+
+function parse_multiple_commands() {
+  local commands=()
+  local current_command=()
+
+  for arg in "${REMAINING_ARGS[@]}"; do
+    if [[ "${arg}" == "&&" ]]; then
+      if [[ "${#current_command[@]}" -gt 0 ]]; then
+        commands+=("${current_command[*]}")
+        current_command=()
+      fi
+    else
+      current_command+=("${arg}")
+    fi
+  done
+
+  # Add the last command
+  if [[ "${#current_command[@]}" -gt 0 ]]; then
+    commands+=("${current_command[*]}")
+  fi
+
+  echo "${commands[@]}"
 }
 
 function check_process() {
@@ -394,7 +426,7 @@ function deluge_start() {
   rm -f "${pid_filepath}"
 
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process "background"
+  start_process
 }
 
 function deluge_configure_incoming_port() {
@@ -427,7 +459,7 @@ function qbittorrent_config() {
 function qbittorrent_start() {
   echo "[info] Removing ${APPLICATION_NAME} session lock file (if it exists)..."
   rm -f /config/qBittorrent/data/BT_backup/session.lock
-  start_process "background"
+  start_process
 }
 
 function qbittorrent_create_config_file() {
@@ -568,7 +600,7 @@ function qbittorrent_verify_incoming_port() {
 
 function nicotine_start() {
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process "background" "--port ${INCOMING_PORT}"
+  start_process "--port ${INCOMING_PORT}"
 }
 
 function nicotine_config() {

@@ -340,7 +340,7 @@ function application_verify_incoming_port() {
 function deluge_config() {
 
   local pid_filepath="/config/deluged.pid"
-  local config_filepath="/config/core.conf"
+  local config_filepath="/config/deluge.conf"
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' with pre-defined configuration file '${INCOMING_PORT}'..."
 

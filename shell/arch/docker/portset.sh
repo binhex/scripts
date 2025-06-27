@@ -31,9 +31,6 @@ CONFIGURE_INCOMING_PORT="${CONFIGURE_INCOMING_PORT:-${defaultConfigureIncomingPo
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
-# Read all command line arguments
-SCRIPT_ARGS=("$@")
-
 # Initialize array for remaining arguments
 REMAINING_ARGS=()
 
@@ -742,6 +739,4 @@ if [[ -z "${APPLICATION_PORT}" ]]; then
 fi
 
 echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
-# Pass remaining arguments to the function
-SCRIPT_ARGS=("${REMAINING_ARGS[@]}")
 main

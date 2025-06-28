@@ -15,6 +15,7 @@ readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptVersion="v1.0.0"
 
 # default values
+readonly defaultDelugeWebConfigFilepath="/config/web.conf"
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
 readonly defaultQbittorrentBindAdapter="yes"
 readonly defaultGluetunControlServerPort="8000"
@@ -23,6 +24,7 @@ readonly defaultPollDelay="30"
 readonly defaultDebug="no"
 
 # read env var values if not empty, else use defaults
+DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
 QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrentConfigFilepath}}"
 QBITTORRENT_BIND_ADAPTER="${QBITTORRENT_BIND_ADAPTER:-${defaultQbittorrentBindAdapter}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
@@ -92,9 +94,8 @@ function curl_with_retry() {
   return 1
 }
 
-function start_process() {
+function start_process_background() {
 
-  # Single command - start in background
   echo "[INFO] Starting single process: ${REMAINING_ARGS[*]}"
   nohup "${REMAINING_ARGS[@]}" &
   APPLICATION_PID=$!
@@ -246,7 +247,7 @@ function main {
   get_incoming_port
 
   # run any initial pre-start configuration of the application and then start the application
-  application_config_and_start
+  application_start_and_configure
 
   while true; do
 
@@ -289,16 +290,18 @@ function main {
   done
 }
 
-function application_config_and_start() {
+function application_start_and_configure() {
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
-    qbittorrent_config
     qbittorrent_start
-  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
-    nicotine_config
-    nicotine_start
+    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    qbittorrent_api_config
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
-    deluge_config
     deluge_start
+    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    deluge_api_config
+  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
+    nicotine_edit_config
+    nicotine_start
   fi
 }
 
@@ -306,13 +309,12 @@ function application_configure_incoming_port() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
-    qbittorrent_configure_incoming_port
-  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
-    nicotine_configure_incoming_port
+    qbittorrent_api_config
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
-    deluge_configure_incoming_port
-    deluge_configure_listen_interface
+    deluge_api_config
+  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
+    nicotine_configure_incoming_port
   fi
 }
 
@@ -336,81 +338,84 @@ function application_verify_incoming_port() {
 # deluge functions
 ####
 
-function deluge_config() {
+function deluge_api_config() {
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' for VPN..."
 
-  deluge_configure_random_port
-  deluge_configure_listen_interface
-  deluge_configure_outgoing_interface
-  deluge_configure_listen_port
-  deluge_configure_other
-
+  /usr/bin/deluge-console -c /config "config --set random_port false"
+  /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})"
+  /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}"
+  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}"
 }
 
 function deluge_start() {
 
-  local pid_filepath="/config/deluged.pid"
-
-  echo "[info] Removing deluge pid file (if it exists)..."
-  rm -f "${pid_filepath}"
-
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process
+  start_process_background
 }
 
-function deluge_configure_random_port() {
+function deluge_verify_incoming_port() {
+  local web_protocol
+  local current_port
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN random port set to 'false'"
-  /usr/bin/deluge-console -c /config "config --set random_port false"
-}
+  echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
-function deluge_configure_incoming_port() {
+  # identify protocol, used by curl to connect to api
+  if grep -q '"https": true,' "${DELUGE_WEB_CONFIG_FILEPATH}"; then
+      web_protocol="https"
+  else
+      web_protocol="http"
+  fi
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
-  /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})"
-}
+  # Get current port from Deluge console
+  current_port=$(/usr/bin/deluge-console -c /config "config listen_ports" | grep -P -o '\d+(?=\)$)')
 
-function deluge_configure_listen_interface() {
+  if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Current ${APPLICATION_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
+  fi
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN listen interface '${VPN_IP_ADDRESS}'"
-  /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}"
-}
+  # Check if the port was retrieved successfully
+  if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
+      echo "[WARN] Unable to retrieve current port from ${APPLICATION_NAME} API"
+      return 1
+  fi
 
-function deluge_configure_outgoing_interface() {
+  if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
+      echo "[INFO] ${APPLICATION_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+      return 0
+  else
+      echo "[WARN] ${APPLICATION_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+      return 1
+  fi
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN outgoing interface '${VPN_IP_ADDRESS}'"
-  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}"
 }
 
 # qBittorrent functions
 ####
 
 function qbittorrent_config() {
-  qbittorrent_configure_api
-  # mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
-  # if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
-  #   qbittorrent_create_config_file
-  # else
-  #   echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${QBITTORRENT_CONFIG_FILEPATH}'"
-  #   qbittorrent_configure_protection
-  #   qbittorrent_configure_bind_adapter
-  #   qbittorrent_configure_other
-  # fi
+
+  mkdir -p "$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
+  if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+    qbittorrent_create_config_file
+  else
+    echo "[INFO] ${APPLICATION_NAME} configuration file already exists at '${QBITTORRENT_CONFIG_FILEPATH}'"
+    qbittorrent_configure_protection
+    qbittorrent_configure_bind_adapter
+    qbittorrent_configure_other
+  fi
+
 }
 
 function qbittorrent_start() {
 
-  local session_lock_filepath="/config/qBittorrent/data/BT_backup/session.lock"
-
-  echo "[info] Removing ${APPLICATION_NAME} session lock file (if it exists)..."
-  rm -f "${session_lock_filepath}"
-
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process
+  start_process_background
+
 }
 
 function qbittorrent_create_config_file() {
+
   echo "[INFO] Creating ${APPLICATION_NAME} configuration file at '${QBITTORRENT_CONFIG_FILEPATH}'"
   cat <<EOF > "${QBITTORRENT_CONFIG_FILEPATH}"
 [BitTorrent]
@@ -433,9 +438,11 @@ WebUI\Port=${APPLICATION_PORT}
 EOF
 
   echo "[INFO] Created ${APPLICATION_NAME} configuration file"
+
 }
 
 function qbittorrent_update_or_add_config_section() {
+
   local config_file="${1}"
   shift
   local section="${1}"
@@ -459,57 +466,60 @@ function qbittorrent_update_or_add_config_section() {
           echo -e "\n[${section}]\n${key}=${value}" >> "${config_file}"
       fi
   fi
+
 }
 
-function qbittorrent_configure_api() {
-  if [[ "${QBITTORRENT_BIND_ADAPTER}" == 'yes' ]]; then
-    local web_protocol
+function qbittorrent_api_config() {
 
-    echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface via API"
+  # get vpn adapter name (wg0/tun0/tap0)
+  get_vpn_adapter_name
 
-    # get vpn adapter name (wg0/tun0/tap0)
-    get_vpn_adapter_name
-
-    # identify protocol, used by curl to connect to api
-    if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
-      web_protocol="https"
-    else
-      web_protocol="http"
-    fi
-
-    # Set network interface binding via API
-    local interface_json="{
-      \"web_ui_upnp\": false,
-      \"upnp\": false,
-      \"random_port\": false,
-      \"web_ui_csrf_protection\": false,
-      \"bypass_local_auth\": false,
-      \"current_network_interface\": \"${VPN_ADAPTER_NAME}\",
-      \"current_interface_name\": \"${VPN_ADAPTER_NAME}\",
-      \"web_ui_csrf_protection\": false,
-      \"bypass_local_auth\": false
-    }"
-
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Setting network interface binding: ${interface_json}"
-    fi
-
-    curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
+  # identify protocol, used by curl to connect to api
+  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+    web_protocol="https"
+  else
+    web_protocol="http"
   fi
+
+  # Set network interface binding via API
+  local interface_json="{
+    \"listen_port\": \"${INCOMING_PORT}\",
+    \"web_ui_upnp\": false,
+    \"upnp\": false,
+    \"random_port\": false,
+    \"web_ui_csrf_protection\": false,
+    \"bypass_local_auth\": false,
+    \"current_network_interface\": \"${VPN_ADAPTER_NAME}\",
+    \"current_interface_name\": \"${VPN_ADAPTER_NAME}\",
+    \"web_ui_csrf_protection\": false,
+    \"bypass_local_auth\": false
+  }"
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Setting network interface binding: ${interface_json}"
+  fi
+
+  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
+
 }
 
 function qbittorrent_configure_other() {
+
   qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\UseUPnP=false" "${VPN_ADAPTER_NAME}"
   qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "Connection\\\\UPnP=false" "${VPN_ADAPTER_NAME}"
   qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "General\\\\UseRandomPort=false" "${VPN_ADAPTER_NAME}"
+
 }
 
 function qbittorrent_configure_protection() {
+
   qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\CSRFProtection=false" "${VPN_ADAPTER_NAME}"
   qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "Preferences" "WebUI\\\\LocalHostAuth=false" "${VPN_ADAPTER_NAME}"
+
 }
 
 function qbittorrent_configure_bind_adapter() {
+
   if [[ "${QBITTORRENT_BIND_ADAPTER}" == 'yes' ]]; then
     echo "[INFO] Binding '${APPLICATION_NAME}' to gluetun network interface"
 
@@ -521,9 +531,11 @@ function qbittorrent_configure_bind_adapter() {
     qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\Interface" "${VPN_ADAPTER_NAME}"
     qbittorrent_update_or_add_config_section "${QBITTORRENT_CONFIG_FILEPATH}" "BitTorrent" "Session\\\\InterfaceName" "${VPN_ADAPTER_NAME}"
   fi
+
 }
 
 function qbittorrent_configure_incoming_port() {
+
   local web_protocol
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
@@ -542,9 +554,11 @@ function qbittorrent_configure_incoming_port() {
   # Use curl_with_retry for API calls
   curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -i -X POST -d "json={\"random_port\": false}" >/dev/null
   curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 10 1 -k -i -X POST -d "json={\"listen_port\": ${INCOMING_PORT}}" >/dev/null
+
 }
 
 function qbittorrent_verify_incoming_port() {
+
   local web_protocol
   local current_port
 
@@ -562,20 +576,20 @@ function qbittorrent_verify_incoming_port() {
   current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
 
   if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current qBittorrent listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
+      echo "[DEBUG] Current ${APPLICATION_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
   fi
 
-  # Check if the port was retrieved successfully and matches
+  # Check if the port was retrieved successfully
   if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
-      echo "[WARN] Unable to retrieve current port from qBittorrent API"
+      echo "[WARN] Unable to retrieve current port from ${APPLICATION_NAME} API"
       return 1
   fi
 
   if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
-      echo "[INFO] qBittorrent incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+      echo "[INFO] ${APPLICATION_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
       return 0
   else
-      echo "[WARN] qBittorrent incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+      echo "[WARN] ${APPLICATION_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
       return 1
   fi
 }
@@ -585,10 +599,10 @@ function qbittorrent_verify_incoming_port() {
 
 function nicotine_start() {
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process "--port ${INCOMING_PORT}"
+  start_process_background "--port ${INCOMING_PORT}"
 }
 
-function nicotine_config() {
+function nicotine_edit_config() {
   local config_file='/home/nobody/.config/nicotine/config'
   echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
   sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
@@ -602,7 +616,7 @@ function nicotine_configure_incoming_port() {
   fi
   echo "[INFO] Killing '${APPLICATION_NAME}' process as we cannot reconfigure incoming port while it is running..."
   kill_process
-  nicotine_config
+  nicotine_edit_config
   nicotine_start
 }
 
@@ -649,12 +663,16 @@ Where:
     No default.
 
   -qcf or --qbittorrent-config-filepath <path>
-    Define the file path to the qBittorrent configuration file.
+    Define the file path to the qBittorrent configuration file (qBittorrent.conf).
     Defaults to '${QBITTORRENT_CONFIG_FILEPATH}'.
 
   -qba or --qbittorrent-bind-adapter <yes|no>
     Define whether to bind qBittorrent to the gluetun network interface.
     Defaults to '${QBITTORRENT_BIND_ADAPTER}'.
+
+  -dwcf or --deluge-web-config-filepath <path>
+    Define the file path to the Deluge web configuration file (web.conf).
+    Defaults to '${DELUGE_WEB_CONFIG_FILEPATH}'.
 
   -gcsp or --gluetun-control-server-port <port>
     Define the Gluetun Control Server port.
@@ -683,9 +701,11 @@ Environment Variables:
   APPLICATION_PORT
     Set the web UI port for the applicaton.
   QBITTORRENT_CONFIG_FILEPATH
-    Set the file path to the qBittorrent configuration file.
+    Set the file path to the qBittorrent configuration file (qBittorrent.conf).
   QBITTORRENT_BIND_ADAPTER
     Set to the name of the application to configure with the VPN incoming port.
+  DELUGE_WEB_CONFIG_FILEPATH
+    Set the file path to the Deluge web configuration file (web.conf).
   GLUETUN_CONTROL_SERVER_PORT
     Set the port for the Gluetun Control Server.
   CONFIGURE_INCOMING_PORT
@@ -728,6 +748,10 @@ do
     ;;
   -qba|--qbittorrent-bind-adapter)
     QBITTORRENT_BIND_ADAPTER="${2,,}"
+    shift
+    ;;
+  -dwcf|--deluge-web-config-filepath)
+    DELUGE_WEB_CONFIG_FILEPATH="${2}"
     shift
     ;;
   -gcsp|--gluetun-control-server-port)

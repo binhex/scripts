@@ -193,17 +193,6 @@ function get_incoming_port() {
   local vpn_country_ip
   local vpn_city_ip
 
-  if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
-    echo "[INFO] Configuration of VPN incoming port is disabled."
-    if [[ "${#REMAINING_ARGS[@]}" -gt 0 ]]; then
-      echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
-      exec "${REMAINING_ARGS[@]}"
-    else
-      echo "[INFO] No command provided to execute, exiting script..."
-      exit 0
-    fi
-  fi
-
   # Test connection to gluetun Control Server
   if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
     echo "[ERROR] Failed to connect to gluetun Control Server after ${max_retries} attempts"
@@ -211,9 +200,6 @@ function get_incoming_port() {
     if [[ "${#REMAINING_ARGS[@]}" -gt 0 ]]; then
       echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
       exec "${REMAINING_ARGS[@]}"
-    else
-      echo "[INFO] No command provided to execute, exiting script..."
-      exit 1
     fi
   fi
 
@@ -649,6 +635,12 @@ do
   esac
   shift
 done
+
+if [[ -z "${REMAINING_ARGS[*]}" ]]; then
+  echo "[ERROR] No command specified to run, please provide a command to execute after the options."
+  show_help
+  exit 1
+fi
 
 if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
   echo "[INFO] Configuration of incoming port is disabled via argument '-cip|--configure-incoming-port' or environment variable 'CONFIGURE_INCOMING_PORT', executing remaining arguments '${REMAINING_ARGS[*]}'..."

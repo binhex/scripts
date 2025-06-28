@@ -657,5 +657,4 @@ else
   fi
 fi
 
-echo "[INFO] Configuration of VPN incoming port is enabled, starting incoming port watchdog..."
 main

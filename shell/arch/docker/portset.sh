@@ -363,7 +363,7 @@ function deluge_verify_incoming_port() {
   fi
 
   # Get current port from Deluge console
-  current_port=$(/usr/bin/deluge-console -c /config "config listen_ports" | grep -P -o '\d+(?=\)$)')
+  current_port=$(/usr/bin/deluge-console -c /config "config listen_ports" 2>/dev/null | grep -P -o '\d+(?=\)$)')
 
   if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current ${APPLICATION_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"

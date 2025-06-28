@@ -519,7 +519,7 @@ Syntax:
   ./${ourScriptName} [options] [command and arguments]
 
 Where:
-  -an or --application-name <name>
+  -an or --application-name <deluge|qbittorrent|nicotineplus>
     Define the name of the application to configure for incoming port.
     No default.
 
@@ -651,7 +651,7 @@ else
     exec "${REMAINING_ARGS[@]}"
   fi
 
-  if [[ -z "${APPLICATION_PORT}" ]]; then
+  if [[ -z "${APPLICATION_PORT}" && "${APPLICATION_NAME}" != 'nicotineplus' ]]; then
     echo "[WARN] No application port specified via argument '-ap|--application-port' or environment variable 'APPLICATION_PORT', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
     exec "${REMAINING_ARGS[@]}"
   fi

@@ -98,7 +98,9 @@ function start_process_background() {
   nohup "${REMAINING_ARGS[@]}" &
   APPLICATION_PID=$!
 
-  echo "[INFO] Started '${APPLICATION_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Started '${APPLICATION_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
+  fi
 }
 
 function check_process() {
@@ -279,6 +281,7 @@ function main {
 }
 
 function application_start_and_configure() {
+
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_start
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
@@ -291,6 +294,7 @@ function application_start_and_configure() {
     nicotine_edit_config
     nicotine_start
   fi
+
 }
 
 function application_configure_incoming_port() {
@@ -304,9 +308,11 @@ function application_configure_incoming_port() {
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_configure_incoming_port
   fi
+
 }
 
 function application_verify_incoming_port() {
+
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     if ! qbittorrent_verify_incoming_port; then
       return 1
@@ -321,6 +327,7 @@ function application_verify_incoming_port() {
     fi
   fi
   return 0
+  
 }
 
 # deluge functions

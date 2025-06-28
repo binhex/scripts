@@ -647,13 +647,13 @@ if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
   exec "${REMAINING_ARGS[@]}"
 else
   if [[ -z "${APPLICATION_NAME}" ]]; then
-    echo "[WARN] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', showing help..."
-    show_help
+    echo "[WARN] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
+    exec "${REMAINING_ARGS[@]}"
   fi
 
   if [[ -z "${APPLICATION_PORT}" ]]; then
-    echo "[WARN] No application port specified via argument '-ap|--application-port' or environment variable 'APPLICATION_PORT', showing help..."
-    show_help
+    echo "[WARN] No application port specified via argument '-ap|--application-port' or environment variable 'APPLICATION_PORT', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
+    exec "${REMAINING_ARGS[@]}"
   fi
 fi
 

@@ -327,7 +327,7 @@ function application_verify_incoming_port() {
     fi
   fi
   return 0
-  
+
 }
 
 # deluge functions
@@ -337,10 +337,10 @@ function deluge_api_config() {
 
   echo "[INFO] Configuring '${APPLICATION_NAME}' for VPN..."
 
-  /usr/bin/deluge-console -c /config "config --set random_port false"
-  /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})"
-  /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}"
-  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}"
+  /usr/bin/deluge-console -c /config "config --set random_port false" 2>/dev/null
+  /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})" 2>/dev/null
+  /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}" 2>/dev/null
+  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}" 2>/dev/null
 }
 
 function deluge_start() {

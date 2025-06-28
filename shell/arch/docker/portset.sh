@@ -18,7 +18,7 @@ readonly ourScriptVersion="v1.0.0"
 readonly defaultDelugeWebConfigFilepath="/config/web.conf"
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
 readonly defaultGluetunControlServerPort="8000"
-readonly defaultConfigureIncomingPort="no"
+readonly defaultGluetunIncomingPort="no"
 readonly defaultPollDelay="30"
 readonly defaultDebug="no"
 
@@ -26,7 +26,7 @@ readonly defaultDebug="no"
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
 QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrentConfigFilepath}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
-CONFIGURE_INCOMING_PORT="${CONFIGURE_INCOMING_PORT:-${defaultConfigureIncomingPort}}"
+GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
@@ -268,7 +268,7 @@ function main {
       fi
 
       # configure applications incoming port
-      application_configure_incoming_port
+      application_GLUETUN_INCOMING_PORT
 
       # set previous incoming port to current
       PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
@@ -297,7 +297,7 @@ function application_start_and_configure() {
 
 }
 
-function application_configure_incoming_port() {
+function application_GLUETUN_INCOMING_PORT() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
@@ -306,7 +306,7 @@ function application_configure_incoming_port() {
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
     deluge_api_config
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
-    nicotine_configure_incoming_port
+    nicotine_GLUETUN_INCOMING_PORT
   fi
 
 }
@@ -480,7 +480,7 @@ function nicotine_edit_config() {
   sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
 }
 
-function nicotine_configure_incoming_port() {
+function nicotine_GLUETUN_INCOMING_PORT() {
 
   # if previous incoming port is not set then this is the initial run, nicotine will of been started with the default port, so we can skip kill//start
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
@@ -546,9 +546,9 @@ Where:
     Define the Gluetun Control Server port.
     Defaults to '${GLUETUN_CONTROL_SERVER_PORT}'.
 
-  -cip or --configure-incoming-port <yes|no>
+  -gip or --gluetun-incoming-port <yes|no>
     Define whether to enable VPN port monitoring and application configuration.
-    Defaults to '${CONFIGURE_INCOMING_PORT}'.
+    Defaults to '${GLUETUN_INCOMING_PORT}'.
 
   -pd or --poll-delay <seconds>
     Define the polling delay in seconds between incoming port checks.
@@ -556,7 +556,7 @@ Where:
 
   --debug
     Define whether debug mode is enabled.
-    Defautlts to not set.
+    Defaults to not set.
 
   -h or --help
     Displays this text.
@@ -574,7 +574,7 @@ Environment Variables:
     Set the file path to the Deluge web configuration file (web.conf).
   GLUETUN_CONTROL_SERVER_PORT
     Set the port for the Gluetun Control Server.
-  CONFIGURE_INCOMING_PORT
+  GLUETUN_INCOMING_PORT
     Set to 'yes' to enable VPN port monitoring and application configuration.
   POLL_DELAY
     Set the polling delay in seconds between incoming port checks.
@@ -591,7 +591,7 @@ Examples:
     ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
 
   Manually executing the script for debug:
-    CONFIGURE_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
 
 ENDHELP
 }
@@ -620,8 +620,8 @@ do
     GLUETUN_CONTROL_SERVER_PORT="${2}"
     shift
     ;;
-  -cip|--configure-incoming-port)
-    CONFIGURE_INCOMING_PORT="${2,,}"
+  -gip|--gluetun-incoming-port)
+    GLUETUN_INCOMING_PORT="${2,,}"
     shift
     ;;
   -pd|--poll-delay)
@@ -649,8 +649,8 @@ if [[ -z "${REMAINING_ARGS[*]}" ]]; then
   exit 1
 fi
 
-if [[ "${CONFIGURE_INCOMING_PORT}" != 'yes' ]]; then
-  echo "[INFO] Configuration of incoming port is disabled via argument '-cip|--configure-incoming-port' or environment variable 'CONFIGURE_INCOMING_PORT', executing remaining arguments '${REMAINING_ARGS[*]}'..."
+if [[ "${GLUETUN_INCOMING_PORT}" != 'yes' ]]; then
+  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${REMAINING_ARGS[*]}'..."
   exec "${REMAINING_ARGS[@]}"
 else
   if [[ -z "${APPLICATION_NAME}" ]]; then

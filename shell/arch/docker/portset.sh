@@ -223,9 +223,8 @@ function get_incoming_port() {
   fi
 }
 
-function get_vpn_details() {
+function get_vpn_ip_and_port() {
 
-  get_vpn_adapter_name
   get_vpn_ip_address
   get_incoming_port
 
@@ -235,8 +234,11 @@ function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
 
+  # get vpn adapter name
+  get_vpn_adapter_name
+
   # calling functions to generate required globals
-  get_vpn_details
+  get_vpn_ip_and_port
 
   # run any initial pre-start configuration of the application and then start the application
   application_start_and_configure
@@ -244,7 +246,7 @@ function main {
   while true; do
 
     # calling functions to generate required globals
-    get_vpn_details
+    get_vpn_ip_and_port
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
 
@@ -268,7 +270,7 @@ function main {
       fi
 
       # configure applications incoming port
-      application_GLUETUN_INCOMING_PORT
+      application_gluetun_incoming_port
 
       # set previous incoming port to current
       PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
@@ -297,7 +299,7 @@ function application_start_and_configure() {
 
 }
 
-function application_GLUETUN_INCOMING_PORT() {
+function application_gluetun_incoming_port() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
@@ -306,7 +308,7 @@ function application_GLUETUN_INCOMING_PORT() {
     wait_for_port_to_be_listening "${APPLICATION_PORT}"
     deluge_api_config
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
-    nicotine_GLUETUN_INCOMING_PORT
+    nicotine_gluetun_incoming_port
   fi
 
 }
@@ -397,9 +399,6 @@ function qbittorrent_start() {
 
 function qbittorrent_api_config() {
 
-  # get vpn adapter name (wg0/tun0/tap0)
-  get_vpn_adapter_name
-
   # identify protocol, used by curl to connect to api
   if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
     web_protocol="https"
@@ -480,7 +479,7 @@ function nicotine_edit_config() {
   sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
 }
 
-function nicotine_GLUETUN_INCOMING_PORT() {
+function nicotine_gluetun_incoming_port() {
 
   # if previous incoming port is not set then this is the initial run, nicotine will of been started with the default port, so we can skip kill//start
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then

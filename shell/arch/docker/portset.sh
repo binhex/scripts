@@ -581,13 +581,10 @@ Notes:
 
 Examples:
   Start process and monitor VPN port for changes:
-    ./${ourScriptName} /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} /usr/bin/nicotine
 
   Start process and monitor VPN port for changes using custom port for gluetun Control Server and specific poll interval:
-    ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/qbittorrent
-
-  Manually executing the script for debug:
-    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --debug /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/nicotine
 
 ENDHELP
 }

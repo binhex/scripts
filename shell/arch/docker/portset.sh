@@ -412,10 +412,9 @@ function qbittorrent_api_config() {
     \"web_ui_upnp\": false,
     \"upnp\": false,
     \"random_port\": false,
-    \"web_ui_csrf_protection\": false,
     \"current_network_interface\": \"${VPN_ADAPTER_NAME}\",
     \"current_interface_name\": \"${VPN_ADAPTER_NAME}\",
-    \"web_ui_csrf_protection\": false
+    \"bypass_local_auth\": true
   }"
 
   if [[ "${DEBUG}" == "yes" ]]; then

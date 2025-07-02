@@ -286,11 +286,11 @@ function application_start_and_configure() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_start
-    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
     qbittorrent_api_config
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
     deluge_start
-    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
     deluge_api_config
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_edit_config
@@ -302,10 +302,10 @@ function application_start_and_configure() {
 function application_gluetun_incoming_port() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
-    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
     qbittorrent_api_config
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
-    wait_for_port_to_be_listening "${APPLICATION_PORT}"
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
     deluge_api_config
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_gluetun_incoming_port
@@ -421,7 +421,7 @@ function qbittorrent_api_config() {
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
   fi
 
-  curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
+  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
 
 }
 
@@ -440,7 +440,7 @@ function qbittorrent_verify_incoming_port() {
   fi
 
   # Get current preferences from qBittorrent API using curl_with_retry
-  preferences_response=$(curl_with_retry "${web_protocol}://localhost:${APPLICATION_PORT}/api/v2/app/preferences" 10 1 -k -s)
+  preferences_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/preferences" 10 1 -k -s)
   current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
 
   if [[ "${DEBUG}" == "yes" ]]; then
@@ -526,7 +526,7 @@ Where:
     Define the name of the application to configure for incoming port.
     No default.
 
-  -ap or --application-port <port>
+  -ap or --webui-port <port>
     Define the web UI port for the application.
     No default.
 
@@ -562,7 +562,7 @@ Notes:
 Environment Variables:
   APPLICATION_NAME
     Set the name of the application to configure with the VPN incoming port.
-  APPLICATION_PORT
+  WEBUI_PORT
     Set the web UI port for the applicaton.
   QBITTORRENT_CONFIG_FILEPATH
     Set the file path to the qBittorrent configuration file (qBittorrent.conf).
@@ -597,8 +597,8 @@ do
     APPLICATION_NAME="${2,,}"
     shift
     ;;
-  -ap|--application-port)
-    APPLICATION_PORT="${2}"
+  -wp|--webui-port)
+    WEBUI_PORT="${2}"
     shift
     ;;
   -qcf|--qbittorrent-config-filepath)
@@ -651,8 +651,8 @@ else
     exec "${REMAINING_ARGS[@]}"
   fi
 
-  if [[ -z "${APPLICATION_PORT}" && "${APPLICATION_NAME}" != 'nicotineplus' ]]; then
-    echo "[WARN] No application port specified via argument '-ap|--application-port' or environment variable 'APPLICATION_PORT', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
+  if [[ -z "${WEBUI_PORT}" && "${APPLICATION_NAME}" != 'nicotineplus' ]]; then
+    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
     exec "${REMAINING_ARGS[@]}"
   fi
 fi

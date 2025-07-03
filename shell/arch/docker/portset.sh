@@ -275,7 +275,7 @@ function main {
     # calling functions to generate required globals
     get_vpn_ip_and_port
 
-    # ensure we still have internet connectivity by checking dns resolution
+    # ensure we have internet connectivity by checking dns resolution
     check_dns
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port || ! external_verify_incoming_port; then

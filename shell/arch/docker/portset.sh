@@ -272,11 +272,11 @@ function main {
 
   while true; do
 
-    # calling functions to generate required globals
-    get_vpn_ip_and_port
-
     # ensure we have internet connectivity by checking dns resolution
     check_dns
+
+    # calling functions to generate required globals
+    get_vpn_ip_and_port
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port || ! external_verify_incoming_port; then
 

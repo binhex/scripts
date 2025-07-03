@@ -243,7 +243,7 @@ function check_dns() {
   curl -s ntp.org &>/dev/null
   if [[ "${?}" -eq 6 ]]; then
     echo "[ERROR] DNS resolution failed, probably due to gluetun container being restarted, killing PID 1 to force restart of this container..."
-    kill 1
+    exit 1
   else
     echo "[INFO] DNS resolution passed"
   fi
@@ -316,8 +316,10 @@ function application_start() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_start
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
     deluge_start
+    wait_for_port_to_be_listening "${WEBUI_PORT}"
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_edit_config
     nicotine_start

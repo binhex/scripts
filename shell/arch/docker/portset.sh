@@ -19,7 +19,7 @@ readonly defaultDelugeWebConfigFilepath="/config/web.conf"
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
 readonly defaultGluetunControlServerPort="8000"
 readonly defaultGluetunIncomingPort="no"
-readonly defaultPollDelay="30"
+readonly defaultPollDelay="60"
 readonly defaultDebug="no"
 
 # read env var values if not empty, else use defaults
@@ -223,6 +223,21 @@ function get_incoming_port() {
   fi
 }
 
+function external_verify_incoming_port() {
+
+  local result
+  result="$(curl_with_retry "https://ifconfig.co/port/${INCOMING_PORT}" 10 1 -s | jq -r '.reachable')"
+
+  if [[ "${result}" == "true" ]]; then
+    echo "[INFO] External verification: Incoming port '${INCOMING_PORT}' is reachable."
+    return 0
+  else
+    echo "[WARN] External verification: Incoming port '${INCOMING_PORT}' is NOT reachable."
+    return 1
+  fi
+
+}
+
 function get_vpn_ip_and_port() {
 
   get_vpn_ip_address
@@ -241,14 +256,14 @@ function main {
   get_vpn_ip_and_port
 
   # run any initial pre-start configuration of the application and then start the application
-  application_start_and_configure
+  application_start
 
   while true; do
 
     # calling functions to generate required globals
     get_vpn_ip_and_port
 
-    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
+    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port || ! external_verify_incoming_port; then
 
       if [[ -z "${INCOMING_PORT}" ]]; then
         echo "[WARN] Incoming port is not set, this may be due to the VPN not being connected or the gluetun Control Server not being available, checking again in ${POLL_DELAY} seconds..."
@@ -270,7 +285,7 @@ function main {
       fi
 
       # configure applications incoming port
-      application_gluetun_incoming_port
+      application_configure_incoming_port
 
       # set previous incoming port to current
       PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
@@ -282,16 +297,12 @@ function main {
   done
 }
 
-function application_start_and_configure() {
+function application_start() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_start
-    wait_for_port_to_be_listening "${WEBUI_PORT}"
-    qbittorrent_api_config
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
     deluge_start
-    wait_for_port_to_be_listening "${WEBUI_PORT}"
-    deluge_api_config
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_edit_config
     nicotine_start
@@ -299,7 +310,7 @@ function application_start_and_configure() {
 
 }
 
-function application_gluetun_incoming_port() {
+function application_configure_incoming_port() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${WEBUI_PORT}"
@@ -478,7 +489,7 @@ function nicotine_edit_config() {
 
 function nicotine_gluetun_incoming_port() {
 
-  # if previous incoming port is not set then this is the initial run, nicotine will of been started with the default port, so we can skip kill//start
+  # if previous incoming port is not set then this is the initial run, nicotine will of been started with the default port, so no need to kill, edit and start
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
   fi

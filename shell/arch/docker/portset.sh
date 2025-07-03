@@ -238,18 +238,6 @@ function external_verify_incoming_port() {
 
 }
 
-function check_dns() {
-
-  curl -s ntp.org &>/dev/null
-  if [[ "${?}" -eq 6 ]]; then
-    echo "[ERROR] DNS resolution failed, probably due to gluetun container being restarted, killing PID 1 to force restart of this container..."
-    exit 1
-  else
-    echo "[INFO] DNS resolution passed"
-  fi
-
-}
-
 function get_vpn_ip_and_port() {
 
   get_vpn_ip_address
@@ -271,9 +259,6 @@ function main {
   application_start
 
   while true; do
-
-    # ensure we have internet connectivity by checking dns resolution
-    check_dns
 
     # calling functions to generate required globals
     get_vpn_ip_and_port

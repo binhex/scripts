@@ -30,9 +30,6 @@ GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
-# Initialize array for remaining arguments
-REMAINING_ARGS=()
-
 # utility functions
 ####
 
@@ -94,8 +91,8 @@ function curl_with_retry() {
 
 function start_process_background() {
 
-  echo "[INFO] Starting single process: ${REMAINING_ARGS[*]}"
-  nohup "${REMAINING_ARGS[@]}" &
+  echo "[INFO] Starting single process: ${APPLICATION_PARAMETERS[*]}"
+  nohup "${APPLICATION_PARAMETERS[@]}" &
   APPLICATION_PID=$!
 
   if [[ "${DEBUG}" == "yes" ]]; then
@@ -199,9 +196,9 @@ function get_incoming_port() {
   if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
     echo "[ERROR] Failed to connect to gluetun Control Server after ${max_retries} attempts"
     echo "[INFO] Giving up on VPN port configuration, executing remaining arguments..."
-    if [[ "${#REMAINING_ARGS[@]}" -gt 0 ]]; then
-      echo "[INFO] Executing: ${REMAINING_ARGS[*]}"
-      exec "${REMAINING_ARGS[@]}"
+    if [[ "${#APPLICATION_PARAMETERS[@]}" -gt 0 ]]; then
+      echo "[INFO] Executing: ${APPLICATION_PARAMETERS[*]}"
+      exec "${APPLICATION_PARAMETERS[@]}"
     fi
   fi
 
@@ -540,6 +537,10 @@ Where:
     Define the name of the application to configure for incoming port.
     No default.
 
+  -apa or --application-parameters <parameters>
+    Define additional parameters to pass to the application command.
+    No default, this should be the last argument, all remaining arguments will be passed to the application.
+
   -ap or --webui-port <port>
     Define the web UI port for the application.
     No default.
@@ -576,6 +577,8 @@ Notes:
 Environment Variables:
   APPLICATION_NAME
     Set the name of the application to configure with the VPN incoming port.
+  APPLICATION_PARAMETERS
+    Set additional parameters to pass to the application command.
   WEBUI_PORT
     Set the web UI port for the applicaton.
   QBITTORRENT_CONFIG_FILEPATH
@@ -595,10 +598,10 @@ Notes:
 
 Examples:
   Start process and monitor VPN port for changes:
-    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --application-parameters /usr/bin/nicotine
 
   Start process and monitor VPN port for changes using custom port for gluetun Control Server and specific poll interval:
-    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 --application-parameters /usr/bin/nicotine
 
 ENDHELP
 }
@@ -638,36 +641,43 @@ do
   --debug)
     DEBUG="yes"
     ;;
+  -app|--application-parameters)
+    shift  # Skip the --application-parameters flag itself
+    # Capture ALL remaining arguments
+    APPLICATION_PARAMETERS=("$@")
+    break  # Exit the loop since we've captured everything
+    ;;
   -h|--help)
     show_help
     exit 0
     ;;
   *)
-    # Save unrecognized arguments for passthrough
-    REMAINING_ARGS+=("$1")
+    echo "[ERROR] Unknown option: $1"
+    show_help
+    exit 1
     ;;
   esac
   shift
 done
 
-if [[ -z "${REMAINING_ARGS[*]}" ]]; then
-  echo "[ERROR] No command specified to run, please provide a command to execute after the options."
+if [[ -z "${APPLICATION_PARAMETERS[*]}" ]]; then
+  echo "[ERROR] No application parameters specified via argument '-app|--application-parameters' or environment variable 'APPLICATION_PARAMETERS', showing help before exit..."
   show_help
   exit 1
 fi
 
 if [[ "${GLUETUN_INCOMING_PORT}" != 'yes' ]]; then
-  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${REMAINING_ARGS[*]}'..."
-  exec "${REMAINING_ARGS[@]}"
+  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
+  exec "${APPLICATION_PARAMETERS[@]}"
 else
   if [[ -z "${APPLICATION_NAME}" ]]; then
-    echo "[WARN] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
-    exec "${REMAINING_ARGS[@]}"
+    echo "[WARN] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', cannot configure incoming port, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
+    exec "${APPLICATION_PARAMETERS[@]}"
   fi
 
   if [[ -z "${WEBUI_PORT}" && "${APPLICATION_NAME}" != 'nicotineplus' ]]; then
-    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${REMAINING_ARGS[*]}'..."
-    exec "${REMAINING_ARGS[@]}"
+    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
+    exec "${APPLICATION_PARAMETERS[@]}"
   fi
 fi
 

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# script to refresh the scripts repository
+# this script is run by the dockerfile to ensure the scripts repository is up to date
+
 set -e
 
 # ensure git cli is installed
@@ -30,5 +33,5 @@ if ! grep -q '/usr/local/bin/shell/docker' '/home/nobody/.bashrc' &>/dev/null; t
 fi
 
 # ensure scripts are executable and owned by nobody:users
-chown -R nobody:users '/usr/local/bin/shell/docker'
-chmod -R 755 '/usr/local/bin/shell/docker'
+chown -R nobody:users '/usr/local/bin'
+chmod -R 755 '/usr/local/bin'

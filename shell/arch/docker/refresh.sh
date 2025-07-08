@@ -17,7 +17,7 @@ if [[ ! -d '/usr/local/bin/shell' ]]; then
 fi
 
 # ensure scripts repository is up to date
-cd /usr/local/bin && git pull
+cd /usr/local/bin && git pull || true
 
 # add docker scripts to PATH
 if ! grep -q '/usr/local/bin/shell/docker' '/root/.bashrc' &>/dev/null; then

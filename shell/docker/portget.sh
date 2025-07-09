@@ -4,7 +4,7 @@
 
 portset_script_name='portset.sh'
 portset_filepath="/usr/local/bin/${portset_script_name}"
-github_url="https://raw.githubusercontent.com/binhex/scripts/refs/heads/master/shell/arch/docker/${portset_script_name}"
+github_url="https://raw.githubusercontent.com/binhex/scripts/refs/heads/master/shell/docker/${portset_script_name}"
 
 echo "[INFO] Downloading portset.sh from Github to '${portset_filepath}'..."
 rm -f "${portset_filepath}"

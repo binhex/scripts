@@ -7,7 +7,7 @@ set -e
 exec 3>&1 4>&2 &> >(tee -a /config/supervisord.log)
 
 # source in utilities script
-source '/usr/local/bin/utils.sh'
+source 'utils.sh'
 
 cat << "EOF"
 Created by...

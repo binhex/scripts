@@ -22,9 +22,9 @@ pyenv_version="${defaultPyEnvVersion}"
 if [[ -f "$(pwd)/utils.sh" ]]; then
 	# shellcheck disable=SC1091
 	source "$(pwd)/utils.sh"
-elif [[ -f '/usr/local/bin/utils.sh' ]]; then
+elif [[ -f '/usr/local/bin/shell/docker/utils.sh' ]]; then
 	# shellcheck disable=SC1091
-	source '/usr/local/bin/utils.sh'
+	source 'utils.sh'
 else
 	echo "[ERROR] Unable to locate 'utils.sh' script (used for logging function), exiting..." >&2
 	exit 1

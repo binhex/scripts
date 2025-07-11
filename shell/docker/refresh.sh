@@ -20,7 +20,7 @@ if [[ ! -d '/usr/local/bin/shell' ]]; then
 fi
 
 # ensure scripts repository is up to date
-cd /usr/local/bin || exit
+cd /usr/local/bin || exit 1
 git pull || true
 
 # add docker scripts to PATH

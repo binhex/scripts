@@ -14,7 +14,7 @@ pacman -S git --noconfirm
 git config --global --add safe.directory "${scripts_dest_path}"
 
 # if scripts path is not a git repository then clone
-if git -C "${scripts_dest_path}" rev-parse --is-inside-work-tree &>/dev/null; then
+if ! git -C "${scripts_dest_path}" rev-parse --is-inside-work-tree &>/dev/null; then
 	# create directory for scripts repository
 	mkdir -p "${scripts_dest_path}"
 	# git clone scripts repository

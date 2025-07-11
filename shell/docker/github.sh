@@ -45,7 +45,8 @@ function identify_github_release_tag_name() {
 	github_release_tag_name=$(rcurl.sh "https://api.github.com/repos/${github_owner}/${github_repo}/${query_type}" | jq -r "${json_query}" 2> /dev/null)
 
 	if [[ -z "${github_release_tag_name}" || "${github_release_tag_name}" == 'null' ]]; then
-		echo "[warn] Unable to identify GitHub ${query_type} name, exiting script..."
+		echo "[warn] Unable to identify GitHub ${query_type} name, showing curl output and then exiting script..."
+		echo "${github_release_tag_name}"
 		exit 1
 	fi
 

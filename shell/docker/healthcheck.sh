@@ -48,11 +48,12 @@ function healthcheck_command() {
 
 	# If any check failed, run the healthcheck action
 	if [[ "${exit_code}" -ne 0 ]]; then
-			echo "[warn] Healthcheck failed"
+			echo "[warn] Healthcheck failed, running healthcheck action..."
+			healthcheck_action "${exit_code}"
 	else
 			echo "[info] Healthcheck passed"
 	fi
-	healthcheck_action "${exit_code}"
+
 }
 
 function healthcheck_action() {
@@ -64,7 +65,7 @@ function healthcheck_action() {
 		echo "[info] Healthcheck action specified, running '${HEALTHCHECK_ACTION}'..."
 		eval "${HEALTHCHECK_ACTION}"
 	else
-		echo "[info] No healthcheck action specified, defaulting to exit code ${exit_code}"
+		echo "[info] No healthcheck action specified, defaulting to exiting script with exit code '${exit_code}'"
 		exit "${exit_code}"
 	fi
 }

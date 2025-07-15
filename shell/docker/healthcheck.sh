@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# function to check DNS resolution
-# and HTTPS connectivity, with optional custom command
-# exit script if return code != 0
+# Script to check DNS resolution and HTTPS connectivity, with optional custom
+# command and custom action defined via environment variables
+# HEALTHCHECK_COMMAND and HEALTHCHECK_ACTION and exit script with appropriate
+# exit code.
+#
+# This script is called via the Dockerfile HEALTHCHECK instruction.
 
 function check_dns() {
+
+	local hostname_check="${1:-google.com}"
+	shift
+
 	# check if DNS is working by resolving a known domain
-	if ! nslookup google.com > /dev/null 2>&1; then
+	if ! nslookup "${hostname_check}" > /dev/null 2>&1; then
 		echo "[error] DNS resolution failed"
 		return 1
 	else
@@ -16,8 +23,12 @@ function check_dns() {
 }
 
 function check_http() {
+
+	local hostname_check="${1:-google.com}"
+	shift
+
 	# check if HTTP is working by making a request to a known URL
-	if ! curl -s --head https://google.com > /dev/null; then
+	if ! curl -s --head "https://${hostname_check}" > /dev/null; then
 		echo "[error] HTTPS request failed"
 		return 1
 	else
@@ -27,7 +38,9 @@ function check_http() {
 }
 
 function healthcheck_command() {
+
 	local exit_code=0
+	shift
 
 	if [[ -n "${HEALTHCHECK_COMMAND}" ]]; then
 			echo "[info] Running custom healthcheck command: ${HEALTHCHECK_COMMAND}"
@@ -35,9 +48,10 @@ function healthcheck_command() {
 			exit_code="${?}"
 	else
 			echo "[info] No custom healthcheck command defined, running standard checks..."
-			check_dns
+			local hostname_check="google.com"
+			check_dns "${hostname_check}"
 			local dns_exit_code="${?}"
-			check_http
+			check_http "${hostname_check}"
 			local http_exit_code="${?}"
 
 			# If either check failed, set exit code to 1
@@ -46,12 +60,13 @@ function healthcheck_command() {
 			fi
 	fi
 
-	# If any check failed, run the healthcheck action
+	# check return code from healthcheck command and perform healthcheck action if required
 	if [[ "${exit_code}" -ne 0 ]]; then
 			echo "[warn] Healthcheck failed, running healthcheck action..."
 			healthcheck_action "${exit_code}"
 	else
-			echo "[info] Healthcheck passed"
+			echo "[info] Healthcheck passed, exiting script with exit code '${exit_code}'"
+			exit "${exit_code}"
 	fi
 
 }

@@ -8,9 +8,14 @@ set -e
 scripts_dest_path="/usr/local/bin"
 
 # ensure git cli is installed
-pacman -S git --noconfirm
+if ! command -v git &>/dev/null; then
+    echo "[info] Git not found, installing..."
+    pacman -S git --noconfirm
+else
+    echo "[info] Git is already installed"
+fi
 
-# silence warning aobut permissions
+# silence warning about permissions
 git config --global --add safe.directory "${scripts_dest_path}"
 
 # if scripts path is not a git repository then clone

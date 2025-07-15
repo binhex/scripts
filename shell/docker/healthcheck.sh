@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # function to check DNS resolution
-# and HTTP connectivity, with optional custom command
+# and HTTPS connectivity, with optional custom command
 # exit script if return code != 0
 
 function check_dns() {
 	# check if DNS is working by resolving a known domain
 	if ! nslookup google.com > /dev/null 2>&1; then
-		echo "[error] DNS resolution failed, exiting healthcheck..."
+		echo "[error] DNS resolution failed"
 		return 1
 	else
 		echo "[info] DNS resolution is working."
@@ -18,7 +18,7 @@ function check_dns() {
 function check_http() {
 	# check if HTTP is working by making a request to a known URL
 	if ! curl -s --head https://google.com > /dev/null; then
-		echo "[error] HTTPS request failed, exiting healthcheck..."
+		echo "[error] HTTPS request failed"
 		return 1
 	else
 		echo "[info] HTTPS request is working."

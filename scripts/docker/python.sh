@@ -22,7 +22,7 @@ pyenv_version="${defaultPyEnvVersion}"
 if [[ -f "$(pwd)/utils.sh" ]]; then
 	# shellcheck disable=SC1091
 	source "$(pwd)/utils.sh"
-elif [[ -f '/usr/local/bin/shell/docker/utils.sh' ]]; then
+elif [[ -f '/usr/local/bin/scripts/docker/utils.sh' ]]; then
 	# shellcheck disable=SC1091
 	source 'utils.sh'
 else

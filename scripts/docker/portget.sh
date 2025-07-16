@@ -3,8 +3,8 @@
 # Basic download and wrapper script for portset.sh
 
 portset_script_name='portset.sh'
-portset_filepath="/usr/local/bin/shell/docker/${portset_script_name}"
-github_url="https://raw.githubusercontent.com/binhex/scripts/refs/heads/master/shell/docker/${portset_script_name}"
+portset_filepath="/usr/local/bin/scripts/docker/${portset_script_name}"
+github_url="https://raw.githubusercontent.com/binhex/scripts/refs/heads/master/scripts/docker/${portset_script_name}"
 
 echo "[INFO] Downloading portset.sh from Github to '${portset_filepath}'..."
 rm -f "${portset_filepath}"

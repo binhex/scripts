@@ -7,6 +7,8 @@ set -e
 
 scripts_dest_path="/usr/local/bin/system"
 
+mkdir -p "${scripts_dest_path}"
+
 # ensure git cli is installed
 if ! command -v git &>/dev/null; then
     echo "[info] Git not found, installing..."

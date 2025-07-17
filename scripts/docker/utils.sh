@@ -255,6 +255,14 @@ function symlink() {
 		return 1
 	fi
 
+	# ensure rsync is installed
+	if ! command -v rsync &>/dev/null; then
+			echo "[info] Rsync not found, installing..."
+			pacman -S rsync --noconfirm
+	else
+			echo "[info] Rsync is already installed"
+	fi
+
 	# verify link type
 	if [[ "${link_type}" == "softlink" ]]; then
 		link_type="-s"

@@ -10,8 +10,6 @@ cat <<'EOF' > /etc/pacman.d/mirrorlist
 Server = https://arch.mirror.constant.com/$repo/os/$arch
 Server = https://arch.mirror.square-r00t.net/$repo/os/$arch
 Server = http://arch.mirror.square-r00t.net/$repo/os/$arch
-Server = rsync://arch.mirror.constant.com/archlinux/$repo/os/$arch
-Server = rsync://arch.mirror.square-r00t.net/arch/$repo/os/$arch
 EOF
 else
 cat <<'EOF' > /etc/pacman.d/mirrorlist

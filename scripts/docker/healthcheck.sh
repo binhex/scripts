@@ -8,6 +8,7 @@
 
 function check_dns() {
 
+	echo "[info] Health checking DNS..."
 	local hostname_check="${1:-google.com}"
 	shift
 
@@ -23,6 +24,7 @@ function check_dns() {
 
 function check_https() {
 
+	echo "[info] Health checking HTTPS..."
 	local hostname_check="${1:-google.com}"
 	shift
 
@@ -38,13 +40,17 @@ function check_https() {
 
 function check_process() {
 
+	echo "[info] Health checking processes..."
+
 	# get env vars from buildx arguments stored in /etc/image-build-info
 	# shellcheck disable=SC1091
 	source /etc/image-build-info
 
 	if [[ -z "${APPNAME}" ]]; then
-		echo "[error] APPNAME is not defined, cannot check process."
-		return 1
+		echo "[warn] APPNAME is not defined, cannot check process."
+		return 0
+	else
+		echo "[info] Application name is '${APPNAME}'."
 	fi
 
 	# convert app name into process name(s) to monitor
@@ -61,7 +67,7 @@ function check_process() {
 	elif [[ "${APPNAME}" == 'qbittorrentvpn' ]]; then
 		process_names=('qbittorrent-nox' 'openvpn|wg')
 	else
-		# app name not defined, exit with success
+		echo "[info] Application name '${APPNAME}' not in the known list for process monitoring."
 		return 0
 	fi
 

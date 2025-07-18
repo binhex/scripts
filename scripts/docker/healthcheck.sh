@@ -2,7 +2,7 @@
 
 # Script to check DNS resolution, HTTPS connectivity and processes, with optional custom
 # command and custom action defined via environment variables HEALTHCHECK_COMMAND and
-# HEALTHCHECK_ACTION and exit script with appropriate exit code.
+# HEALTHCHECK_ACTION.
 #
 # This script is called via the Dockerfile HEALTHCHECK instruction.
 
@@ -94,7 +94,7 @@ function healthcheck_command() {
 		eval "${HEALTHCHECK_COMMAND}"
 		exit_code="${?}"
 	else
-		echo "[info] No custom healthcheck command defined, running standard checks..."
+		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
 		local hostname_check="google.com"
 		check_dns "${hostname_check}"
 		local dns_exit_code="${?}"
@@ -129,7 +129,7 @@ function healthcheck_action() {
 		echo "[info] Healthcheck action specified, running '${HEALTHCHECK_ACTION}'..."
 		eval "${HEALTHCHECK_ACTION}"
 	else
-		echo "[info] No healthcheck action specified, defaulting to exiting script with exit code '${exit_code}'"
+		echo "[info] No custom healthcheck action defined via env var 'HEALTHCHECK_ACTION', defaulting to exiting script with exit code '${exit_code}'"
 		exit "${exit_code}"
 	fi
 }

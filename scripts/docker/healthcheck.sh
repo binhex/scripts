@@ -122,7 +122,7 @@ function check_process() {
 	elif [[ "${APPNAME}" == 'pycharm' ]]; then
 		process_names=('^/usr/share/pycharm')
 	elif [[ "${APPNAME}" == 'qbittorrent' ]]; then
-		process_names=('qbittorrent-nox')
+		process_names=('^/usr/bin/qbittorrent-nox')
 	elif [[ "${APPNAME}" == 'qbittorrentvpn' ]]; then
 		process_names=('qbittorrent-nox' 'openvpn|wg')
 	elif [[ "${APPNAME}" == 'radarr' ]]; then

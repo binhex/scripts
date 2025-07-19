@@ -124,7 +124,7 @@ function check_process() {
 	elif [[ "${APPNAME}" == 'qbittorrent' ]]; then
 		process_names=('^/usr/bin/qbittorrent-nox')
 	elif [[ "${APPNAME}" == 'qbittorrentvpn' ]]; then
-		process_names=('qbittorrent-nox' 'openvpn|wg')
+		process_names=('^/usr/bin/qbittorrent-nox' 'openvpn|wg')
 	elif [[ "${APPNAME}" == 'radarr' ]]; then
 		process_names=('Radarr')
 	elif [[ "${APPNAME}" == 'rclone' ]]; then

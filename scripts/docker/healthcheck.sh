@@ -53,6 +53,10 @@ function check_process() {
 		echo "[info] Application name is '${APPNAME}'."
 	fi
 
+	# notes
+	# - portset can cause incorrect process running detection as process path will be a part of the arguments passed to portset
+	# - novnc can also cause incorrect process running detection as it will be a part of the arguments passed to the process
+
 	# convert app name into process name(s) to monitor
 	local process_names=()
 	if [[ "${APPNAME}" == 'bitmagnet' ]]; then
@@ -62,9 +66,9 @@ function check_process() {
 	elif [[ "${APPNAME}" == 'crafty-4' ]]; then
 		process_names=('python.*crafty.*')
 	elif [[ "${APPNAME}" == 'deluge' ]]; then
-		process_names=('deluged' 'deluge-web')
+		process_names=('^/usr/bin/python /usr/bin/deluged' '^deluge-web')
 	elif [[ "${APPNAME}" == 'delugevpn' ]]; then
-		process_names=('deluged' 'deluge-web' 'openvpn|wg')
+		process_names=('^/usr/bin/python /usr/bin/deluged' '^deluge-web' 'openvpn|wg')
 	elif [[ "${APPNAME}" == 'emby' ]]; then
 		process_names=('EmbyServer')
 	elif [[ "${APPNAME}" == 'flaresolverr' ]]; then

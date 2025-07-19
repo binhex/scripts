@@ -290,7 +290,7 @@ function main {
       echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same, checking again in ${POLL_DELAY} seconds..."
     fi
 
-    echo "[INFO] Sleeping for ${POLL_DELAY} seconds before checking again..."
+    echo "[INFO] Sleeping for ${POLL_DELAY} seconds before re-checking port assignment..."
     sleep "${POLL_DELAY}"
   done
 }

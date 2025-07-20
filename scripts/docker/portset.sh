@@ -306,6 +306,9 @@ function application_start() {
   elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
     nicotine_edit_config
     nicotine_start
+  else
+    echo "[WARN] Application name '${APPLICATION_NAME}' unknown, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
+    exec "${APPLICATION_PARAMETERS[@]}"
   fi
 
 }

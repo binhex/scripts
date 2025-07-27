@@ -6,10 +6,6 @@
 # 1. Ensure VPN provider supports incoming port assignment and that its enabled in the gluetun container configuration.
 # 2. Ensure the application running this script is sharing the gluetun container's network.
 
-# TODO
-# create deluge configure*  functions
-# figue out how to handle deluge and deluge-web ui process start
-
 # script name and path
 readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptVersion="v1.0.0"

@@ -294,6 +294,7 @@ function main {
 function application_start() {
 
   if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
+    qbittorrent_edit_config
     qbittorrent_start
     wait_for_port_to_be_listening "${WEBUI_PORT}"
   elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
@@ -404,6 +405,17 @@ function qbittorrent_start() {
 
   echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background
+
+}
+function qbittorrent_edit_config() {
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Setting bypass authentication for localhost, required to configure ${APPLICATION_NAME} incoming port via API: ${QBITTORRENT_CONFIG_FILEPATH}"
+  fi
+
+  if ! grep -q 'WebUI\\LocalHostAuth=false' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+    sed -i 's~^WebUI\\LocalHostAuth.*~WebUI\\LocalHostAuth=false~' "${QBITTORRENT_CONFIG_FILEPATH}"
+  fi
 
 }
 

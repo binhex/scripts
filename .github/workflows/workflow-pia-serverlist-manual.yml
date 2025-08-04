@@ -38,7 +38,7 @@ jobs:
 
             # Create markdown content and save to file
             {
-                echo "# List of PIA endpoints that support port forwarding, generated at $(date +'%Y-%m-%d %H:%M:%S')"
+                echo "# List of PIA endpoints that support port forwarding, generated on $(date +'%Y-%m-%d %H:%M:%S')"
                 echo ""
                 echo "| Location | DNS Name |"
                 echo "|----------|----------|"
@@ -64,8 +64,10 @@ jobs:
         run: |
           config_file_desc='pia-port-forward-enabled-endpoints'
           gist_id=$(gh gist list | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }' || true)
-          echo "::add-mask::$gist_id"
-          echo "gist_id=$gist_id" >> $GITHUB_OUTPUT
+          if [[ -n "${gist_id}" ]]; then
+            echo "::add-mask::$gist_id"
+          fi
+          echo "gist_id=${gist_id}" >> $GITHUB_OUTPUT
         id: get_gist_id
       - name: Create Gist
         uses: Wandalen/wretry.action@v3

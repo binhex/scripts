@@ -3,19 +3,27 @@
 # exit script if return code != 0
 set -e
 
-function create_static_mirrorlist() {
+function create_static_amd64_mirrorlist() {
 
-if [[ "${TARGETARCH}" == "amd64" ]]; then
-cat <<'EOF' > /etc/pacman.d/mirrorlist
-Server = https://arch.mirror.constant.com/$repo/os/$arch
-Server = https://arch.mirror.square-r00t.net/$repo/os/$arch
-Server = http://arch.mirror.square-r00t.net/$repo/os/$arch
+	cat <<'EOF' > /etc/pacman.d/mirrorlist
+Server = https://london.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://uk.repo.c48.uk/arch/$repo/os/$arch
+Server = https://mirror.server.net/archlinux/$repo/os/$arch
+Server = https://de.arch.niranjan.co/$repo/os/$arch
+Server = https://mirrors.lug.mtu.edu/archlinux/$repo/os/$arch
 EOF
-else
-cat <<'EOF' > /etc/pacman.d/mirrorlist
-Server = http://eu.mirror.archlinuxarm.org/$arch/$repo
+
+}
+
+function create_static_arm64_mirrorlist() {
+
+	cat <<'EOF' > /etc/pacman.d/mirrorlist
+Server = https://de3.mirror.archlinuxarm.org/$arch/$repo
+Server = https://de4.mirror.archlinuxarm.org/$arch/$repo
+Server = https://de5.mirror.archlinuxarm.org/$arch/$repo
+Server = https://eu.mirror.archlinuxarm.org/$arch/$repo
+Server = https://ca.us.mirror.archlinuxarm.org/$arch/$repo
 EOF
-fi
 
 }
 
@@ -59,7 +67,7 @@ function run_reflector() {
 			if [ "${retry_count}" -eq "0" ]; then
 
 				echo "[warn] Failed to download mirrorlist, too many retries, falling back to static list"
-				create_static_mirrorlist
+				create_static_amd64_mirrorlist
 				break
 
 			else
@@ -92,7 +100,7 @@ echo "[info] Target architecture from Dockerfile arg is '${TARGETARCH}'"
 if [[ "${TARGETARCH}" == "amd64" ]]; then
 	run_reflector
 else
-	create_static_mirrorlist
+	create_static_arm64_mirrorlist
 fi
 
 if [[ ! -z "${pacman_ignore_packages}" ]]; then

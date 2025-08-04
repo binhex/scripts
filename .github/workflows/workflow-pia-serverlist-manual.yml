@@ -34,7 +34,7 @@ jobs:
             done <<< "${pia_port_foward_enabled_result}"
 
             # Define output file
-            output_file="pia-port-forward-endpoints.md"
+            output_file="pia-port-forward-enabled-endpoints.md"
 
             # Create markdown content and save to file
             {
@@ -69,23 +69,22 @@ jobs:
           fi
           echo "gist_id=${gist_id}" >> $GITHUB_OUTPUT
         id: get_gist_id
-      - name: Create Gist
-        uses: Wandalen/wretry.action@v3
-        with:
-          attempt_limit: 3
-          attempt_delay: 600000
-          command: |
-            gist_url=$(gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public)
-            echo "[info] Public Gist created successfully!"
-            echo "[info] Gist URL: ${gist_url}"
-      - name: Delete previous Gist
+      - name: Create or Update Gist
         uses: Wandalen/wretry.action@v3
         with:
           attempt_limit: 3
           attempt_delay: 600000
           command: |
             if [[ -n "${{ steps.get_gist_id.outputs.gist_id }}" ]]; then
-              gh gist delete ${{ steps.get_gist_id.outputs.gist_id }} --yes
+              # Update existing gist
+              echo "[info] Updating existing Gist ID: ${{ steps.get_gist_id.outputs.gist_id }}"
+              gh gist edit ${{ steps.get_gist_id.outputs.gist_id }} --add './pia-port-forward-enabled-endpoints.md'
+              gist_url="https://gist.github.com/${{ github.repository_owner }}/${{ steps.get_gist_id.outputs.gist_id }}"
+              echo "[info] Existing Gist updated successfully!"
             else
-              echo "[warning] No previous Gist found to delete."
+              # Create new gist
+              echo "[info] Creating new Gist..."
+              gist_url=$(gh gist create './pia-port-forward-enabled-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public)
+              echo "[info] New Public Gist created successfully!"
             fi
+            echo "[info] Gist URL: ${gist_url}"

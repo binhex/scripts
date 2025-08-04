@@ -19,7 +19,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
-      - name: get pia serverlist
+      - name: Generate PIA port forward enabled endpoints markdown file
         uses: Wandalen/wretry.action@v3
         with:
           command: |
@@ -52,3 +52,32 @@ jobs:
             echo "[info] Markdown file created: ${output_file}"
             echo "[info] File contents:"
             cat "${output_file}"
+      - name: Authenticate with GitHub for private Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
+      - name: Get Gist ID
+        shell: bash
+        run: |
+          config_file_desc='pia-port-forward-enabled-endpoints'
+          gist_id=$(gh gist list --secret | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }')
+          echo "::add-mask::$gist_id"
+          echo "gist_id=$gist_id" >> $GITHUB_OUTPUT
+        id: get_gist_id
+      - name: Create Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' >/dev/null 2>&1
+      - name: Delete previous Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            gh gist delete ${{ steps.get_gist_id.outputs.gist_id }} --yes

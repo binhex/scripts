@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           config_file_desc='pia-port-forward-enabled-endpoints'
-          gist_id=$(gh gist list --secret | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }' || true)
+          gist_id=$(gh gist list | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }' || true)
           echo "::add-mask::$gist_id"
           echo "gist_id=$gist_id" >> $GITHUB_OUTPUT
         id: get_gist_id
@@ -73,7 +73,7 @@ jobs:
           attempt_limit: 3
           attempt_delay: 600000
           command: |
-            gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' >/dev/null 2>&1
+            gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public >/dev/null 2>&1
       - name: Delete previous Gist
         uses: Wandalen/wretry.action@v3
         with:

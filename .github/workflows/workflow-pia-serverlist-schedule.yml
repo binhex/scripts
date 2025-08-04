@@ -2,8 +2,8 @@ name: workflow-pia-serverlist-schedule
 
 on:
   schedule:
-    # run every 1 day(s)
-    - cron: "0 0 * * *"
+    # run every 6 hours
+    - cron: "0 */6 * * *"
 
 jobs:
   run-job:
@@ -17,8 +17,72 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
-      - name: get pia serverlist
+      - name: Generate PIA port forward enabled endpoints markdown file
         uses: Wandalen/wretry.action@v3
         with:
           command: |
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
+            pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | "\(.name)|\(.dns)"'
+            pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" || true)
+
+            # Create empty array and append each line to it
+            pia_port_foward_enabled_list=()
+            while IFS= read -r line; do
+                pia_port_foward_enabled_list+=("$line")
+            done <<< "${pia_port_foward_enabled_result}"
+
+            # Define output file
+            output_file="pia-port-forward-enabled-endpoints.md"
+
+            # Create markdown content and save to file
+            {
+                echo "# List of PIA endpoints that support port forwarding, generated on $(date +'%Y-%m-%d %H:%M:%S')"
+                echo ""
+                echo "| Location | DNS Name |"
+                echo "|----------|----------|"
+
+                # loop over list of port forward enabled endpoints and write to file
+                for i in "${pia_port_foward_enabled_list[@]}"; do
+                    echo "| ${i/|/ | } |"
+                done
+            } > "${output_file}"
+
+            echo "[info] Markdown file created: ${output_file}"
+            echo "[info] File contents:"
+            cat "${output_file}"
+      - name: Authenticate with GitHub for private Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
+      - name: Get Gist ID
+        shell: bash
+        run: |
+          config_file_desc='pia-port-forward-enabled-endpoints'
+          gist_id=$(gh gist list | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }' || true)
+          if [[ -n "${gist_id}" ]]; then
+            echo "::add-mask::$gist_id"
+          fi
+          echo "gist_id=${gist_id}" >> $GITHUB_OUTPUT
+        id: get_gist_id
+      - name: Create or Update Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            if [[ -n "${{ steps.get_gist_id.outputs.gist_id }}" ]]; then
+              # Update existing gist
+              echo "[info] Updating existing Gist ID: ${{ steps.get_gist_id.outputs.gist_id }}"
+              gh gist edit ${{ steps.get_gist_id.outputs.gist_id }} --add './pia-port-forward-enabled-endpoints.md'
+              gist_url="https://gist.github.com/${{ github.repository_owner }}/${{ steps.get_gist_id.outputs.gist_id }}"
+              echo "[info] Existing Gist updated successfully!"
+            else
+              # Create new gist
+              echo "[info] Creating new Gist..."
+              gist_url=$(gh gist create './pia-port-forward-enabled-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public)
+              echo "[info] New Public Gist created successfully!"
+            fi
+            echo "[info] Gist URL: ${gist_url}"

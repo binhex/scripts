@@ -23,8 +23,9 @@ jobs:
         uses: Wandalen/wretry.action@v3
         with:
           command: |
+            set -x
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
             pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | .dns'
             pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}")
             echo "${pia_port_foward_enabled_result}"
-            
+

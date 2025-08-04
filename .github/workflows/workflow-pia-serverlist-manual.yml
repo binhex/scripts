@@ -31,9 +31,9 @@ jobs:
             # convert to list with separator being space
             IFS=' ' read -ra pia_port_foward_enabled_list <<< "${pia_port_foward_enabled_result}"
 
-            echo "[info] List of PIA endpoints that support port forwarding:-"
+            echo "[info] List of PIA endpoints that support port forwarding, generated at $(date +'%Y-%m-%d %H:%M:%S'):-"
 
             # loop over list of port forward enabled endpooints and echo out to console
             for i in "${pia_port_foward_enabled_list[@]}"; do
-                echo "[info] ${i}"
+                echo "${i}"
             done

@@ -78,7 +78,7 @@ jobs:
             if [[ -n "${{ steps.get_gist_id.outputs.gist_id }}" ]]; then
               # Update existing gist
               echo "[info] Updating existing Gist ID: ${{ steps.get_gist_id.outputs.gist_id }}"
-              gh gist edit ${{ steps.get_gist_id.outputs.gist_id }} --add './pia-port-forward-enabled-endpoints.md'
+              gh gist edit ${{ steps.get_gist_id.outputs.gist_id }} './pia-port-forward-enabled-endpoints.md'
               gist_url="https://gist.github.com/${{ github.repository_owner }}/${{ steps.get_gist_id.outputs.gist_id }}"
               echo "[info] Existing Gist updated successfully!"
             else

@@ -73,7 +73,9 @@ jobs:
           attempt_limit: 3
           attempt_delay: 600000
           command: |
-            gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public >/dev/null 2>&1
+            gist_url=$(gh gist create './pia-port-forward-endpoints.md' --desc 'pia-port-forward-enabled-endpoints' --public)
+            echo "[info] Public Gist created successfully!"
+            echo "[info] Gist URL: ${gist_url}"
       - name: Delete previous Gist
         uses: Wandalen/wretry.action@v3
         with:

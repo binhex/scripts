@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           config_file_desc='pia-port-forward-enabled-endpoints'
-          gist_id=$(gh gist list --secret | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }')
+          gist_id=$(gh gist list --secret | grep -P -m 1 "${config_file_desc}" | awk -F ' ' '{ print $1 }' || true)
           echo "::add-mask::$gist_id"
           echo "gist_id=$gist_id" >> $GITHUB_OUTPUT
         id: get_gist_id
@@ -80,4 +80,8 @@ jobs:
           attempt_limit: 3
           attempt_delay: 600000
           command: |
-            gh gist delete ${{ steps.get_gist_id.outputs.gist_id }} --yes
+            if [[ -n "${{ steps.get_gist_id.outputs.gist_id }}" ]]; then
+              gh gist delete ${{ steps.get_gist_id.outputs.gist_id }} --yes
+            else
+              echo "[warning] No previous Gist found to delete."
+            fi

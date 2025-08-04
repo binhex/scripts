@@ -1,0 +1,24 @@
+name: workflow-piaserverlist-schedule
+
+on:
+  schedule:
+    # run every 1 day(s)
+    - cron: "0 0 * * *"
+
+jobs:
+  run-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Login to GitHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+      - name: get pia serverlist
+        uses: Wandalen/wretry.action@v3
+        with:
+          command: |
+            pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'

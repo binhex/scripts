@@ -26,7 +26,7 @@ jobs:
             set -x
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
             pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | .dns'
-            pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" 2> /dev/null | xargs)
+            pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" 2> /dev/null | xargs || true)
 
             # convert to list with separator being space
             IFS=' ' read -ra pia_port_foward_enabled_list <<< "${pia_port_foward_enabled_result}"

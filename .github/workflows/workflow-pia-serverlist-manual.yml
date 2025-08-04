@@ -1,9 +1,11 @@
-name: workflow-piaserverlist-schedule
+name: workflow-pia-serverlist-manual
 
 on:
-  schedule:
-    # run every 1 day(s)
-    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Enter tag name for test/dev image'
+        default: 'test'
 
 jobs:
   run-job:

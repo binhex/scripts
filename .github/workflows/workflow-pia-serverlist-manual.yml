@@ -26,6 +26,14 @@ jobs:
             set -x
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
             pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | .dns'
-            pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}")
-            echo "${pia_port_foward_enabled_result}"
+            pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" 2> /dev/null | xargs)
 
+            # convert to list with separator being space
+            IFS=' ' read -ra pia_port_foward_enabled_list <<< "${pia_port_foward_enabled_result}"
+
+            echo "[info] List of PIA endpoints that support port forwarding:-"
+
+            # loop over list of port forward enabled endpooints and echo out to console
+            for i in "${pia_port_foward_enabled_list[@]}"; do
+                echo "[info] ${i}"
+            done

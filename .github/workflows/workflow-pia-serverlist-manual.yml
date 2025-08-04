@@ -33,6 +33,10 @@ jobs:
                 pia_port_foward_enabled_list+=("$line")
             done <<< "${pia_port_foward_enabled_result}"
 
+            # Sort the array alphabetically by location (first part before the |)
+            IFS=$'\n' pia_port_foward_enabled_list=($(sort <<<"${pia_port_foward_enabled_list[*]}"))
+            unset IFS
+
             # Define output file
             output_file="pia-port-forward-enabled-endpoints.md"
 

@@ -24,7 +24,7 @@ jobs:
         with:
           command: |
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
-            pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | .dns'
+            pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | "\(.name)|\(.dns)"'
             pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" || true)
 
             # Create empty array and append each line to it
@@ -34,8 +34,11 @@ jobs:
             done <<< "${pia_port_foward_enabled_result}"
 
             echo "[info] List of PIA endpoints that support port forwarding, generated at $(date +'%Y-%m-%d %H:%M:%S'):-"
+            echo ""
+            echo "| Location | DNS Name |"
+            echo "|----------|----------|"
 
-            # loop over list of port forward enabled endpoints and echo out to console
+            # loop over list of port forward enabled endpoints and echo out to console in table format
             for i in "${pia_port_foward_enabled_list[@]}"; do
-                echo "${i}"
+                echo "| ${i/|/ | } |"
             done

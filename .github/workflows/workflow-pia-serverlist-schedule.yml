@@ -17,6 +17,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.CR_PAT }}
+      - name: Authenticate with GitHub for private Gist
+        uses: Wandalen/wretry.action@v3
+        with:
+          attempt_limit: 3
+          attempt_delay: 600000
+          command: |
+            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
       - name: Generate PIA port forward enabled endpoints markdown file
         uses: Wandalen/wretry.action@v3
         with:
@@ -24,6 +31,11 @@ jobs:
             pia_serverlist_url='https://serverlist.piaservers.net/vpninfo/servers/v4'
             pia_port_foward_enabled_jq_filter='.regions | .[] | select(.port_forward==true) | "\(.name)|\(.dns)"'
             pia_port_foward_enabled_result=$(curl --silent --insecure "${pia_serverlist_url}" | jq -r "${pia_port_foward_enabled_jq_filter}" || true)
+
+            if [[ -z "${pia_port_foward_enabled_result}" ]]; then
+              echo "[error] Failed to fetch PIA port forward enabled endpoints. Please check the URL or jq filter."
+              exit 1
+            fi
 
             # Create empty array and append each line to it
             pia_port_foward_enabled_list=()
@@ -54,13 +66,6 @@ jobs:
             echo "[info] Markdown file created: ${output_file}"
             echo "[info] File contents:"
             cat "${output_file}"
-      - name: Authenticate with GitHub for private Gist
-        uses: Wandalen/wretry.action@v3
-        with:
-          attempt_limit: 3
-          attempt_delay: 600000
-          command: |
-            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
       - name: Get Gist ID
         shell: bash
         run: |

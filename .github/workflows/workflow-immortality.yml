@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Keep cronjob based triggers of GitHub workflows alive
-        uses: PhrozenByte/gh-workflow-immortality@b755c1ad9f4d287b56784a749634551149aa0313 # v1.1.1
+        uses: PhrozenByte/gh-workflow-immortality@30b225baa7c0a430462c88509d740095cb58925f # v1.1.2
         with:
           secret: ${{ secrets.IMMORTALITY_PAT }}
           owner_repos: true # this ensures all repositories owned by me (public and private) are kept alive

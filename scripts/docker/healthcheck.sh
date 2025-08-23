@@ -189,7 +189,11 @@ function healthcheck_command() {
 		exit_code="${?}"
 	else
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
-		local hostname_check="google.com"
+		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
+			local hostname_check="${HEALTHCHECK_HOSTNAME}"
+		else
+			local hostname_check="google.com"
+		fi
 		check_dns "${hostname_check}"
 		local dns_exit_code="${?}"
 		check_https "${hostname_check}"

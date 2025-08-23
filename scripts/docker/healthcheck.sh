@@ -12,8 +12,8 @@ function check_dns() {
 	local hostname_check="${1:-google.com}"
 	shift
 
-	# check if DNS is working by resolving a known domain
-	if ! nslookup "${hostname_check}" > /dev/null 2>&1; then
+	# check if DNS is working by resolving a known domain (ipv4 only)
+	if ! nslookup -4 "${hostname_check}" > /dev/null 2>&1; then
 		echo "[error] DNS resolution failed"
 		return 1
 	else

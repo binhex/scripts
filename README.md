@@ -4,7 +4,7 @@ N/A
 
 **Description**
 
-Various scripts consumed by Docker images during Build or other repositories located on the binhex repo.
+Various scripts consumed by Docker images during Build or other repositories located in the binhex org.
 
 **Build notes**
 

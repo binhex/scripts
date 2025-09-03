@@ -255,14 +255,6 @@ function symlink() {
 		return 1
 	fi
 
-	# ensure rsync is installed
-	if ! command -v rsync &>/dev/null; then
-			echo "[info] Rsync not found, installing..."
-			pacman -S rsync --noconfirm
-	else
-			echo "[info] Rsync is already installed"
-	fi
-
 	# verify link type
 	if [[ "${link_type}" == "softlink" ]]; then
 		link_type="-s"
@@ -273,7 +265,7 @@ function symlink() {
 		return 1
 	fi
 
-	# if container folder exists then rename and use as default restore
+	# if ${src_path} exists and its not an existing symlink then rename and use as restore backup
 	if [[ -d "${src_path}" && ! -L "${src_path}" ]]; then
 		shlog 2 "'${src_path}' path already exists, renaming..."
 		if ! stderr=$(mv "${src_path}" "${src_path}-backup" 2>&1 >/dev/null); then
@@ -282,7 +274,7 @@ function symlink() {
 		fi
 	fi
 
-	# if ${dst_path} doesnt exist then restore from backup
+	# if ${dst_path} doesnt exist then copy from ${src_path}-backup (if it exists) to ${dst_path}
 	if [[ ! -d "${dst_path}" ]]; then
 		if [[ -d "${src_path}-backup" ]]; then
 			shlog 2 "'${dst_path}' path does not exist, copying defaults..."
@@ -290,7 +282,7 @@ function symlink() {
 				shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
 				return 1
 			fi
-			if ! stderr=$(rsync -av "${src_path}-backup/" "${dst_path}" 2>&1 >/dev/null); then
+			if ! stderr=$(cp -R "${src_path}-backup/"* "${dst_path}/" 2>&1 >/dev/null); then
 				shlog 2 "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..."
 				return 1
 			fi
@@ -299,7 +291,7 @@ function symlink() {
 		shlog 2 "'${dst_path}' path already exists, skipping copy"
 	fi
 
-	# create soft link to ${src_path}/${folder} storing general settings
+	# create link from ${dst_path} to ${src_path}
 	shlog 2 "Creating '${link_type}' from '${dst_path}' to '${src_path}'..."
 	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
 		shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
@@ -313,8 +305,9 @@ function symlink() {
 		shlog 2 "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..."
 		return 1
 	fi
+
+	# reset ownership after symlink creation
 	if [[ -n "${PUID}" && -n "${PGID}" ]]; then
-		# reset permissions after file copy
 		chown -R "${PUID}":"${PGID}" "${dst_path}" "${src_path}"
 	fi
 }

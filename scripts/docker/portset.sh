@@ -26,6 +26,9 @@ GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
+# source in image build info, includes tag name and app name
+source '/etc/image-build-info' 2> /dev/null || echo "[WARN] Unable to source '/etc/image-build-info', no default 'APP_NAME' will be set"
+
 # utility functions
 ####
 
@@ -87,12 +90,12 @@ function curl_with_retry() {
 
 function start_process_background() {
 
-  echo "[INFO] Starting single process: ${APPLICATION_PARAMETERS[*]}"
-  nohup "${APPLICATION_PARAMETERS[@]}" &
+  echo "[INFO] Starting single process: ${APP_PARAMETERS[*]}"
+  nohup "${APP_PARAMETERS[@]}" &
   APPLICATION_PID=$!
 
   if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Started '${APPLICATION_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
+    echo "[DEBUG] Started '${APP_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
   fi
 }
 
@@ -115,12 +118,12 @@ function check_process() {
 
 function kill_process() {
   if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
-    echo "[INFO] Killing ${APPLICATION_NAME} process with PID '${APPLICATION_PID}'"
+    echo "[INFO] Killing ${APP_NAME} process with PID '${APPLICATION_PID}'"
     kill "${APPLICATION_PID}"
     wait "${APPLICATION_PID}" 2>/dev/null
-    echo "[INFO] ${APPLICATION_NAME} process with PID '${APPLICATION_PID}' has been killed"
+    echo "[INFO] ${APP_NAME} process with PID '${APPLICATION_PID}' has been killed"
   else
-    echo "[INFO] No PID found for ${APPLICATION_NAME}, ignoring kill"
+    echo "[INFO] No PID found for ${APP_NAME}, ignoring kill"
   fi
 }
 
@@ -192,9 +195,9 @@ function get_incoming_port() {
   if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
     echo "[ERROR] Failed to connect to gluetun Control Server after ${max_retries} attempts"
     echo "[INFO] Giving up on VPN port configuration, executing remaining arguments..."
-    if [[ "${#APPLICATION_PARAMETERS[@]}" -gt 0 ]]; then
-      echo "[INFO] Executing: ${APPLICATION_PARAMETERS[*]}"
-      exec "${APPLICATION_PARAMETERS[@]}"
+    if [[ "${#APP_PARAMETERS[@]}" -gt 0 ]]; then
+      echo "[INFO] Executing: ${APP_PARAMETERS[*]}"
+      exec "${APP_PARAMETERS[@]}"
     fi
   fi
 
@@ -293,32 +296,32 @@ function main {
 
 function application_start() {
 
-  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
+  if [[ "${APP_NAME}" == 'qbittorrent' ]]; then
     qbittorrent_edit_config
     qbittorrent_start
     wait_for_port_to_be_listening "${WEBUI_PORT}"
-  elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
+  elif [[ "${APP_NAME}" == 'deluge' ]]; then
     deluge_start
     wait_for_port_to_be_listening "${WEBUI_PORT}"
-  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
+  elif [[ "${APP_NAME}" == 'nicotineplus' ]]; then
     nicotine_edit_config
     nicotine_start
   else
-    echo "[WARN] Application name '${APPLICATION_NAME}' unknown, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
-    exec "${APPLICATION_PARAMETERS[@]}"
+    echo "[WARN] Application name '${APP_NAME}' unknown, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    exec "${APP_PARAMETERS[@]}"
   fi
 
 }
 
 function application_configure_incoming_port() {
 
-  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
+  if [[ "${APP_NAME}" == 'qbittorrent' ]]; then
     wait_for_port_to_be_listening "${WEBUI_PORT}"
     qbittorrent_api_config
-  elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
+  elif [[ "${APP_NAME}" == 'deluge' ]]; then
     wait_for_port_to_be_listening "${WEBUI_PORT}"
     deluge_api_config
-  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
+  elif [[ "${APP_NAME}" == 'nicotineplus' ]]; then
     nicotine_gluetun_incoming_port
   fi
 
@@ -326,15 +329,15 @@ function application_configure_incoming_port() {
 
 function application_verify_incoming_port() {
 
-  if [[ "${APPLICATION_NAME}" == 'qbittorrent' ]]; then
+  if [[ "${APP_NAME}" == 'qbittorrent' ]]; then
     if ! qbittorrent_verify_incoming_port; then
       return 1
     fi
-  elif [[ "${APPLICATION_NAME}" == 'nicotineplus' ]]; then
+  elif [[ "${APP_NAME}" == 'nicotineplus' ]]; then
     if ! nicotine_verify_incoming_port; then
       return 1
     fi
-  elif [[ "${APPLICATION_NAME}" == 'deluge' ]]; then
+  elif [[ "${APP_NAME}" == 'deluge' ]]; then
     if ! deluge_verify_incoming_port; then
       return 1
     fi
@@ -348,7 +351,7 @@ function application_verify_incoming_port() {
 
 function deluge_api_config() {
 
-  echo "[INFO] Configuring '${APPLICATION_NAME}' for VPN..."
+  echo "[INFO] Configuring '${APP_NAME}' for VPN..."
 
   /usr/bin/deluge-console -c /config "config --set random_port false" 2>/dev/null
   /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})" 2>/dev/null
@@ -358,7 +361,7 @@ function deluge_api_config() {
 
 function deluge_start() {
 
-  echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background
 }
 
@@ -366,7 +369,7 @@ function deluge_verify_incoming_port() {
   local web_protocol
   local current_port
 
-  echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   # identify protocol, used by curl to connect to api
   if grep -q '"https": true,' "${DELUGE_WEB_CONFIG_FILEPATH}"; then
@@ -379,20 +382,20 @@ function deluge_verify_incoming_port() {
   current_port=$(/usr/bin/deluge-console -c /config "config listen_ports" 2>/dev/null | grep -P -o '\d+(?=\)$)')
 
   if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current ${APPLICATION_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
+      echo "[DEBUG] Current ${APP_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
   fi
 
   # Check if the port was retrieved successfully
   if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
-      echo "[WARN] Unable to retrieve current port from ${APPLICATION_NAME} API"
+      echo "[WARN] Unable to retrieve current port from ${APP_NAME} API"
       return 1
   fi
 
   if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
-      echo "[INFO] ${APPLICATION_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+      echo "[INFO] ${APP_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
       return 0
   else
-      echo "[WARN] ${APPLICATION_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+      echo "[WARN] ${APP_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
       return 1
   fi
 
@@ -403,14 +406,14 @@ function deluge_verify_incoming_port() {
 
 function qbittorrent_start() {
 
-  echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background
 
 }
 function qbittorrent_edit_config() {
 
   if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Setting bypass authentication for localhost, required to configure ${APPLICATION_NAME} incoming port via API: ${QBITTORRENT_CONFIG_FILEPATH}"
+    echo "[DEBUG] Setting bypass authentication for localhost, required to configure ${APP_NAME} incoming port via API: ${QBITTORRENT_CONFIG_FILEPATH}"
   fi
 
   if ! grep -q 'WebUI\\LocalHostAuth=false' "${QBITTORRENT_CONFIG_FILEPATH}"; then
@@ -452,7 +455,7 @@ function qbittorrent_verify_incoming_port() {
   local web_protocol
   local current_port
 
-  echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   # identify protocol, used by curl to connect to api
   if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
@@ -466,20 +469,20 @@ function qbittorrent_verify_incoming_port() {
   current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
 
   if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current ${APPLICATION_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
+      echo "[DEBUG] Current ${APP_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
   fi
 
   # Check if the port was retrieved successfully
   if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
-      echo "[WARN] Unable to retrieve current port from ${APPLICATION_NAME} API"
+      echo "[WARN] Unable to retrieve current port from ${APP_NAME} API"
       return 1
   fi
 
   if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
-      echo "[INFO] ${APPLICATION_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+      echo "[INFO] ${APP_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
       return 0
   else
-      echo "[WARN] ${APPLICATION_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+      echo "[WARN] ${APP_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
       return 1
   fi
 }
@@ -488,13 +491,13 @@ function qbittorrent_verify_incoming_port() {
 ####
 
 function nicotine_start() {
-  echo "[INFO] Starting '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background "--port ${INCOMING_PORT}"
 }
 
 function nicotine_edit_config() {
   local config_file='/home/nobody/.config/nicotine/config'
-  echo "[INFO] Configuring '${APPLICATION_NAME}' with VPN incoming port '${INCOMING_PORT}'"
+  echo "[INFO] Configuring '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'"
   sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
 }
 
@@ -504,7 +507,7 @@ function nicotine_gluetun_incoming_port() {
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
   fi
-  echo "[INFO] Killing '${APPLICATION_NAME}' process as we cannot reconfigure incoming port while it is running..."
+  echo "[INFO] Killing '${APP_NAME}' process as we cannot reconfigure incoming port while it is running..."
   kill_process
   nicotine_edit_config
   nicotine_start
@@ -514,7 +517,7 @@ function nicotine_verify_incoming_port() {
   local config_file='/home/nobody/.config/nicotine/config'
   local expected_line="portrange = (${INCOMING_PORT}, ${INCOMING_PORT})"
 
-  echo "[INFO] Verifying '${APPLICATION_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Looking for line: '${expected_line}' in config file '${config_file}'"
@@ -522,10 +525,10 @@ function nicotine_verify_incoming_port() {
 
   # Check if the expected portrange line exists in the config file
   if grep -Fxq "${expected_line}" "${config_file}"; then
-    echo "[INFO] ${APPLICATION_NAME} incoming port matches VPN port '${INCOMING_PORT}'"
+    echo "[INFO] ${APP_NAME} incoming port matches VPN port '${INCOMING_PORT}'"
     return 0
   else
-    echo "[WARN] ${APPLICATION_NAME} incoming port does not match VPN port '${INCOMING_PORT}'"
+    echo "[WARN] ${APP_NAME} incoming port does not match VPN port '${INCOMING_PORT}'"
     if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current portrange line in config:"
       grep "^portrange" "${config_file}" || echo "[DEBUG] No portrange line found"
@@ -544,11 +547,11 @@ Syntax:
   ./${ourScriptName} [options] [command and arguments]
 
 Where:
-  -an or --application-name <deluge|qbittorrent|nicotineplus>
+  -an or --app-name <deluge|qbittorrent|nicotineplus>
     Define the name of the application to configure for incoming port.
-    No default.
+    Defaults to source contents of file '/etc/image-build-info'.
 
-  -apa or --application-parameters <parameters>
+  -apa or --app-parameters <parameters>
     Define additional parameters to pass to the application command.
     No default, this should be the last argument, all remaining arguments will be passed to the application.
 
@@ -586,9 +589,9 @@ Notes:
   - Any additional arguments provided after the options will be passed to the specified application.
 
 Environment Variables:
-  APPLICATION_NAME
+  APP_NAME
     Set the name of the application to configure with the VPN incoming port.
-  APPLICATION_PARAMETERS
+  APP_PARAMETERS
     Set additional parameters to pass to the application command.
   WEBUI_PORT
     Set the web UI port for the applicaton.
@@ -609,10 +612,10 @@ Notes:
 
 Examples:
   Start process and monitor VPN port for changes:
-    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --application-parameters /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APP_NAME=nicotineplus ./${ourScriptName} --app-parameters /usr/bin/nicotine
 
   Start process and monitor VPN port for changes using custom port for gluetun Control Server and specific poll interval:
-    GLUETUN_INCOMING_PORT=yes APPLICATION_NAME=nicotineplus ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 --application-parameters /usr/bin/nicotine
+    GLUETUN_INCOMING_PORT=yes APP_NAME=nicotineplus ./${ourScriptName} --gluetun-control-server-port 9000 --poll-delay 5 --app-parameters /usr/bin/nicotine
 
 ENDHELP
 }
@@ -621,8 +624,8 @@ while [ "$#" != "0" ]
 do
   case "$1"
   in
-  -an|--application-name)
-    APPLICATION_NAME="${2,,}"
+  -an|--app-name)
+    APP_NAME="${2,,}"
     shift
     ;;
   -wp|--webui-port)
@@ -652,10 +655,10 @@ do
   --debug)
     DEBUG="yes"
     ;;
-  -app|--application-parameters)
-    shift  # Skip the --application-parameters flag itself
+  -app|--app-parameters)
+    shift  # Skip the --app-parameters flag itself
     # Capture ALL remaining arguments
-    APPLICATION_PARAMETERS=("$@")
+    APP_PARAMETERS=("$@")
     break  # Exit the loop since we've captured everything
     ;;
   -h|--help)
@@ -671,24 +674,24 @@ do
   shift
 done
 
-if [[ -z "${APPLICATION_PARAMETERS[*]}" ]]; then
-  echo "[ERROR] No application parameters specified via argument '-app|--application-parameters' or environment variable 'APPLICATION_PARAMETERS', showing help before exit..."
+if [[ -z "${APP_PARAMETERS[*]}" ]]; then
+  echo "[ERROR] No application parameters specified via argument '-app|--app-parameters' or environment variable 'APP_PARAMETERS', showing help before exit..."
   show_help
   exit 1
 fi
 
 if [[ "${GLUETUN_INCOMING_PORT}" != 'yes' ]]; then
-  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
-  exec "${APPLICATION_PARAMETERS[@]}"
+  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${APP_PARAMETERS[*]}'..."
+  exec "${APP_PARAMETERS[@]}"
 else
-  if [[ -z "${APPLICATION_NAME}" ]]; then
-    echo "[WARN] No application name specified via argument '-an|--application-name' or environment variable 'APPLICATION_NAME', cannot configure incoming port, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
-    exec "${APPLICATION_PARAMETERS[@]}"
+  if [[ -z "${APP_NAME}" ]]; then
+    echo "[WARN] No application name specified via argument '-an|--app-name' or environment variable 'APP_NAME', cannot configure incoming port, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    exec "${APP_PARAMETERS[@]}"
   fi
 
-  if [[ -z "${WEBUI_PORT}" && "${APPLICATION_NAME}" != 'nicotineplus' ]]; then
-    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${APPLICATION_PARAMETERS[*]}'..."
-    exec "${APPLICATION_PARAMETERS[@]}"
+  if [[ -z "${WEBUI_PORT}" && "${APP_NAME}" != 'nicotineplus' ]]; then
+    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    exec "${APP_PARAMETERS[@]}"
   fi
 fi
 

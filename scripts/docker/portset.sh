@@ -11,6 +11,7 @@ readonly ourScriptName="$(basename -- "$0")"
 readonly ourScriptVersion="v1.0.0"
 
 # default values
+readonly defaultImageBuildFilepath="/etc/image-build-info"
 readonly defaultDelugeWebConfigFilepath="/config/web.conf"
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
 readonly defaultGluetunControlServerPort="8000"
@@ -27,7 +28,14 @@ POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 
 # source in image build info, includes tag name and app name
-source '/etc/image-build-info' 2> /dev/null || echo "[WARN] Unable to source '/etc/image-build-info', no default 'APP_NAME' will be set"
+if [[ -f "${defaultImageBuildFilepath}" ]]; then
+  echo "[INFO] Sourcing image build info from '${defaultImageBuildFilepath}'"
+  source "${defaultImageBuildFilepath}"
+  # note that this will set env var APPNAME from source file, but we want APP_NAME for readability in this script
+  APP_NAME="${APPNAME}"
+else
+  echo "[WARN] Unable to find '${defaultImageBuildFilepath}', no default 'APP_NAME' will be set"
+fi
 
 # utility functions
 ####
@@ -551,11 +559,11 @@ Where:
     Define the name of the application to configure for incoming port.
     Defaults to source contents of file '/etc/image-build-info'.
 
-  -apa or --app-parameters <parameters>
+  -ap or --app-parameters <parameters>
     Define additional parameters to pass to the application command.
     No default, this should be the last argument, all remaining arguments will be passed to the application.
 
-  -ap or --webui-port <port>
+  -wp or --webui-port <port>
     Define the web UI port for the application.
     No default.
 
@@ -655,7 +663,7 @@ do
   --debug)
     DEBUG="yes"
     ;;
-  -app|--app-parameters)
+  -ap|--app-parameters)
     shift  # Skip the --app-parameters flag itself
     # Capture ALL remaining arguments
     APP_PARAMETERS=("$@")
@@ -675,7 +683,7 @@ do
 done
 
 if [[ -z "${APP_PARAMETERS[*]}" ]]; then
-  echo "[ERROR] No application parameters specified via argument '-app|--app-parameters' or environment variable 'APP_PARAMETERS', showing help before exit..."
+  echo "[ERROR] No application parameters specified via argument '-ap|--app-parameters' or environment variable 'APP_PARAMETERS', showing help before exit..."
   show_help
   exit 1
 fi

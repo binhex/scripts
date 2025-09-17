@@ -209,21 +209,33 @@ function get_incoming_port() {
     fi
   fi
 
-  # Get port and IP information using curl_with_retry
+  # Get port forward information from gluetun Control Server
   portforwarded_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s)
+
+  if [[ -z "${portforwarded_response}" ]]; then
+    echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
+  else
+    # parse results
+    INCOMING_PORT="$(echo "${portforwarded_response}" | jq -r '.port')"
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
+    fi
+  fi
+
+  # Get public ip and location information from gluetun Control Server
   public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s)
 
-  # parse results
-  INCOMING_PORT="$(echo "${portforwarded_response}" | jq -r '.port')"
-  vpn_public_ip="$(echo "${public_ip}" | jq -r '.public_ip')"
-  vpn_country_ip="$(echo "${public_ip}" | jq -r '.country')"
-  vpn_city_ip="$(echo "${public_ip}" | jq -r '.city')"
-
-  if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
-    echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
-    echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
-    echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
+  if [[ -z "${public_ip}" ]]; then
+    echo "[WARN] Unable to retrieve public IP information from gluetun Control Server"
+  else
+    vpn_public_ip="$(echo "${public_ip}" | jq -r '.public_ip')"
+    vpn_country_ip="$(echo "${public_ip}" | jq -r '.country')"
+    vpn_city_ip="$(echo "${public_ip}" | jq -r '.city')"
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Public IP for VPN tunnel is '${vpn_public_ip}'"
+      echo "[DEBUG] Country for VPN tunnel is '${vpn_country_ip}'"
+      echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
+    fi
   fi
 }
 

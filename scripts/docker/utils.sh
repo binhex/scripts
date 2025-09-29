@@ -275,7 +275,7 @@ function symlink() {
 		return 0
 	fi
 
-	# helper function to create appropriate directories
+	# helper function to create appropriate paths if they do not exist
 	create_path_directories() {
 		local path="$1"
 		if [[ ! -e "${path}" ]]; then
@@ -290,10 +290,6 @@ function symlink() {
 		fi
 	}
 
-	# create directories for src_path
-	create_path_directories "${src_path}"
-	create_path_directories "${dst_path}"
-
 	# if the dst_path exists and is not empty then move to backup
 	if [[ -e "${dst_path}" ]]; then
 		if ! test -n "$(find "${dst_path}" -maxdepth 0 -empty)" ; then
@@ -303,6 +299,9 @@ function symlink() {
 			fi
 		fi
 	fi
+
+	# if src_path does not exist then create it
+	create_path_directories "${src_path}"
 
 	# if src_path is empty and the dst_path-backup is not empty then copy from ${dst_path}-backup to src_path recursively
 	if test -n "$(find "${src_path}" -maxdepth 0 -empty)" ; then
@@ -321,6 +320,9 @@ function symlink() {
 			fi
 		fi
 	fi
+
+	# if dst_path does not exist (renamed to dst_path-backup) then create it
+	create_path_directories "${dst_path}"
 
 	# if src_path is a directory then use glob
 	if [[ -d "${src_path}" ]]; then

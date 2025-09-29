@@ -265,50 +265,86 @@ function symlink() {
 		return 1
 	fi
 
-	# if ${src_path} exists and its not an existing symlink then rename and use as restore backup
-	if [[ -d "${src_path}" && ! -L "${src_path}" ]]; then
-		shlog 2 "'${src_path}' path already exists, renaming..."
-		if ! stderr=$(mv "${src_path}" "${src_path}-backup" 2>&1 >/dev/null); then
-			shlog 2 "Unable to move src path '${src_path}' to backup path '${src_path}-backup' error is '${stderr}', exiting function..."
+	# remove forward slash from end of src_path and dst_path if it exists
+	src_path=${src_path%/}
+	dst_path=${dst_path%/}
+
+	# if the dst_path is already a symlink then exit
+	if [[ -L "${dst_path}" ]]; then
+		shlog 2 "'${src_path}' path already symlinked to '${dst_path}', nothing to do, exiting function..."
+		return 0
+	fi
+
+	# helper function to create appropriate directories
+	create_path_directories() {
+		local path="$1"
+		if [[ ! -e "${path}" ]]; then
+			if [[ "${path}" == *.* ]]; then
+				# path appears to be a file, create parent directory
+				local parent_dir="${path%/*}"
+				mkdir -p "${parent_dir}"
+			else
+				# path appears to be a directory, create the full path
+				mkdir -p "${path}"
+			fi
+		fi
+	}
+
+	# create directories for src_path
+	create_path_directories "${src_path}"
+	create_path_directories "${dst_path}"
+
+	# if the dst_path exists and is not empty then move to backup
+	if [[ -e "${dst_path}" ]]; then
+		if ! test -n "$(find "${dst_path}" -maxdepth 0 -empty)" ; then
+			if ! stderr=$(mv "${dst_path}" "${dst_path}-backup" 2>&1 >/dev/null); then
+				shlog 2 "Unable to move dst path '${dst_path}' to backup path '${dst_path}-backup' error is '${stderr}', exiting function..."
+				return 1
+			fi
+		fi
+	fi
+
+	# if src_path is empty and the dst_path-backup is not empty then copy from ${dst_path}-backup to src_path recursively
+	if test -n "$(find "${src_path}" -maxdepth 0 -empty)" ; then
+		if ! test -n "$(find "${dst_path}-backup" -maxdepth 0 -empty)" ; then
+			if [[ -d "${dst_path}-backup" ]]; then
+				# Use cp -a with . to copy all contents including hidden files/directories
+				if ! stderr=$(cp -a "${dst_path}-backup/." "${src_path}/" 2>&1 >/dev/null); then
+					shlog 2 "Unable to copy from backup path '${dst_path}-backup' to source path '${src_path}' error is '${stderr}', exiting function..."
+					return 1
+				fi
+			else
+				if ! stderr=$(cp -a "${dst_path}-backup" "${src_path}" 2>&1 >/dev/null); then
+					shlog 2 "Unable to copy from backup path '${dst_path}-backup' to source path '${src_path}' error is '${stderr}', exiting function..."
+					return 1
+				fi
+			fi
+		fi
+	fi
+
+	# if src_path is a directory then use glob
+	if [[ -d "${src_path}" ]]; then
+		# if src_path is a directory then symlink hidden files/directories
+		if ! stderr=$(ln "${link_type}" "${src_path}/".* "${dst_path}" 2>&1 >/dev/null); then
+			shlog 2 "Unable to symlink from path '${src_path}/.*' to '${dst_path}' error is '${stderr}', exiting function..."
+			return 1
+		fi
+		# if src_path is a directory then symlink normal files/directories
+		if ! stderr=$(ln "${link_type}" "${src_path}/"* "${dst_path}" 2>&1 >/dev/null); then
+			shlog 2 "Unable to symlink from path '${src_path}/*' to '${dst_path}' error is '${stderr}', exiting function..."
+			return 1
+		fi
+	else
+		# if src_path is a file then symlink without glob
+		if ! stderr=$(ln "${link_type}" "${src_path}" "${dst_path}" 2>&1 >/dev/null); then
+			shlog 2 "Unable to symlink from path '${src_path}' to '${dst_path}' error is '${stderr}', exiting function..."
 			return 1
 		fi
 	fi
 
-	# if ${dst_path} doesnt exist then copy from ${src_path}-backup (if it exists) to ${dst_path}
-	if [[ ! -d "${dst_path}" ]]; then
-		if [[ -d "${src_path}-backup" ]]; then
-			shlog 2 "'${dst_path}' path does not exist, copying defaults..."
-			if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
-				shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
-				return 1
-			fi
-			if ! stderr=$(cp -R "${src_path}-backup/"* "${dst_path}/" 2>&1 >/dev/null); then
-				shlog 2 "Unable to copy from '${src_path}-backup/' to '${dst_path}' error is '${stderr}', exiting function..."
-				return 1
-			fi
-		fi
-	else
-		shlog 2 "'${dst_path}' path already exists, skipping copy"
-	fi
-
-	# create link from ${dst_path} to ${src_path}
-	shlog 2 "Creating '${link_type}' from '${dst_path}' to '${src_path}'..."
-	if ! stderr=$(mkdir -p "${dst_path}" 2>&1 >/dev/null); then
-		shlog 2 "Unable to mkdir '${dst_path}' error is '${stderr}', exiting function..."
-		return 1
-	fi
-	if ! stderr=$(rm -rf "${src_path}" 2>&1 >/dev/null); then
-		shlog 2 "Unable to recursively delete path '${src_path}' error is '${stderr}', exiting function..."
-		return 1
-	fi
-	if ! stderr=$(ln "${link_type}" "${dst_path}/" "${src_path}" 2>&1 >/dev/null); then
-		shlog 2 "Unable to symlink from path '${link_type}' to '${dst_path}/' error is '${stderr}', exiting function..."
-		return 1
-	fi
-
 	# reset ownership after symlink creation
 	if [[ -n "${PUID}" && -n "${PGID}" ]]; then
-		chown -R "${PUID}":"${PGID}" "${dst_path}" "${src_path}"
+		chown -R "${PUID}":"${PGID}" "${src_path}" "${dst_path}"
 	fi
 }
 
@@ -447,24 +483,27 @@ Where:
 		Displays this text.
 
 	-sp or --src-path <path>
-		Define source path containing files you want to copy to dst-path.
+		Define source path containing files you want to symlink to dst-path.
 		No default.
 
 	-dp or --dst-path <path>
-		Define destinaiton path to store files copied from src-path,
-		this is then symlinked back (src-path renamed to *-backup).
+		Define destinaiton path for symlink.
 		No default.
 
 	-lt or --link-type <softlink|hardlink>
 		Define the symlink type.
 		No default.
 
-Examples:
-	Create softlink from /home/nobody to /config/code-server/home with debugging on:
-		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'softlink'
+Notes:
+	If src-path is empty or does not exist and dst-path is not empty then files from
+	dst-path will be copied to the src-path before symlink creation.
 
-	Create hardlink from /home/nobody to /config/code-server/home with debugging on:
-		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/home/nobody' --dst-path '/config/code-server/home' --link-type 'hardlink'
+Examples:
+	Create softlink from /config/code-server/home to /home/nobody with debugging on:
+		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/config/code-server/home' --dst-path '/home/nobody' --link-type 'softlink'
+
+	Create hardlink from /config/code-server/home to /home/nobody with debugging on:
+		source "${ourScriptPath}/${ourScriptName}" && symlink --src-path '/config/code-server/home' --dst-path '/home/nobody' --link-type 'hardlink'
 
 ENDHELP
 }

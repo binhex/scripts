@@ -293,6 +293,10 @@ function symlink() {
 	# if the dst_path exists and is not empty then move to backup
 	if [[ -e "${dst_path}" ]]; then
 		if ! test -n "$(find "${dst_path}" -maxdepth 0 -empty)" ; then
+			# if the dst_path-backup exists already then delete it
+			if [[ -e "${dst_path}-backup" ]]; then
+				rm -rf "${dst_path}-backup"
+			fi
 			if ! stderr=$(mv "${dst_path}" "${dst_path}-backup" 2>&1 >/dev/null); then
 				shlog 2 "Unable to move dst path '${dst_path}' to backup path '${dst_path}-backup' error is '${stderr}', exiting function..."
 				return 1

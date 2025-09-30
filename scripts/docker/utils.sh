@@ -265,9 +265,9 @@ function symlink() {
 		return 1
 	fi
 
-	# remove forward slash from end of src_path and dst_path if it exists
-	src_path=${src_path%/}
-	dst_path=${dst_path%/}
+	# remove all forward slash(es) from end of src_path and dst_path if it exists
+	src_path=$(echo "${src_path}" | sed 's:/*$::')
+	dst_path=$(echo "${dst_path}" | sed 's:/*$::')
 
 	# if the dst_path is already a symlink then exit
 	if [[ -L "${dst_path}" ]]; then

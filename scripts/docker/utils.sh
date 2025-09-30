@@ -279,14 +279,9 @@ function symlink() {
 	create_path_directories() {
 		local path="$1"
 		if [[ ! -e "${path}" ]]; then
-			if [[ "${path}" == *.* ]]; then
-				# path appears to be a file, create parent directory
-				local parent_dir="${path%/*}"
-				mkdir -p "${parent_dir}"
-			else
-				# path appears to be a directory, create the full path
-				mkdir -p "${path}"
-			fi
+			# create parent directory
+			local parent_dir="${path%/*}"
+			mkdir -p "${parent_dir}"
 		fi
 	}
 
@@ -304,48 +299,36 @@ function symlink() {
 		fi
 	fi
 
-	# if src_path does not exist then create it
+	# if src_path does not exist then create the parent folder(s)
 	create_path_directories "${src_path}"
 
 	# if src_path is empty and the dst_path-backup is not empty then copy from ${dst_path}-backup to src_path recursively
 	if test -n "$(find "${src_path}" -maxdepth 0 -empty)" ; then
-		if ! test -n "$(find "${dst_path}-backup" -maxdepth 0 -empty)" ; then
-			if [[ -d "${dst_path}-backup" ]]; then
-				# Use cp -a with . to copy all contents including hidden files/directories
-				if ! stderr=$(cp -a "${dst_path}-backup/." "${src_path}/" 2>&1 >/dev/null); then
-					shlog 2 "Unable to copy from backup path '${dst_path}-backup' to source path '${src_path}' error is '${stderr}', exiting function..."
-					return 1
-				fi
-			else
-				if ! stderr=$(cp -a "${dst_path}-backup" "${src_path}" 2>&1 >/dev/null); then
-					shlog 2 "Unable to copy from backup path '${dst_path}-backup' to source path '${src_path}' error is '${stderr}', exiting function..."
-					return 1
+		if [[ -e "${dst_path}-backup" ]]; then
+			if ! test -n "$(find "${dst_path}-backup" -maxdepth 0 -empty)" ; then
+				if [[ -d "${dst_path}-backup" ]]; then
+					# Use cp -a with . to copy all contents including hidden files/directories
+					if ! stderr=$(cp -a "${dst_path}-backup/." "${src_path}/" 2>&1 >/dev/null); then
+						shlog 2 "Unable to copy from backup path '${dst_path}-backup/.' to source path '${src_path}' error is '${stderr}', exiting function..."
+						return 1
+					fi
+				else
+					if ! stderr=$(cp -a "${dst_path}-backup" "${src_path}" 2>&1 >/dev/null); then
+						shlog 2 "Unable to copy from backup path '${dst_path}-backup' to source path '${src_path}' error is '${stderr}', exiting function..."
+						return 1
+					fi
 				fi
 			fi
 		fi
 	fi
 
-	# if dst_path does not exist (renamed to dst_path-backup) then create it
+	# if dst_path does not exist (renamed to dst_path-backup) then create the parent folder(s)
 	create_path_directories "${dst_path}"
 
-	# if src_path is a directory then use glob
-	if [[ -d "${src_path}" ]]; then
-		# if src_path is a directory then symlink hidden files/directories
-		if ! stderr=$(ln "${link_type}" "${src_path}/".* "${dst_path}" 2>&1 >/dev/null); then
-			shlog 2 "Unable to symlink from path '${src_path}/.*' to '${dst_path}' error is '${stderr}', exiting function..."
-			return 1
-		fi
-		# if src_path is a directory then symlink normal files/directories
-		if ! stderr=$(ln "${link_type}" "${src_path}/"* "${dst_path}" 2>&1 >/dev/null); then
-			shlog 2 "Unable to symlink from path '${src_path}/*' to '${dst_path}' error is '${stderr}', exiting function..."
-			return 1
-		fi
-	else
-		# if src_path is a file then symlink without glob
-		if ! stderr=$(ln "${link_type}" "${src_path}" "${dst_path}" 2>&1 >/dev/null); then
-			shlog 2 "Unable to symlink from path '${src_path}' to '${dst_path}' error is '${stderr}', exiting function..."
-			return 1
-		fi
+	# if src_path is a file then symlink without glob
+	if ! stderr=$(ln "${link_type}" "${src_path}" "${dst_path}" 2>&1 >/dev/null); then
+		shlog 2 "Unable to symlink from path '${src_path}' to '${dst_path}' error is '${stderr}', exiting function..."
+		return 1
 	fi
 
 	# reset ownership after symlink creation

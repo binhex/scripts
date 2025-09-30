@@ -307,7 +307,7 @@ function symlink() {
 		if [[ -e "${dst_path}-backup" ]]; then
 			if ! test -n "$(find "${dst_path}-backup" -maxdepth 0 -empty)" ; then
 				if [[ -d "${dst_path}-backup" ]]; then
-					# Use cp -a with . to copy all contents including hidden files/directories
+					# if ${dst_path}-backup is a directory then append '.' to copy all contents including hidden files/directories
 					if ! stderr=$(cp -a "${dst_path}-backup/." "${src_path}/" 2>&1 >/dev/null); then
 						shlog 2 "Unable to copy from backup path '${dst_path}-backup/.' to source path '${src_path}' error is '${stderr}', exiting function..."
 						return 1

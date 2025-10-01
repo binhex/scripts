@@ -292,6 +292,19 @@ function symlink() {
 			if [[ -e "${dst_path}-backup" ]]; then
 				rm -rf "${dst_path}-backup"
 			fi
+			# rsync from dst_path to src_path for new or modified files
+			if [[ -d "${dst_path}" ]]; then
+				if ! stderr=$(rsync -av --update --inplace "${dst_path}/" "${src_path}/" 2>&1 >/dev/null); then
+						shlog 2 "Unable to rsync from backup path '${dst_path}/' to source path '${src_path}/' error is '${stderr}', exiting function..."
+						return 1
+				fi
+			else
+				if ! stderr=$(rsync -av --update --inplace "${dst_path}" "${src_path}" 2>&1 >/dev/null); then
+						shlog 2 "Unable to rsync from backup path '${dst_path}' to source path '${src_path}' error is '${stderr}', exiting function..."
+						return 1
+				fi
+			fi
+			# move dst_path to dst_path-backup
 			if ! stderr=$(mv "${dst_path}" "${dst_path}-backup" 2>&1 >/dev/null); then
 				shlog 2 "Unable to move dst path '${dst_path}' to backup path '${dst_path}-backup' error is '${stderr}', exiting function..."
 				return 1

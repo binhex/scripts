@@ -292,7 +292,7 @@ function symlink() {
 			if [[ -e "${dst_path}-backup" ]]; then
 				rm -rf "${dst_path}-backup"
 			fi
-			# rsync from dst_path to src_path for new or modified files
+			# rsync from dst_path to src_path for missing files or files with a later modified datetime stamp
 			if [[ -d "${dst_path}" ]]; then
 				if ! stderr=$(rsync -av --update --inplace "${dst_path}/" "${src_path}/" 2>&1 >/dev/null); then
 						shlog 2 "Unable to rsync from backup path '${dst_path}/' to source path '${src_path}/' error is '${stderr}', exiting function..."

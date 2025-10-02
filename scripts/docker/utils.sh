@@ -352,7 +352,7 @@ function symlink() {
 		fi
 	fi
 
-	# if dst_path does not exist (renamed to dst_path-backup) then create the parent folder(s)
+	# if dst_path does not exist (renamed to dst_path-backup) then create the dst_path parent folder(s)
 	create_path_directories "${dst_path}" 'parent'
 
 	# symlink

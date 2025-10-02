@@ -289,23 +289,24 @@ function symlink() {
 		local type="${1}"
 		shift
 
-		if [[ ! -e "${path}" ]]; then
+		# if the path directory does not exist then create it
+		if [[ ! -d "${path}" ]]; then
 			if [[ "${type}" == 'parent' ]]; then
-				# create parent directory
+				# create parent directory, used when symlinking to dst_path
 				local parent_dir="${path%/*}"
 				mkdir -p "${parent_dir}"
 			else
-				# create full path
+				# create full path, used when defining the src_path
 				mkdir -p "${path}"
 			fi
 		fi
 	}
 
-	# if the dst_path exists and is not empty then move to backup
-	if [[ -e "${dst_path}" ]]; then
+	# if the dst_path file or dir exists and is not empty then move to backup
+	if [[ -f "${dst_path}" || -d "${dst_path}" ]]; then
 		if ! test -n "$(find "${dst_path}" -maxdepth 0 -empty)" ; then
 			# if the dst_path-backup exists already then delete it
-			if [[ -e "${dst_path}-backup" ]]; then
+			if [[ -f "${dst_path}-backup" || -d "${dst_path}-backup" ]]; then
 				rm -rf "${dst_path}-backup"
 			fi
 			# rsync from dst_path to src_path for missing files or files with a later modified datetime stamp
@@ -333,7 +334,7 @@ function symlink() {
 
 	# if src_path is empty and the dst_path-backup is not empty then copy from ${dst_path}-backup to src_path recursively
 	if test -n "$(find "${src_path}" -maxdepth 0 -empty)" ; then
-		if [[ -e "${dst_path}-backup" ]]; then
+		if [[ -f "${dst_path}-backup" || -d "${dst_path}-backup" ]]; then
 			if ! test -n "$(find "${dst_path}-backup" -maxdepth 0 -empty)" ; then
 				if [[ -d "${dst_path}-backup" ]]; then
 					# if ${dst_path}-backup is a directory then append '.' to copy all contents including hidden files/directories
@@ -354,7 +355,7 @@ function symlink() {
 	# if dst_path does not exist (renamed to dst_path-backup) then create the parent folder(s)
 	create_path_directories "${dst_path}" 'parent'
 
-	# if src_path is a file then symlink without glob
+	# symlink
 	if ! stderr=$(ln "${link_type}" "${src_path}" "${dst_path}" 2>&1 >/dev/null); then
 		shlog 2 "Unable to symlink from path '${src_path}' to '${dst_path}' error is '${stderr}', exiting function..."
 		return 1

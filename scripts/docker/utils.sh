@@ -300,8 +300,9 @@ function symlink() {
 
 	}
 
-	# if the dst_path file or dir exists and is not empty then move to backup
+	# if the dst_path file or dir exists
 	if [[ -f "${dst_path}" || -d "${dst_path}" ]]; then
+		# if the dst_path is not empty
 		if ! test -n "$(find "${dst_path}" -maxdepth 0 -empty)" ; then
 			# if the dst_path-backup exists already then delete it
 			if [[ -f "${dst_path}-backup" || -d "${dst_path}-backup" ]]; then

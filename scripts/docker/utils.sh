@@ -269,19 +269,35 @@ function symlink() {
 	src_path=$(echo "${src_path}" | sed 's:/*$::')
 	dst_path=$(echo "${dst_path}" | sed 's:/*$::')
 
-	# if the dst_path is already a symlink then exit
+	# if the dst_path is already a symlink then check it
 	if [[ -L "${dst_path}" ]]; then
-		shlog 2 "'${src_path}' path already symlinked to '${dst_path}', nothing to do, exiting function..."
-		return 0
+		# check if symlink is broken
+		if [[ ! -e "${dst_path}" ]]; then
+			shlog 2 "Symlink to '${dst_path}' is broken, removing symlink..."
+			rm -rf "${dst_path}"
+		# if not broken and symlink exists then exit
+		else
+			shlog 2 "'${src_path}' path already symlinked to '${dst_path}', nothing to do, exiting function..."
+			return 0
+		fi
 	fi
 
 	# helper function to create appropriate paths if they do not exist
 	create_path_directories() {
-		local path="$1"
+		local path="${1}"
+		shift
+		local type="${1}"
+		shift
+
 		if [[ ! -e "${path}" ]]; then
-			# create parent directory
-			local parent_dir="${path%/*}"
-			mkdir -p "${parent_dir}"
+			if [[ "${type}" == 'parent' ]]; then
+				# create parent directory
+				local parent_dir="${path%/*}"
+				mkdir -p "${parent_dir}"
+			else
+				# create full path
+				mkdir -p "${path}"
+			fi
 		fi
 	}
 
@@ -312,8 +328,8 @@ function symlink() {
 		fi
 	fi
 
-	# if src_path does not exist then create the parent folder(s)
-	create_path_directories "${src_path}"
+	# if src_path does not exist then create full path
+	create_path_directories "${src_path}" 'full'
 
 	# if src_path is empty and the dst_path-backup is not empty then copy from ${dst_path}-backup to src_path recursively
 	if test -n "$(find "${src_path}" -maxdepth 0 -empty)" ; then
@@ -336,7 +352,7 @@ function symlink() {
 	fi
 
 	# if dst_path does not exist (renamed to dst_path-backup) then create the parent folder(s)
-	create_path_directories "${dst_path}"
+	create_path_directories "${dst_path}" 'parent'
 
 	# if src_path is a file then symlink without glob
 	if ! stderr=$(ln "${link_type}" "${src_path}" "${dst_path}" 2>&1 >/dev/null); then

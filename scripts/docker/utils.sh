@@ -289,17 +289,15 @@ function symlink() {
 		local type="${1}"
 		shift
 
-		# if the path directory does not exist then create it
-		if [[ ! -d "${path}" ]]; then
-			if [[ "${type}" == 'parent' ]]; then
-				# create parent directory, used when symlinking to dst_path
-				local parent_dir="${path%/*}"
-				mkdir -p "${parent_dir}"
-			else
-				# create full path, used when defining the src_path
-				mkdir -p "${path}"
-			fi
+		if [[ "${type}" == 'parent' ]]; then
+			# create parent directory, used when symlinking to dst_path
+			local parent_dir="${path%/*}"
+			mkdir -p "${parent_dir}"
+		else
+			# create full path, used when defining the src_path
+			mkdir -p "${path}"
 		fi
+
 	}
 
 	# if the dst_path file or dir exists and is not empty then move to backup

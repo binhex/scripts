@@ -144,6 +144,8 @@ function copy_compiled_packages() {
 
 		# find all .tar.zst files in SNAPSHOT_PATH and copy to PACKAGE_PATH
 		if find "${SNAPSHOT_PATH}" -name "*.tar.zst" -exec cp {} "${PACKAGE_PATH}/" \; -print | grep -q .; then
+			echo "[info] Listing compiled package(s) in '${SNAPSHOT_PATH}':"
+			ls -al "${SNAPSHOT_PATH}/"*.tar.zst
 			echo "[info] Successfully copied compiled package(s) to '${PACKAGE_PATH}'"
 			chown -R nobody:users "${PACKAGE_PATH}"
 		else

@@ -8,13 +8,13 @@ readonly ourScriptVersion="v1.0.0"
 
 # setup default values
 readonly defaultDebug='info'
-readonly defaultMakepkgPath='/tmp/makepkg'
+readonly defaultPackagePath='/tmp/makepkg'
 readonly defaultSnapshotPath='/tmp/snapshots'
 readonly defaultUseMakepkg='false'
 readonly defaultInstallPackage='false'
 
 DEBUG="${defaultDebug}"
-MAKEPKG_PATH="${defaultMakepkgPath}"
+PACKAGE_PATH="${defaultPackagePath}"
 SNAPSHOT_PATH="${defaultSnapshotPath}"
 USE_MAKEPKG="${defaultUseMakepkg}"
 INSTALL_PACKAGE="${defaultInstallPackage}"
@@ -22,28 +22,28 @@ INSTALL_PACKAGE="${defaultInstallPackage}"
 function init() {
 
 	rm -rf \
-		"${MAKEPKG_PATH}" \
+		"${PACKAGE_PATH}" \
 		"${SNAPSHOT_PATH}"
 
 	mkdir -p \
-		"${MAKEPKG_PATH}" \
-		"${MAKEPKG_PATH}/build" \
-		"${MAKEPKG_PATH}/pkgdest" \
-		"${MAKEPKG_PATH}/srcdest" \
-		"${MAKEPKG_PATH}/srcpkgdest" \
+		"${PACKAGE_PATH}" \
+		"${PACKAGE_PATH}/build" \
+		"${PACKAGE_PATH}/pkgdest" \
+		"${PACKAGE_PATH}/srcdest" \
+		"${PACKAGE_PATH}/srcpkgdest" \
 		"${SNAPSHOT_PATH}"
 
 	# set build directory for makepkg
-	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${MAKEPKG_PATH}/build~g" "/etc/makepkg.conf"
+	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${PACKAGE_PATH}/build~g" "/etc/makepkg.conf"
 
 	# set pkgdest directory for makepkg
-	sed -i -e "s~#PKGDEST=/tmp/makepkg~PKGDEST=${MAKEPKG_PATH}/pkgdest~g" "/etc/makepkg.conf"
+	sed -i -e "s~#PKGDEST=/tmp/makepkg~PKGDEST=${PACKAGE_PATH}/pkgdest~g" "/etc/makepkg.conf"
 
 	# set srcdest directory for makepkg
-	sed -i -e "s~#SRCDEST=/tmp/makepkg~SRCDEST=${MAKEPKG_PATH}/srcdest~g" "/etc/makepkg.conf"
+	sed -i -e "s~#SRCDEST=/tmp/makepkg~SRCDEST=${PACKAGE_PATH}/srcdest~g" "/etc/makepkg.conf"
 
 	# set srcpkgdest directory for makepkg
-	sed -i -e "s~#SRCPKGDEST=/tmp/makepkg~SRCPKGDEST=${MAKEPKG_PATH}/srcpkgdest~g" "/etc/makepkg.conf"
+	sed -i -e "s~#SRCPKGDEST=/tmp/makepkg~SRCPKGDEST=${PACKAGE_PATH}/srcpkgdest~g" "/etc/makepkg.conf"
 
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' '/usr/bin/makepkg'
@@ -104,7 +104,7 @@ function compile_using_helper() {
 
 	# set ownership to user 'nobody' for makepkg build path - required as we are 'su'ing to user nobody (cannot run helper as root)
 	chown -R nobody:users \
-		"${MAKEPKG_PATH}" \
+		"${PACKAGE_PATH}" \
 		"${SNAPSHOT_PATH}"
 
 	# convert comma-separated list to space-separated for paru
@@ -134,26 +134,6 @@ function compile_using_helper() {
 		fi
 	done
 
-}
-
-function copy_compiled_packages() {
-
-	if [[ -n "${PACKAGE_PATH}" ]]; then
-		mkdir -p "${PACKAGE_PATH}"
-		echo "[info] Copying compiled package(s) to package path '${PACKAGE_PATH}'..."
-
-		# find all .tar.zst files in SNAPSHOT_PATH and copy to PACKAGE_PATH
-		if find "${SNAPSHOT_PATH}" -name "*.tar.zst" -exec cp {} "${PACKAGE_PATH}/" \; -print | grep -q .; then
-			echo "[info] Listing compiled package(s) in '${PACKAGE_PATH}':"
-			ls -al "${PACKAGE_PATH}/"*.tar.zst
-			echo "[info] Successfully copied compiled package(s) to '${PACKAGE_PATH}'"
-			chown -R nobody:users "${PACKAGE_PATH}"
-		else
-			echo "[warn] No compiled packages (*.tar.zst) found in '${SNAPSHOT_PATH}'"
-		fi
-	else
-		echo "[info] No package path defined, skipping copy of compiled package(s)..."
-	fi
 }
 
 function install_helper() {
@@ -299,4 +279,3 @@ else
 	install_helper
 	compile_using_helper
 fi
-copy_compiled_packages

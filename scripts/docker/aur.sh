@@ -22,7 +22,10 @@ INSTALL_PACKAGE="${defaultInstallPackage}"
 function init() {
 
 	rm -rf \
-		"${PACKAGE_PATH}" \
+		"${PACKAGE_PATH}/build" \
+		"${PACKAGE_PATH}/pkgdest" \
+		"${PACKAGE_PATH}/srcdest" \
+		"${PACKAGE_PATH}/srcpkgdest" \
 		"${SNAPSHOT_PATH}"
 
 	mkdir -p \

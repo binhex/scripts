@@ -241,7 +241,7 @@ function run_test() {
 	elif [[ "${app_name}" == "gonic" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:4747'
+		webui_test ${common_options} --container-ports '-p 9999:4747' --env-vars '-e GONIC_MUSIC_PATH=/media/music'
 
 	elif [[ "${app_name}" == "jackett" ]]; then
 

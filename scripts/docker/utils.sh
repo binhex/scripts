@@ -277,7 +277,7 @@ function symlink() {
 			rm -rf "${dst_path}"
 		# if not broken and symlink exists then exit
 		else
-			shlog 2 "'${src_path}' path already symlinked to '${dst_path}', nothing to do, exiting function..."
+			shlog 1 "'${src_path}' path already symlinked to '${dst_path}', nothing to do, exiting function..."
 			return 0
 		fi
 	fi

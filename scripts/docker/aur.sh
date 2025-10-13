@@ -9,13 +9,11 @@ readonly ourScriptVersion="v1.0.0"
 # setup default values
 readonly defaultDebug='info'
 readonly defaultPackagePath='/tmp/makepkg'
-readonly defaultSnapshotPath='/tmp/snapshots'
 readonly defaultUseMakepkg='false'
 readonly defaultInstallPackage='false'
 
 DEBUG="${defaultDebug}"
 PACKAGE_PATH="${defaultPackagePath}"
-SNAPSHOT_PATH="${defaultSnapshotPath}"
 USE_MAKEPKG="${defaultUseMakepkg}"
 INSTALL_PACKAGE="${defaultInstallPackage}"
 
@@ -26,7 +24,7 @@ function init() {
 		"${PACKAGE_PATH}/pkgdest" \
 		"${PACKAGE_PATH}/srcdest" \
 		"${PACKAGE_PATH}/srcpkgdest" \
-		"${SNAPSHOT_PATH}"
+		"${PACKAGE_PATH}/snapshots"
 
 	mkdir -p \
 		"${PACKAGE_PATH}" \
@@ -34,7 +32,7 @@ function init() {
 		"${PACKAGE_PATH}/pkgdest" \
 		"${PACKAGE_PATH}/srcdest" \
 		"${PACKAGE_PATH}/srcpkgdest" \
-		"${SNAPSHOT_PATH}"
+		"${PACKAGE_PATH}/snapshots"
 
 	# set build directory for makepkg
 	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${PACKAGE_PATH}/build~g" "/etc/makepkg.conf"
@@ -79,16 +77,16 @@ function compile_using_makepkg() {
 		echo "[info] Processing package '${package}'..."
 
 		# download aur package snapshot
-		if ! stderr=$(rcurl.sh -o "${SNAPSHOT_PATH}/${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${SNAPSHOT_PATH}/${package}.tar.gz" -C "${SNAPSHOT_PATH}"); then
+		if ! stderr=$(rcurl.sh -o "${PACKAGE_PATH}/snapshots/${package}.tar.gz" -L "https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz" && tar -xvf "${PACKAGE_PATH}/snapshots/${package}.tar.gz" -C "${PACKAGE_PATH}/snapshots"); then
 			echo "[warn] Failed to download AUR package snapshot '${package}' from AUR, error is '${stderr}', attempting GitHub unofficial mirror download of package snapshot..." >&2
-			if ! stderr=$(mkdir -p "${SNAPSHOT_PATH}/${package}" && rcurl.sh -o "${SNAPSHOT_PATH}/${package}/PKGBUILD" -L "https://raw.githubusercontent.com/archlinux/aur/refs/heads/${package}/PKGBUILD"); then
+			if ! stderr=$(mkdir -p "${PACKAGE_PATH}/snapshots/${package}" && rcurl.sh -o "${PACKAGE_PATH}/snapshots/${package}/PKGBUILD" -L "https://raw.githubusercontent.com/archlinux/aur/refs/heads/${package}/PKGBUILD"); then
 				echo "[warn] Failed to download AUR package snapshot '${package}' from AUR GitHub mirror, error is '${stderr}', skipping package..." >&2
 				continue
 			fi
 		fi
 
 		# navigate to extracted PKGBUILD
-		cd "${SNAPSHOT_PATH}/${package}" || { echo "[error] Cannot navigate to ${SNAPSHOT_PATH}/${package}, skipping package..."; continue; }
+		cd "${PACKAGE_PATH}/snapshots/${package}" || { echo "[error] Cannot navigate to ${PACKAGE_PATH}/snapshots/${package}, skipping package..."; continue; }
 
 		# compile package
 		echo "[info] Compiling package '${package}'..."
@@ -107,8 +105,7 @@ function compile_using_helper() {
 
 	# set ownership to user 'nobody' for makepkg build path - required as we are 'su'ing to user nobody (cannot run helper as root)
 	chown -R nobody:users \
-		"${PACKAGE_PATH}" \
-		"${SNAPSHOT_PATH}"
+		"${PACKAGE_PATH}"
 
 	# convert comma-separated list to space-separated for paru
 	local package_list="${AUR_PACKAGE//,/ }"
@@ -121,7 +118,7 @@ function compile_using_helper() {
 
 	while [[ ${retries_remaining} -gt 0 ]]; do
 		echo "[info] Attempting to compile package(s) '${package_list}'..."
-		if su nobody -c "paru --sync --norebuild --needed --builddir=${SNAPSHOT_PATH} --mflags '--config /etc/makepkg.conf' --noconfirm ${package_list}"; then
+		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf' --noconfirm ${package_list}"; then
 			echo "[info] Successfully compiled and installed package(s) '${package_list}' on attempt ${attempt}"
 			break
 		else

@@ -262,35 +262,64 @@ function check_process() {
 function healthcheck_command() {
 
 	local exit_code=0
-	shift
 
 	if [[ -n "${HEALTHCHECK_COMMAND}" ]]; then
 		echo "[info] Running custom healthcheck command: ${HEALTHCHECK_COMMAND}"
 		eval "${HEALTHCHECK_COMMAND}"
 		exit_code="${?}"
 	else
+		# Set retry count from environment variable, set default if not set
+		local max_retries="${HEALTHCHECK_RETRIES:-15}"
+		local retry_count=0
+		local retry_delay=2
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
+
 		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
 			local hostname_check="${HEALTHCHECK_HOSTNAME}"
 		else
 			local hostname_check="google.com"
 		fi
-		check_dns "${hostname_check}"
-		local dns_exit_code="${?}"
-		check_https "${hostname_check}"
-		local http_exit_code="${?}"
-		check_process
-		local process_exit_code="${?}"
-		check_incoming_port "${VPN_INCOMING_PORT}"
-		local incoming_port_exit_code="${?}"
 
-		# If any checks fail, set exit code to 1
-		if [[ "${dns_exit_code}" -ne 0 ]] || [[ "${http_exit_code}" -ne 0 ]] || [[ "${process_exit_code}" -ne 0 ]] || [[ "${incoming_port_exit_code}" -ne 0 ]]; then
-			exit_code=1
-		fi
+		while [[ "${retry_count}" -lt "${max_retries}" ]]; do
+
+			if [[ "${retry_count}" -gt 0 ]]; then
+				echo "[info] Retry attempt ${retry_count}/${max_retries}, retrying in ${retry_delay} second(s)..."
+				sleep "${retry_delay}"
+			fi
+
+			check_dns "${hostname_check}"
+			local dns_exit_code="${?}"
+			check_https "${hostname_check}"
+			local http_exit_code="${?}"
+			check_process
+			local process_exit_code="${?}"
+			check_incoming_port "${VPN_INCOMING_PORT}"
+			local incoming_port_exit_code="${?}"
+
+			# If any checks fail, set exit code to 1
+			if [[ "${dns_exit_code}" -ne 0 ]] || [[ "${http_exit_code}" -ne 0 ]] || [[ "${process_exit_code}" -ne 0 ]] || [[ "${incoming_port_exit_code}" -ne 0 ]]; then
+				exit_code=1
+			else
+				exit_code=0
+			fi
+
+			# If all checks pass, break out of retry loop
+			if [[ "${exit_code}" -eq 0 ]]; then
+				echo "[info] All healthchecks passed on attempt $((retry_count + 1))"
+				break
+			fi
+
+			retry_count=$((retry_count + 1))
+
+			if [[ "${retry_count}" -lt "${max_retries}" ]]; then
+				echo "[warn] Healthcheck failed on attempt ${retry_count}/${max_retries}, retrying..."
+			else
+				echo "[error] All ${max_retries} healthcheck attempts failed"
+			fi
+		done
 	fi
 
-	# check return code from healthcheck command and perform healthcheck action if required
+	# check return code from healthcheck command and perform healthcheck action if exit code != 0
 	if [[ "${exit_code}" -ne 0 ]]; then
 		echo "[warn] Healthcheck failed, running healthcheck action..."
 		healthcheck_action "${exit_code}"

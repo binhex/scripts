@@ -302,7 +302,7 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:9696'
 
-	elif [[ "${app_name}" == "qbittorrentvpn" ]]; then
+	elif [[ "${app_name}" == "qbittorrent" || "${app_name}" == "qbittorrentvpn"  ]]; then
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'

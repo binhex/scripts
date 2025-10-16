@@ -85,20 +85,24 @@ function compile_using_makepkg() {
 		package_source_name="Arch User Repository (AUR)"
 	fi
 
+	# create path to store snapshots
+	snapshots_path="${PACKAGE_PATH}/${package}/snapshots"
+	mkdir -p "${snapshots_path}"
+
 	# download package snapshot
 	if [[ "${package_type}" == "AOR" && -n "${primary_url}" ]]; then
-		if ! stderr=$(git clone "${primary_url}" "${PACKAGE_PATH}/snapshots"); then
+		if ! stderr=$(git clone "${primary_url}" "${snapshots_path}"); then
 			echo "[warn] Failed to git clone from URL ${primary_url} for package ${package} from ${package_source_name}, error is '${stderr}'" >&2
 			return 1
 		fi
 	elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
-		if ! stderr=$(rcurl.sh -o "${PACKAGE_PATH}/snapshots/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${PACKAGE_PATH}/snapshots/${package}.tar.gz" -C "${PACKAGE_PATH}/snapshots"); then
+		if ! stderr=$(rcurl.sh -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}"); then
 			echo "[warn] Failed to download ${package_type} package snapshot '${package}' from ${package_source_name}, error is '${stderr}'" >&2
 
 			# try fallback for AUR packages only - useful during DDoS attack
 			if [[ "${package_type}" == "AUR" && -n "${fallback_url}" ]]; then
 				echo "[warn] Attempting GitHub unofficial mirror download of package snapshot..." >&2
-				if ! stderr=$(mkdir -p "${PACKAGE_PATH}/snapshots/${package}" && rcurl.sh -o "${PACKAGE_PATH}/snapshots/${package}/PKGBUILD" -L "${fallback_url}"); then
+				if ! stderr=$(mkdir -p "${snapshots_path}/${package}" && rcurl.sh -o "${snapshots_path}/${package}/PKGBUILD" -L "${fallback_url}"); then
 					echo "[warn] Failed to download ${package_type} package snapshot '${package}' from GitHub mirror, error is '${stderr}', skipping package..." >&2
 					return 1
 				fi
@@ -111,12 +115,12 @@ function compile_using_makepkg() {
 
 	# navigate to extracted PKGBUILD
 	if [[ "${package_type}" == "AOR" ]]; then
-		extracted_path="${PACKAGE_PATH}/snapshots"
+		extracted_path="${snapshots_path}"
 	elif [[ "${package_type}" == "AUR" ]]; then
-		extracted_path="${PACKAGE_PATH}/snapshots/${package}"
+		extracted_path="${snapshots_path}/${package}"
 	fi
 
-	cd "${extracted_path}" || { echo "[error] Cannot navigate to ${PACKAGE_PATH}/snapshots/${package}, skipping package..."; return 1; }
+	cd "${extracted_path}" || { echo "[error] Cannot navigate to ${extracted_path}, skipping package..."; return 1; }
 
 	# compile package
 	echo "[info] Compiling package '${package}'..."
@@ -266,8 +270,10 @@ Examples:
 		./${ourScriptName} --aur-package 'libtorrent-rasterbar-1_2-git'
 
 Notes:
-	makepkg will install AOR dependancies, but it will NOT install AUR dependancies, so ensure
+	makepkg will install AOR dependancies, but it will NOT install AUR dependancies (unlike a helper), so ensure
 	all AUR dependancies are installed first in the comma separated AUR package list.
+
+	AOR packages do not currently compile for Arm due to different package source location.
 ENDHELP
 }
 

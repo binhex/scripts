@@ -249,7 +249,7 @@ Where:
 
 	-pp or --package-path <path>
 		Define the path to store packages built.
-		No default.
+		Defaults to '${defaultPackagePath}'.
 
 	-ip or --install-package
 		Define whether to install the package after building (makepkg only).
@@ -261,10 +261,10 @@ Where:
 
 Examples:
 	Build a single AOR package using makepkg and multiple AUR packages using helper and output packages to /cache:
-		./${ourScriptName} --aor-package qbittorrent --aur-package 'boost1.86,libtorrent-rasterbar-1_2-git' --package-path '/cache'
+		./${ourScriptName} --aor-package 'qbittorrent' --aur-package 'boost1.86,libtorrent-rasterbar-1_2-git' --package-path '/cache'
 
 	Build a single AOR package using makepkg and multiple AUR packages using makepkg:
-		./${ourScriptName} --aor-package qbittorrent --aur-package 'boost1.86,libtorrent-rasterbar-1_2-git' --use-makepkg
+		./${ourScriptName} --aor-package 'qbittorrent' --aur-package 'boost1.86,libtorrent-rasterbar-1_2-git' --use-makepkg
 
 	Build and install single AUR packages using helper:
 		./${ourScriptName} --aur-package 'libtorrent-rasterbar-1_2-git'

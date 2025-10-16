@@ -111,7 +111,7 @@ function compile_using_makepkg() {
 
 	# compile package
 	echo "[info] Compiling package '${package}'..."
-	if ! makepkg --clean --syncdeps --rmdeps --noconfirm ${install_flag}; then
+	if ! makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm ${install_flag}; then
 		echo "[error] Failed to compile package '${package}', continuing with next package..." >&2
 		return 1
 	else

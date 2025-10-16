@@ -336,26 +336,6 @@ function main() {
 	# create paths, remove restrictions and install required tooling
 	init
 
-	# AOR packages always use makepkg, AUR packages use makepkg only if --use-makepkg is specified
-	if [[ -n "${AOR_PACKAGE}" ]]; then
-		echo "[info] AOR packages defined, compiling AOR packages using makepkg..."
-		# Process only AOR packages using makepkg
-		echo "[info] Processing AOR packages..."
-		# convert comma-separated list to array
-		IFS=',' read -ra AOR_PACKAGE_ARRAY <<< "${AOR_PACKAGE}"
-
-		# set install flag for mkepkg if requested
-		install_flag=""
-		if [[ "${INSTALL_PACKAGE}" == "true" ]]; then
-			install_flag='--install'
-		fi
-
-		# loop through each AOR package
-		for package in "${AOR_PACKAGE_ARRAY[@]}"; do
-			compile_using_makepkg "${package}" "AOR" "${install_flag}"
-		done
-	fi
-
 	# Handle AUR packages based on --use-makepkg flag
 	if [[ -n "${AUR_PACKAGE}" ]]; then
 		if [[ "${USE_MAKEPKG}" == "true" ]]; then
@@ -381,6 +361,27 @@ function main() {
 			compile_using_helper
 		fi
 	fi
+
+	# AOR packages always use makepkg, AUR packages use makepkg only if --use-makepkg is specified
+	if [[ -n "${AOR_PACKAGE}" ]]; then
+		echo "[info] AOR packages defined, compiling AOR packages using makepkg..."
+		# Process only AOR packages using makepkg
+		echo "[info] Processing AOR packages..."
+		# convert comma-separated list to array
+		IFS=',' read -ra AOR_PACKAGE_ARRAY <<< "${AOR_PACKAGE}"
+
+		# set install flag for mkepkg if requested
+		install_flag=""
+		if [[ "${INSTALL_PACKAGE}" == "true" ]]; then
+			install_flag='--install'
+		fi
+
+		# loop through each AOR package
+		for package in "${AOR_PACKAGE_ARRAY[@]}"; do
+			compile_using_makepkg "${package}" "AOR" "${install_flag}"
+		done
+	fi
+
 }
 
 main

@@ -77,11 +77,9 @@ function compile_using_makepkg() {
 	# set URLs based on package type
 	if [[ "${package_type}" == "AOR" ]]; then
 		primary_url="https://gitlab.archlinux.org/archlinux/packaging/packages/${package}.git"
-		fallback_url=""  # No fallback for AOR packages yet
 		package_source_name="Arch Official Repository (AOR)"
 	elif [[ "${package_type}" == "AUR" ]]; then
 		primary_url="https://aur.archlinux.org/cgit/aur.git/snapshot/${package}.tar.gz"
-		fallback_url="https://raw.githubusercontent.com/archlinux/aur/refs/heads/${package}/PKGBUILD"
 		package_source_name="Arch User Repository (AUR)"
 	fi
 
@@ -98,18 +96,7 @@ function compile_using_makepkg() {
 	elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
 		if ! stderr=$(rcurl.sh -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}"); then
 			echo "[warn] Failed to download ${package_type} package snapshot '${package}' from ${package_source_name}, error is '${stderr}'" >&2
-
-			# try fallback for AUR packages only - useful during DDoS attack
-			if [[ "${package_type}" == "AUR" && -n "${fallback_url}" ]]; then
-				echo "[warn] Attempting GitHub unofficial mirror download of package snapshot..." >&2
-				if ! stderr=$(mkdir -p "${snapshots_path}/${package}" && rcurl.sh -o "${snapshots_path}/${package}/PKGBUILD" -L "${fallback_url}"); then
-					echo "[warn] Failed to download ${package_type} package snapshot '${package}' from GitHub mirror, error is '${stderr}', skipping package..." >&2
-					return 1
-				fi
-			else
-				echo "[warn] No fallback available for ${package_type} package '${package}', skipping package..." >&2
-				return 1
-			fi
+			return 1
 		fi
 	fi
 

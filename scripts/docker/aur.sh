@@ -312,15 +312,15 @@ function main() {
 	echo "[info] Checking we have all required parameters before running..."
 
 	# check if package parameter is not defined (unset)
-	if [[ -n "${AUR_PACKAGE+unset}"  && -n "${AOR_PACKAGE+unset}" ]]; then
+	if [[ -z "${AUR_PACKAGE+unset}"  && -z "${AOR_PACKAGE+unset}" ]]; then
 		echo "[warn] Package name(s) not defined via parameter --aur-package and/or via parameter --aor-package, displaying help..."
 		echo ""
 		show_help
 		exit 1
 	fi
 
-	# check if package parameter is defined but has a value of an empty string (set)
-	if [[ -n "${AUR_PACKAGE+set}"  && -n "${AOR_PACKAGE+set}" ]]; then
+	# check if package parameter is defined but has a value of an empty string
+	if [[ "${AUR_PACKAGE}" == ''  && "${AOR_PACKAGE}" == '' ]]; then
 		echo "[info] Package name(s) is an empty string defined via parameter --aur-package and/or via parameter --aor-package, exiting script"
 		exit 0
 	fi

@@ -482,6 +482,7 @@ do
 	shift
 done
 
+echo "[info] Running ${ourScriptName} script..."
 echo "[info] Checking we have all required parameters before proceeding..."
 
 if [[ -z "${github_owner}" ]]; then
@@ -502,8 +503,6 @@ fi
 if [ "${query_type}" == "release" ]; then
 	query_type="releases/latest"
 fi
-
-echo "[info] Running GitHub script..."
 
 # identify release or tag name
 if [[ ! "${query_type}" == "branch" ]]; then

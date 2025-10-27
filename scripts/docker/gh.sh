@@ -65,7 +65,7 @@ function release_download_asset() {
 
 function repo_clone() {
 	mkdir -p "${DOWNLOAD_PATH}"
-	gh repo clone "${GITHUB_OWNER}/${GITHUB_REPO}" "${DOWNLOAD_PATH}" -- --depth=1
+	GH_HOST=foobar gh repo clone "${GITHUB_OWNER}/${GITHUB_REPO}" "${DOWNLOAD_PATH}" -- --depth=1
 }
 
 function show_help() {

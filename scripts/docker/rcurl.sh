@@ -18,6 +18,8 @@ header="user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 function build_curl_command() {
 
 	# add default options regardless
+	# --location will follow redirects
+	# --continue-at support fr resumes
 	curl_command="curl --location --continue-at -"
 
 	if [[ "${curl_command}" != *"--connect-timeout"* ]]; then

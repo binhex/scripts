@@ -9,7 +9,7 @@ if pacman -Qg "base-devel" > /dev/null ; then
 fi
 
 # remove any build tools that maybe present from the build
-pacman -Ru dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils rust clank go --noconfirm 2> /dev/null || true
+pacman -Ru dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils rust clank go sudo --noconfirm 2> /dev/null || true
 
 # delete cache and build home directories
 rm -rf /home/nobody/.cache/paru /home/nobody/.cache/yarn /home/nobody/.cargo /home/nobody/.dotnet /home/nobody/.nuget /home/nobody/.rustup /home/nobody/.yarn

@@ -52,6 +52,9 @@ function init() {
 	# disable building of debug packages
 	sed -i '/^OPTIONS=/s/\bdebug\b/!debug/g' '/etc/makepkg.conf'
 
+	# perform database refresh and update (require for arm as this is not pinned to archive)
+	pacmn -Syu --noconfirm
+
 	# install required packages to compile
 	pacman -S base-devel binutils git sudo --needed --noconfirm
 

@@ -210,7 +210,7 @@ function install_helper() {
 	# compile and install helper
 	compile_using_makepkg "${package}" "AUR" "${install_flag}"
 
-	if command -v paru >/dev/null 2>&1; then
+	if ! command -v paru >/dev/null 2>&1; then
 		echo "[info] AUR helper failed to install, exiting script..."
 		exit 1
 	fi

@@ -112,9 +112,9 @@ function compile_using_makepkg() {
 
 	cd "${extracted_path}" || { echo "[error] Cannot navigate to ${extracted_path}, skipping package..."; return 1; }
 
-	# compile package
+	# compile package, note we ignore architecture specified in PKGBUILD to allow cross-compilation
 	echo "[info] Compiling package '${package}'..."
-	if ! makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm ${install_flag}; then
+	if ! makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
 		echo "[error] Failed to compile package '${package}', continuing with next package..." >&2
 		return 1
 	else
@@ -143,7 +143,7 @@ function compile_using_helper() {
 
 	while [[ ${retries_remaining} -gt 0 ]]; do
 		echo "[info] Attempting to compile package(s) '${package_list}'..."
-		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf' --noconfirm ${package_list}"; then
+		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf --skippgpcheck' --noconfirm ${package_list}"; then
 			echo "[info] Successfully compiled and installed package(s) '${package_list}' on attempt ${attempt}"
 			break
 		else
@@ -268,7 +268,9 @@ Notes:
 	makepkg will install AOR dependancies, but it will NOT install AUR dependancies (unlike a helper), so ensure
 	all AUR dependancies are installed first in the comma separated AUR package list.
 
-	AOR packages do not currently compile for Arm due to different package source location.
+	Due to issues getting hold of the tarball snapshots for ARM64 AOR packages, we are currently using the AMD64
+	tarball snapshot and ignoring the architecture specified in the PKGBUILD file, this SEEMS to work but may not
+	work for all applications.
 ENDHELP
 }
 

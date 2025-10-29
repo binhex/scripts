@@ -123,7 +123,7 @@ Examples:
 	./${ourScriptName} --github-owner zakkarry --github-repo deluge-ltconfig --download-type release --release-type binary --download-path /home/nobody --asset-glob '*.egg'
 
 	GitHub release source code asset download:
-	./${ourScriptName} --github-owner bitmagnet-io --github-repo bitmagnet --download-type release --release-type source --download-path /home/nobody --asset-glob '*.tar.gz'
+	./${ourScriptName} --github-owner bitmagnet-io --github-repo bitmagnet --download-type release --release-type source --download-path /home/nobody
 
 		GitHub shallow clone of source code:
 	./${ourScriptName} --github-owner bitmagnet-io --github-repo bitmagnet --download-type clone --download-path /home/nobody

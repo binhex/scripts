@@ -3,6 +3,13 @@
 # exit script if return code != 0
 set -e
 
+function init() {
+	if [[ -z "${TARGETARCH}" ]]; then
+		echo "[warn] Target architecture name from build arg is empty, exiting script..."
+		exit 1
+	fi
+}
+
 function create_static_amd64_mirrorlist() {
 
 	cat <<'EOF' > /etc/pacman.d/mirrorlist
@@ -94,36 +101,43 @@ function run_reflector() {
 
 }
 
-echo "[info] Target architecture from Dockerfile arg is '${TARGETARCH}'"
+function main() {
 
-# reflector only supported for amd64, use static mirrorlist for arm64
-if [[ "${TARGETARCH}" == "amd64" ]]; then
-	run_reflector
-else
-	create_static_arm64_mirrorlist
-fi
+	init
 
-if [[ ! -z "${pacman_ignore_packages}" ]]; then
+	echo "[info] Target architecture from Dockerfile arg is '${TARGETARCH}'"
 
-	echo "[info] Ignoring package(s) '${pacman_ignore_packages}' from upgrade/install"
-	sed -i -e "s~^#IgnorePkg.*~IgnorePkg = ${pacman_ignore_packages}~g" "/etc/pacman.conf"
+	# reflector only supported for amd64, use static mirrorlist for arm64
+	if [[ "${TARGETARCH}" == "amd64" ]]; then
+		run_reflector
+	else
+		create_static_arm64_mirrorlist
+	fi
 
-fi
+	if [[ ! -z "${pacman_ignore_packages}" ]]; then
 
-if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
+		echo "[info] Ignoring package(s) '${pacman_ignore_packages}' from upgrade/install"
+		sed -i -e "s~^#IgnorePkg.*~IgnorePkg = ${pacman_ignore_packages}~g" "/etc/pacman.conf"
 
-	echo "[info] Ignoring package group(s) '${pacman_ignore_group_packages}' from upgrade/install"
-	sed -i -e "s~^#IgnoreGroup.*~IgnoreGroup = ${pacman_ignore_group_packages}~g" "/etc/pacman.conf"
+	fi
 
-fi
+	if [[ ! -z "${pacman_ignore_group_packages}" ]]; then
 
-echo "[info] Showing pacman configuration file '/etc/pacman.conf'..."
-cat "/etc/pacman.conf"
+		echo "[info] Ignoring package group(s) '${pacman_ignore_group_packages}' from upgrade/install"
+		sed -i -e "s~^#IgnoreGroup.*~IgnoreGroup = ${pacman_ignore_group_packages}~g" "/etc/pacman.conf"
 
-echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
+	fi
 
-if [[ "${pacman_confirm}" == "yes" ]]; then
-	yes|pacman -Syyu
-else
-	pacman -Syyu --noconfirm
-fi
+	echo "[info] Showing pacman configuration file '/etc/pacman.conf'..."
+	cat "/etc/pacman.conf"
+
+	echo "[info] Synchronize pacman database and then upgrade any existing packages using pacman..."
+
+	if [[ "${pacman_confirm}" == "yes" ]]; then
+		yes|pacman -Syyu
+	else
+		pacman -Syyu --noconfirm
+	fi
+}
+
+main

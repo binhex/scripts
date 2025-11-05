@@ -228,6 +228,8 @@ function check_process() {
 		process_names=('python.*SABnzbd.*' 'openvpn|wg')
 	elif [[ "${APPNAME}" == 'siphonator' ]]; then
 		process_names=('siphonator')
+	elif [[ "${APPNAME}" == 'slskd' ]]; then
+		process_names=('slskd')
 	elif [[ "${APPNAME}" == 'sonarr' ]]; then
 		process_names=('Sonarr')
 	elif [[ "${APPNAME}" == 'syncthing' ]]; then

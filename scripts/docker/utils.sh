@@ -616,3 +616,37 @@ ENDHELP
 
 }
 
+# Function to process environment variables
+process_env_var() {
+	local var_name="$1"
+	shift
+	local default_value="$1"
+	shift
+	local required="$1"
+	shift
+	local mask_value="$1"
+	shift
+
+	# Get the current value and trim whitespace
+	local current_value
+	current_value=$(eval "echo \"\${${var_name}}\"" | sed -e 's~^[ \t]*~~;s~[ \t]*$~~')
+
+	if [[ ! -z "${current_value}" ]]; then
+		# Variable is defined, export it
+		export "${var_name}=${current_value}"
+		if [[ "${mask_value}" == "true" ]]; then
+			echo "[info] ${var_name} defined as '***MASKED***'" | ts '%Y-%m-%d %H:%M:%.S'
+		else
+			echo "[info] ${var_name} defined as '${current_value}'" | ts '%Y-%m-%d %H:%M:%.S'
+		fi
+	else
+		# Variable is not defined
+		if [[ "${required}" == "true" ]]; then
+			echo "[error] ${var_name} not defined,(via -e ${var_name}), exiting script..." | ts '%Y-%m-%d %H:%M:%.S'
+			exit 1
+		else
+			echo "[info] ${var_name} not defined,(via -e ${var_name}), defaulting to '${default_value}'" | ts '%Y-%m-%d %H:%M:%.S'
+			export "${var_name}=${default_value}"
+		fi
+	fi
+}

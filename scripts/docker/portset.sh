@@ -14,6 +14,7 @@ readonly ourScriptVersion="v1.0.0"
 readonly defaultImageBuildFilepath="/etc/image-build-info"
 readonly defaultDelugeWebConfigFilepath="/config/web.conf"
 readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorrent.conf"
+readonly defaultNicotineplusConfigFilepath="/home/nobody/.config/nicotine/config"
 readonly defaultGluetunControlServerPort="8000"
 readonly defaultGluetunIncomingPort="no"
 readonly defaultPollDelay="60"
@@ -22,6 +23,7 @@ readonly defaultDebug="no"
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
 QBITTORRENT_CONFIG_FILEPATH="${QBITTORRENT_CONFIG_FILEPATH:-${defaultQbittorrentConfigFilepath}}"
+NICOTINEPLUS_CONFIG_FILEPATH="${NICOTINEPLUS_CONFIG_FILEPATH:-${defaultNicotineplusConfigFilepath}}"
 GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunControlServerPort}}"
 GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
@@ -41,6 +43,7 @@ fi
 ####
 
 function curl_with_retry() {
+
   local url="${1}"
   shift
 
@@ -94,6 +97,7 @@ function curl_with_retry() {
 
   echo "[ERROR] Curl request to '${url}' failed after ${max_retries} attempts" >&2
   return 1
+
 }
 
 function start_process_background() {
@@ -105,9 +109,11 @@ function start_process_background() {
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Started '${APP_NAME}' with main PID '${APPLICATION_PID}' (all processes running in background)"
   fi
+
 }
 
 function check_process() {
+
   if [[ -z "${APPLICATION_PID}" ]]; then
     echo "[WARN] No APPLICATION_PID set, cannot verify if application is running"
     return 1
@@ -122,9 +128,11 @@ function check_process() {
     echo "[WARN] Application with PID '${APPLICATION_PID}' is not running"
     return 1
   fi
+
 }
 
 function kill_process() {
+
   if [[ -n "${APPLICATION_PID}" ]] && kill -0 "${APPLICATION_PID}" 2>/dev/null; then
     echo "[INFO] Killing ${APP_NAME} process with PID '${APPLICATION_PID}'"
     kill "${APPLICATION_PID}"
@@ -133,9 +141,11 @@ function kill_process() {
   else
     echo "[INFO] No PID found for ${APP_NAME}, ignoring kill"
   fi
+
 }
 
 function wait_for_port_to_be_listening() {
+
   local port="${1}"
   shift
   local timeout="${1:-30}"  # Default timeout of 30 seconds
@@ -159,9 +169,11 @@ function wait_for_port_to_be_listening() {
     echo "[ERROR] Timeout reached after ${timeout} seconds, port ${port} is still not listening"
     return 1
   fi
+
 }
 
 function get_vpn_ip_address() {
+
   VPN_IP_ADDRESS="$(ifconfig "${VPN_ADAPTER_NAME}" | grep 'inet ' | awk '{print $2}')"
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Internal IP address for VPN adapter: '${VPN_IP_ADDRESS}'"
@@ -170,9 +182,11 @@ function get_vpn_ip_address() {
   if [[ -z "${VPN_IP_ADDRESS}" ]]; then
     echo "[WARN] Unable to determine VPN IP address, please check your gluetun configuration and ensure the VPN is connected."
   fi
+
 }
 
 function get_vpn_adapter_name() {
+
   if [[ -n "${VPN_INTERFACE}" ]]; then
     VPN_ADAPTER_NAME="${VPN_INTERFACE}"
     if [[ "${DEBUG}" == "yes" ]]; then
@@ -191,9 +205,11 @@ function get_vpn_adapter_name() {
   elif [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
   fi
+
 }
 
 function get_incoming_port() {
+
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   local vpn_public_ip
   local vpn_country_ip
@@ -237,6 +253,7 @@ function get_incoming_port() {
       echo "[DEBUG] City for VPN tunnel is '${vpn_city_ip}'"
     fi
   fi
+
 }
 
 function external_verify_incoming_port() {
@@ -312,6 +329,7 @@ function main {
     echo "[INFO] Sleeping for ${POLL_DELAY} seconds before re-checking port assignment..."
     sleep "${POLL_DELAY}"
   done
+
 }
 
 function application_start() {
@@ -377,15 +395,18 @@ function deluge_api_config() {
   /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})" 2>/dev/null
   /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}" 2>/dev/null
   /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}" 2>/dev/null
+
 }
 
 function deluge_start() {
 
   echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background
+
 }
 
 function deluge_verify_incoming_port() {
+
   local web_protocol
   local current_port
 
@@ -505,20 +526,24 @@ function qbittorrent_verify_incoming_port() {
       echo "[WARN] ${APP_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
       return 1
   fi
+
 }
 
 # nicotineplus functions
 ####
 
 function nicotine_start() {
+
   echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
   start_process_background "--port ${INCOMING_PORT}"
+
 }
 
 function nicotine_edit_config() {
-  local config_file='/home/nobody/.config/nicotine/config'
+
   echo "[INFO] Configuring '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'"
-  sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${config_file}"
+  sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${NICOTINEPLUS_CONFIG_FILEPATH}"
+
 }
 
 function nicotine_gluetun_incoming_port() {
@@ -531,30 +556,32 @@ function nicotine_gluetun_incoming_port() {
   kill_process
   nicotine_edit_config
   nicotine_start
+
 }
 
 function nicotine_verify_incoming_port() {
-  local config_file='/home/nobody/.config/nicotine/config'
+
   local expected_line="portrange = (${INCOMING_PORT}, ${INCOMING_PORT})"
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Looking for line: '${expected_line}' in config file '${config_file}'"
+    echo "[DEBUG] Looking for line: '${expected_line}' in config file '${NICOTINEPLUS_CONFIG_FILEPATH}'"
   fi
 
   # Check if the expected portrange line exists in the config file
-  if grep -Fxq "${expected_line}" "${config_file}"; then
+  if grep -Fxq "${expected_line}" "${NICOTINEPLUS_CONFIG_FILEPATH}"; then
     echo "[INFO] ${APP_NAME} incoming port matches VPN port '${INCOMING_PORT}'"
     return 0
   else
     echo "[WARN] ${APP_NAME} incoming port does not match VPN port '${INCOMING_PORT}'"
     if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current portrange line in config:"
-      grep "^portrange" "${config_file}" || echo "[DEBUG] No portrange line found"
+      grep "^portrange" "${NICOTINEPLUS_CONFIG_FILEPATH}" || echo "[DEBUG] No portrange line found"
     fi
     return 1
   fi
+  
 }
 
 function show_help() {
@@ -581,23 +608,27 @@ Where:
 
   -qcf or --qbittorrent-config-filepath <path>
     Define the file path to the qBittorrent configuration file (qBittorrent.conf).
-    Defaults to '${QBITTORRENT_CONFIG_FILEPATH}'.
+    Defaults to '${defaultQbittorrentConfigFilepath}'.
 
   -dwcf or --deluge-web-config-filepath <path>
     Define the file path to the Deluge web configuration file (web.conf).
-    Defaults to '${DELUGE_WEB_CONFIG_FILEPATH}'.
+    Defaults to '${defaultDelugeWebConfigFilepath}'.
+
+  -ncf or --nicotineplus-config-filepath <path>
+    Define the file path to the Nicotine+ configuration file (nicotine.conf).
+    Defaults to '${defaultNicotineplusConfigFilepath}'.
 
   -gcsp or --gluetun-control-server-port <port>
     Define the Gluetun Control Server port.
-    Defaults to '${GLUETUN_CONTROL_SERVER_PORT}'.
+    Defaults to '${defaultGluetunControlServerPort}'.
 
   -gip or --gluetun-incoming-port <yes|no>
     Define whether to enable VPN port monitoring and application configuration.
-    Defaults to '${GLUETUN_INCOMING_PORT}'.
+    Defaults to '${defaultGluetunIncomingPort}'.
 
   -pd or --poll-delay <seconds>
     Define the polling delay in seconds between incoming port checks.
-    Defaults to '${POLL_DELAY}'.
+    Defaults to '${defaultPollDelay}'.
 
   --debug
     Define whether debug mode is enabled.
@@ -619,6 +650,8 @@ Environment Variables:
     Set the file path to the qBittorrent configuration file (qBittorrent.conf).
   DELUGE_WEB_CONFIG_FILEPATH
     Set the file path to the Deluge web configuration file (web.conf).
+  NICOTINEPLUS_CONFIG_FILEPATH
+    Set the file path to the Nicotine+ configuration file (nicotine.conf).
   GLUETUN_CONTROL_SERVER_PORT
     Set the port for the Gluetun Control Server.
   GLUETUN_INCOMING_PORT
@@ -658,6 +691,10 @@ do
     ;;
   -dwcf|--deluge-web-config-filepath)
     DELUGE_WEB_CONFIG_FILEPATH="${2}"
+    shift
+    ;;
+  -ncf|--nicotineplus-config-filepath)
+    NICOTINEPLUS_CONFIG_FILEPATH="${2}"
     shift
     ;;
   -gcsp|--gluetun-control-server-port)

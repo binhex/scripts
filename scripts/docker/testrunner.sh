@@ -15,6 +15,54 @@ container_name="${defaultContainerName}"
 retry_count="${defaultRetryCount}"
 protocol="${defaultProtocol}"
 
+function generate_random_string() {
+	local length=$1
+	shift
+	local require_mixed_case=$1
+	shift
+
+	local result=""
+	local chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	# Generate random string
+	for (( i=0; i<length; i++ )); do
+		result="${result}${chars:RANDOM%${#chars}:1}"
+	done
+
+	# If mixed case is required, ensure we have at least one of each type
+	if [[ "$require_mixed_case" == "true" ]]; then
+		local has_lower=false
+		local has_upper=false
+		local has_digit=false
+
+		# Check what we have
+		[[ "$result" =~ [a-z] ]] && has_lower=true
+		[[ "$result" =~ [A-Z] ]] && has_upper=true
+		[[ "$result" =~ [0-9] ]] && has_digit=true
+
+		# Force inclusion of missing types by replacing random positions
+		if [[ "$has_lower" == "false" ]]; then
+			pos=$((RANDOM % length))
+			lower_chars="abcdefghijklmnopqrstuvwxyz"
+			result="${result:0:$pos}${lower_chars:RANDOM%${#lower_chars}:1}${result:$((pos+1))}"
+		fi
+
+		if [[ "$has_upper" == "false" ]]; then
+			pos=$((RANDOM % length))
+			upper_chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+			result="${result:0:$pos}${upper_chars:RANDOM%${#upper_chars}:1}${result:$((pos+1))}"
+		fi
+
+		if [[ "$has_digit" == "false" ]]; then
+			pos=$((RANDOM % length))
+			digit_chars="0123456789"
+			result="${result:0:$pos}${digit_chars:RANDOM%${#digit_chars}:1}${result:$((pos+1))}"
+		fi
+	fi
+
+	echo "$result"
+}
+
 function cleanup() {
 
 	echo "[debug] Running post test cleanup"
@@ -336,6 +384,20 @@ function run_test() {
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8989'
+
+	elif [[ "${app_name}" == "slskd" ]]; then
+
+		# generate random username and password
+		# note that usernames will be deleted by soulseek if not used within 30 days,
+		# thus we create a new randomized account each time.
+		slsk_username=$(generate_random_string 8 false)
+		slsk_password=$(generate_random_string 8 true)
+
+		echo "[debug] Generated randomized SLSK_USERNAME: ${slsk_username}"
+		echo "[debug] Generated randomized SLSK_PASSWORD: ${slsk_password}"
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:8980' --env-vars "-e SLSK_USERNAME=${slsk_username} -e SLSK_PASSWORD=${slsk_password}"
 
 	elif [[ "${app_name}" == "syncthing" ]]; then
 

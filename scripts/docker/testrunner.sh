@@ -387,7 +387,7 @@ function run_test() {
 
 	elif [[ "${app_name}" == "slskd" ]]; then
 
-		# generate random username and password
+		# generate random soulseek username and password
 		# note that usernames will be deleted by soulseek if not used within 30 days,
 		# thus we create a new randomized account each time.
 		slsk_username=$(generate_random_string 8 false)

@@ -342,8 +342,11 @@ function application_start() {
     deluge_start
     wait_for_port_to_be_listening "${WEBUI_PORT}"
   elif [[ "${APP_NAME}" == 'nicotineplus' ]]; then
-    nicotine_edit_config
+    nicotine_edit_parameters
     nicotine_start
+  elif [[ "${APP_NAME}" == 'slskd' ]]; then
+    slskd_edit_parameters
+    slskd_start
   else
     echo "[WARN] Application name '${APP_NAME}' unknown, executing remaining arguments '${APP_PARAMETERS[*]}'..."
     exec "${APP_PARAMETERS[@]}"
@@ -361,6 +364,8 @@ function application_configure_incoming_port() {
     deluge_api_config
   elif [[ "${APP_NAME}" == 'nicotineplus' ]]; then
     nicotine_gluetun_incoming_port
+  elif [[ "${APP_NAME}" == 'slskd' ]]; then
+    slskd_gluetun_incoming_port
   fi
 
 }
@@ -379,8 +384,94 @@ function application_verify_incoming_port() {
     if ! deluge_verify_incoming_port; then
       return 1
     fi
+  elif [[ "${APP_NAME}" == 'slskd' ]]; then
+    if ! slskd_verify_incoming_port; then
+      return 1
+    fi
   fi
   return 0
+
+}
+
+# shared functions
+####
+
+function edit_app_parameters() {
+
+  local parameter_name="${1}"
+
+  echo "[INFO] Configuring '${APP_NAME}' app parameters with VPN incoming port '${INCOMING_PORT}'"
+
+  # Create a new array to hold modified parameters
+  local new_parameters=()
+  local i=0
+  local port_found=false
+
+  # Loop through APP_PARAMETERS array
+  while [[ $i -lt ${#APP_PARAMETERS[@]} ]]; do
+    if [[ "${APP_PARAMETERS[$i]}" == "${parameter_name}" ]]; then
+      # Found the port parameter, replace the next value with INCOMING_PORT
+      new_parameters+=("${parameter_name}")
+      new_parameters+=("${INCOMING_PORT}")
+      port_found=true
+      # Skip the old port value
+      i=$((i + 2))
+    else
+      # Copy parameter as-is
+      new_parameters+=("${APP_PARAMETERS[$i]}")
+      i=$((i + 1))
+    fi
+  done
+
+  # If parameter wasn't found, add it
+  if [[ "${port_found}" == "false" ]]; then
+    echo "[INFO] ${parameter_name} not found in parameters, adding it with port '${INCOMING_PORT}'"
+    new_parameters+=("${parameter_name}" "${INCOMING_PORT}")
+  fi
+
+  # Replace the original array
+  APP_PARAMETERS=("${new_parameters[@]}")
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Modified APP_PARAMETERS: ${APP_PARAMETERS[*]}"
+  fi
+
+}
+
+function verify_app_parameters() {
+
+  local parameter_name="${1}"
+
+  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+
+  # Check if parameter exists in APP_PARAMETERS with correct value
+  local i=0
+  local current_port=""
+
+  while [[ $i -lt ${#APP_PARAMETERS[@]} ]]; do
+    if [[ "${APP_PARAMETERS[$i]}" == "${parameter_name}" && $((i + 1)) -lt ${#APP_PARAMETERS[@]} ]]; then
+      current_port="${APP_PARAMETERS[$((i + 1))]}"
+      break
+    fi
+    i=$((i + 1))
+  done
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Current ${APP_NAME} listen port parameter: '${current_port}', Expected: '${INCOMING_PORT}'"
+  fi
+
+  if [[ -z "${current_port}" ]]; then
+    echo "[WARN] Unable to find ${parameter_name} parameter in ${APP_NAME} configuration"
+    return 1
+  fi
+
+  if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
+    echo "[INFO] ${APP_NAME} incoming port '${current_port}' matches VPN port '${INCOMING_PORT}'"
+    return 0
+  else
+    echo "[WARN] ${APP_NAME} incoming port '${current_port}' does not match VPN port '${INCOMING_PORT}'"
+    return 1
+  fi
 
 }
 
@@ -451,6 +542,7 @@ function qbittorrent_start() {
   start_process_background
 
 }
+
 function qbittorrent_edit_config() {
 
   if [[ "${DEBUG}" == "yes" ]]; then
@@ -532,56 +624,71 @@ function qbittorrent_verify_incoming_port() {
 # nicotineplus functions
 ####
 
-function nicotine_start() {
-
-  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
-  start_process_background "--port ${INCOMING_PORT}"
-
-}
-
-function nicotine_edit_config() {
-
-  echo "[INFO] Configuring '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'"
-  sed -i -e "s~^portrange.*~portrange = (${INCOMING_PORT}, ${INCOMING_PORT})~g" "${NICOTINEPLUS_CONFIG_FILEPATH}"
-
-}
-
 function nicotine_gluetun_incoming_port() {
 
-  # if previous incoming port is not set then this is the initial run, nicotine will of been started with the default port, so no need to kill, edit and start
+  # if previous incoming port is not set then this is the initial run, nicotine will have been started with the default port, so no need to kill, edit and start
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
   fi
   echo "[INFO] Killing '${APP_NAME}' process as we cannot reconfigure incoming port while it is running..."
   kill_process
-  nicotine_edit_config
+  nicotine_edit_parameters
   nicotine_start
+
+}
+
+function nicotine_start() {
+
+  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+  start_process_background
+
+}
+
+function nicotine_edit_parameters() {
+
+  edit_app_parameters "--port"
 
 }
 
 function nicotine_verify_incoming_port() {
 
-  local expected_line="portrange = (${INCOMING_PORT}, ${INCOMING_PORT})"
+  verify_app_parameters "--port"
 
-  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+}
 
-  if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Looking for line: '${expected_line}' in config file '${NICOTINEPLUS_CONFIG_FILEPATH}'"
-  fi
+# slskd functions
+####
 
-  # Check if the expected portrange line exists in the config file
-  if grep -Fxq "${expected_line}" "${NICOTINEPLUS_CONFIG_FILEPATH}"; then
-    echo "[INFO] ${APP_NAME} incoming port matches VPN port '${INCOMING_PORT}'"
+function slskd_gluetun_incoming_port() {
+
+  # if previous incoming port is not set then this is the initial run, slskd will have been started with the default port, so no need to kill, edit and start
+  if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
-  else
-    echo "[WARN] ${APP_NAME} incoming port does not match VPN port '${INCOMING_PORT}'"
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current portrange line in config:"
-      grep "^portrange" "${NICOTINEPLUS_CONFIG_FILEPATH}" || echo "[DEBUG] No portrange line found"
-    fi
-    return 1
   fi
-  
+  echo "[INFO] Killing '${APP_NAME}' process as we cannot reconfigure incoming port while it is running..."
+  kill_process
+  slskd_edit_parameters
+  slskd_start
+
+}
+
+function slskd_start() {
+
+  echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
+  start_process_background
+
+}
+
+function slskd_edit_parameters() {
+
+  edit_app_parameters "--slsk-listen-port"
+
+}
+
+function slskd_verify_incoming_port() {
+
+  verify_app_parameters "--slsk-listen-port"
+
 }
 
 function show_help() {
@@ -746,7 +853,7 @@ else
     exec "${APP_PARAMETERS[@]}"
   fi
 
-  if [[ -z "${WEBUI_PORT}" && "${APP_NAME}" != 'nicotineplus' ]]; then
+  if [[ -z "${WEBUI_PORT}" && "${APP_NAME}" != 'nicotineplus' && "${APP_NAME}" != 'slskd' ]]; then
     echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${APP_PARAMETERS[*]}'..."
     exec "${APP_PARAMETERS[@]}"
   fi

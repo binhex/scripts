@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+
 # Script to get the incoming port from gluetun and configure a predefined list of applications. This script will block.
 #
 # In order for the script to work you need the following configured for gluetun:
@@ -235,8 +235,9 @@ function get_incoming_port() {
   # Get port forward information from gluetun Control Server
   portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s)
 
-  if [[ -z "${portforward_response}" ]]; then
+  if [[ -z "${portforward_response}" || "${portforward_response}" == "Unauthorized" ]]; then
     echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
+    INCOMING_PORT=""
   else
     # parse results
     INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"

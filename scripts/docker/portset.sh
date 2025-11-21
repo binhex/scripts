@@ -266,6 +266,12 @@ function get_incoming_port() {
 function external_verify_incoming_port() {
 
   local result
+
+  if [[ -z "${INCOMING_PORT}" ]]; then
+    echo "[WARN] Incoming port is not set, cannot perform external verification of incoming port"
+    return 1
+  fi
+
   result="$(curl_with_retry "https://ifconfig.co/port/${INCOMING_PORT}" 10 1 -s | jq -r '.reachable')"
 
   if [[ "${result}" == "true" ]]; then
@@ -606,6 +612,11 @@ function qbittorrent_verify_incoming_port() {
   local current_port
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+
+  if [[ -z "${INCOMING_PORT}" ]]; then
+    echo "[WARN] Incoming port is not set, cannot verify application incoming port matches VPN port"
+    return 1
+  fi
 
   # identify protocol, used by curl to connect to api
   if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then

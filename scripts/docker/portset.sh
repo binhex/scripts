@@ -70,8 +70,15 @@ function curl_with_retry() {
       echo "[DEBUG] Attempting curl request to '${url}', attempt $((retry_count + 1))/${max_retries}" >&2
     fi
 
+    local auth
+    if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+      auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+    else
+      auth=""
+    fi
+
     # Execute curl with all provided arguments
-    result=$(curl "${curl_args[@]}" "${url}" 2>/dev/null)
+    result=$(curl ${auth} "${curl_args[@]}" "${url}" 2>/dev/null)
     exit_code=$?
 
     if [[ "${exit_code}" -eq 0 ]]; then
@@ -226,13 +233,13 @@ function get_incoming_port() {
   fi
 
   # Get port forward information from gluetun Control Server
-  portforwarded_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s)
+  portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s)
 
-  if [[ -z "${portforwarded_response}" ]]; then
+  if [[ -z "${portforward_response}" ]]; then
     echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
   else
     # parse results
-    INCOMING_PORT="$(echo "${portforwarded_response}" | jq -r '.port')"
+    INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
     if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
     fi
@@ -441,6 +448,11 @@ function edit_app_parameters() {
 function verify_app_parameters() {
 
   local parameter_name="${1}"
+
+  if [[ -z "${INCOMING_PORT}" ]]; then
+    echo "[WARN] Incoming port is not set, cannot verify application parameters"
+    return 1
+  fi
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
@@ -729,6 +741,14 @@ Where:
     Define the Gluetun Control Server port.
     Defaults to '${defaultGluetunControlServerPort}'.
 
+  -gcsu or --gluetun-control-server-username <username>
+    Define the Gluetun Control Server username.
+    No default.
+
+  -gcsp or --gluetun-control-server-password <password>
+    Define the Gluetun Control Server password.
+    No default.
+
   -gip or --gluetun-incoming-port <yes|no>
     Define whether to enable VPN port monitoring and application configuration.
     Defaults to '${defaultGluetunIncomingPort}'.
@@ -806,6 +826,14 @@ do
     ;;
   -gcsp|--gluetun-control-server-port)
     GLUETUN_CONTROL_SERVER_PORT="${2}"
+    shift
+    ;;
+  -gcsu|--gluetun-control-server-username)
+    GLUETUN_CONTROL_SERVER_USERNAME="${2}"
+    shift
+    ;;
+  -gcspa|--gluetun-control-server-password)
+    GLUETUN_CONTROL_SERVER_PASSWORD="${2}"
     shift
     ;;
   -gip|--gluetun-incoming-port)

@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 # Script to get the incoming port from gluetun and configure a predefined list of applications. This script will block.
 #
 # In order for the script to work you need the following configured for gluetun:

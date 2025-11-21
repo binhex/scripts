@@ -409,6 +409,11 @@ function edit_app_parameters() {
 
   echo "[INFO] Configuring '${APP_NAME}' app parameters with VPN incoming port '${INCOMING_PORT}'"
 
+  if [[ -z "${INCOMING_PORT}" ]]; then
+    echo "[WARN] Incoming port is not set, cannot edit application parameters"
+    return 1
+  fi
+
   # Create a new array to hold modified parameters
   local new_parameters=()
   local i=0
@@ -449,12 +454,12 @@ function verify_app_parameters() {
 
   local parameter_name="${1}"
 
+  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
+
   if [[ -z "${INCOMING_PORT}" ]]; then
     echo "[WARN] Incoming port is not set, cannot verify application parameters"
     return 1
   fi
-
-  echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   # Check if parameter exists in APP_PARAMETERS with correct value
   local i=0

@@ -235,7 +235,7 @@ function get_incoming_port() {
   # Get port forward information from gluetun Control Server
   portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s)
 
-  if [[ "${portforward_response}" == "Unauthorized" ]]; then
+  if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
     portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s)
   fi
 

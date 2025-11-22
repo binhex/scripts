@@ -111,6 +111,16 @@ function compile_using_makepkg() {
 
 	cd "${extracted_path}" || { echo "[error] Cannot navigate to ${extracted_path}, skipping package..."; return 1; }
 
+	# edit PKGBUILD if command is specified
+	if [[ -n "${PKGBUILD_EDIT}" ]]; then
+		echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
+		if ! eval "${PKGBUILD_EDIT}"; then
+			echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}', continuing anyway..." >&2
+		else
+			echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
+		fi
+	fi
+
 	# compile package, note we ignore architecture specified in PKGBUILD to allow cross-compilation
 	echo "[info] Compiling package '${package}'..."
 	if ! makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
@@ -249,6 +259,11 @@ Where:
 		Define whether to install the package after building (makepkg only).
 		Defaults to '${defaultInstallPackage}'.
 
+	-pe or --pkgbuild-edit <command>
+		Define a command to edit the PKGBUILD file before compilation.
+		Example: "sed -r -i -e 's~-march=native\s?~~g' 'PKGBUILD'"
+		No default.
+
 	--debug <yes|no>
 		Define whether debug is turned on or not.
 		Defaults to '${defaultDebug}'.
@@ -262,6 +277,9 @@ Examples:
 
 	Build and install single AUR packages using helper:
 		./${ourScriptName} --aur-package 'libtorrent-rasterbar-1_2-git'
+
+	Build AUR package with PKGBUILD modification to remove native architecture flags:
+		./${ourScriptName} --aur-package 'some-package' --pkgbuild-edit "sed -r -i -e 's~-march=native\s?~~g' 'PKGBUILD'"
 
 Notes:
 	makepkg will install AOR dependancies, but it will NOT install AUR dependancies (unlike a helper), so ensure
@@ -294,6 +312,10 @@ do
             ;;
         -ip|--install-package)
             INSTALL_PACKAGE=true
+            ;;
+        -pe|--pkgbuild-edit)
+            PKGBUILD_EDIT=$2
+            shift
             ;;
         --debug)
             DEBUG=$2

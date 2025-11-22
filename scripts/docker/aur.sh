@@ -70,7 +70,6 @@ function compile_using_makepkg() {
 	shift
 
 	local primary_url
-	local fallback_url
 	local package_source_name
 
 	# trim whitespace

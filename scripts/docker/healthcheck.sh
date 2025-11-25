@@ -263,7 +263,12 @@ function check_process() {
 
 function check_gluetun_api() {
 
-	echo "[info] Health checking gluetun API connectivity for URL '${control_server_url}'..."
+	echo "[info] Health checking gluetun API connectivity..."
+
+	# if no env var exists then use default value
+	if [[ -z "${GLUETUN_CONTROL_SERVER_PORT}" ]]; then
+		GLUETUN_CONTROL_SERVER_PORT=8000
+	fi
 
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then

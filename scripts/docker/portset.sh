@@ -208,7 +208,7 @@ function get_vpn_adapter_name() {
   VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
   if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
     echo "[ERROR] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
-    exit 1
+    exec "${APP_PARAMETERS[@]}"
   elif [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
   fi
@@ -273,7 +273,6 @@ function external_verify_incoming_port() {
   local result
 
   if [[ -z "${INCOMING_PORT}" ]]; then
-    echo "[WARN] Incoming port is not set, cannot perform external verification of incoming port"
     return 1
   fi
 
@@ -341,7 +340,7 @@ function main {
       # set previous incoming port to current
       PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
     else
-      echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same, checking again in ${POLL_DELAY} seconds..."
+      echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same"
     fi
 
     echo "[INFO] Sleeping for ${POLL_DELAY} seconds before re-checking port assignment..."
@@ -421,7 +420,6 @@ function edit_app_parameters() {
   echo "[INFO] Configuring '${APP_NAME}' app parameters with VPN incoming port '${INCOMING_PORT}'"
 
   if [[ -z "${INCOMING_PORT}" ]]; then
-    echo "[WARN] Incoming port is not set, cannot edit application parameters"
     return 1
   fi
 
@@ -468,7 +466,6 @@ function verify_app_parameters() {
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   if [[ -z "${INCOMING_PORT}" ]]; then
-    echo "[WARN] Incoming port is not set, cannot verify application parameters"
     return 1
   fi
 
@@ -619,7 +616,6 @@ function qbittorrent_verify_incoming_port() {
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   if [[ -z "${INCOMING_PORT}" ]]; then
-    echo "[WARN] Incoming port is not set, cannot verify application incoming port matches VPN port"
     return 1
   fi
 
@@ -663,6 +659,7 @@ function nicotine_gluetun_incoming_port() {
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
   fi
+
   echo "[INFO] Killing '${APP_NAME}' process as we cannot reconfigure incoming port while it is running..."
   kill_process
   nicotine_edit_parameters
@@ -698,6 +695,7 @@ function slskd_gluetun_incoming_port() {
   if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
     return 0
   fi
+
   echo "[INFO] Killing '${APP_NAME}' process as we cannot reconfigure incoming port while it is running..."
   kill_process
   slskd_edit_parameters

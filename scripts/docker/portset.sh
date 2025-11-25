@@ -42,71 +42,6 @@ fi
 # utility functions
 ####
 
-function curl_with_retry() {
-
-  local url="${1}"
-  shift
-
-  # Check if second argument is a number (max_retries)
-  local max_retries=3  # Default
-  local retry_delay=2  # Default
-
-  if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
-    max_retries="${1}"
-    shift
-    if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
-      retry_delay="${1}"
-      shift
-    fi
-  fi
-
-  local curl_args=("$@")  # Remaining arguments are curl options
-  local retry_count=0
-  local result
-  local exit_code
-
-  while [[ "${retry_count}" -lt "${max_retries}" ]]; do
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Attempting curl request to '${url}', attempt $((retry_count + 1))/${max_retries}" >&2
-    fi
-
-    local auth
-    if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
-      auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
-    else
-      auth=""
-    fi
-
-    # Execute curl with all provided arguments
-    result=$(curl ${auth} "${curl_args[@]}" "${url}" 2>/dev/null)
-    exit_code=$?
-
-    if [[ "${exit_code}" -eq 0 ]]; then
-      if [[ "${DEBUG}" == "yes" ]]; then
-        echo "[DEBUG] Curl request successful on attempt $((retry_count + 1))" >&2
-      fi
-      echo "${result}"
-      return 0
-    else
-      retry_count=$((retry_count + 1))
-      if [[ "${DEBUG}" == "yes" ]]; then
-        echo "[DEBUG] Curl request failed with exit code ${exit_code}, attempt ${retry_count}/${max_retries}" >&2
-      fi
-
-      if [[ "${retry_count}" -lt "${max_retries}" ]]; then
-        if [[ "${DEBUG}" == "yes" ]]; then
-          echo "[DEBUG] Retrying in ${retry_delay} seconds..." >&2
-        fi
-        sleep "${retry_delay}"
-      fi
-    fi
-  done
-
-  echo "[ERROR] Curl request to '${url}' failed after ${max_retries} attempts" >&2
-  return 1
-
-}
-
 function start_process_background() {
 
   echo "[INFO] Starting single process: ${APP_PARAMETERS[*]}"
@@ -245,6 +180,9 @@ function external_verify_incoming_port() {
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
+
+	# source in curl_with_retry function
+	source utils.sh
 
   # calling functions to generate required globals
   get_incoming_port

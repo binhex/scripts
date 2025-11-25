@@ -315,6 +315,9 @@ function healthcheck_command() {
 
 	local exit_code=0
 
+	# source in curl_with_retry function
+	source utils.sh
+
 	if [[ -n "${HEALTHCHECK_COMMAND}" ]]; then
 		echo "[info] Running custom healthcheck command: ${HEALTHCHECK_COMMAND}"
 		eval "${HEALTHCHECK_COMMAND}"

@@ -90,8 +90,7 @@ function compile_using_makepkg() {
 	local attempt=1
 
 	while [[ ${retries_remaining} -gt 0 ]]; do
-
-		echo "[info] Attempting to download and compile package '${package}' (attempt ${attempt})..."
+		echo "[info] Attempting to compile package '${package}' using makepkg, (attempt ${attempt})..."
 
 		# clean up any previous attempt
 		local snapshots_path="${PACKAGE_PATH}/${package}/snapshots"
@@ -177,7 +176,8 @@ function compile_using_helper() {
 	local attempt=1
 
 	while [[ ${retries_remaining} -gt 0 ]]; do
-		echo "[info] Attempting to compile package(s) '${package_list}'..."
+		echo "[info] Attempting to compile package '${package_list}' using helper, (attempt ${attempt})..."
+
 		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf --skippgpcheck' --noconfirm ${package_list}"; then
 			echo "[info] Successfully compiled and installed package(s) '${package_list}' on attempt ${attempt}"
 			break

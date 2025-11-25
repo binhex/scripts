@@ -278,7 +278,7 @@ function check_gluetun_api() {
 
 function check_gluetun_vpn_adapter() {
 
-	echo "[info] Health checking gluetun VPN adapter..."
+	echo "[info] Health checking gluetun VPN connectivity..."
 
   VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
   if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
@@ -316,9 +316,9 @@ function healthcheck_command() {
 		exit_code="${?}"
 	else
 		# Set retry count from environment variable, set default if not set
-		local max_retries="${HEALTHCHECK_RETRIES:-15}"
+		local max_retries="${HEALTHCHECK_RETRIES:-12}"
 		local retry_count=0
-		local retry_delay=2
+		local retry_delay=5
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
 
 		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then

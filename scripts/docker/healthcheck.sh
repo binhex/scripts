@@ -15,7 +15,7 @@ function check_dns() {
 
 	# check if DNS is working by resolving a known domain (ipv4 only)
 	if ! nslookup -4 "${hostname_check}" > /dev/null 2>&1; then
-		echo "[error] DNS resolution failed"
+		echo "[warn] DNS resolution failed"
 		return 1
 	else
 		echo "[info] DNS resolution is working."
@@ -32,90 +32,11 @@ function check_https() {
 
 	# check if HTTPS is working by making a request to a known URL
 	if ! curl -s --head "https://${hostname_check}" > /dev/null; then
-		echo "[error] HTTPS request failed"
+		echo "[warn] HTTPS request failed"
 		return 1
 	else
 		echo "[info] HTTPS request is working."
 		return 0
-	fi
-}
-
-function check_incoming_port() {
-
-	local incoming_port="${1}"
-	shift
-
-	echo "[info] Health checking incoming port ${incoming_port}..."
-
-	if [[ -z "${incoming_port}" ]]; then
-		echo "[info] Incoming port is not specified via env var 'VPN_INCOMING_PORT', skipping check"
-		return 0
-	fi
-
-	check_incoming_port_ifconfig "${incoming_port}"
-	local check_incoming_port_ifconfig_exit_code="${?}"
-
-	if [[ "${check_incoming_port_ifconfig_exit_code}" == "2" ]]; then
-		echo "[info] Incoming port '${incoming_port}' cannot be determined via site 'ifconfig.co', trying site 'canyouseeme.org'..."
-		check_incoming_port_canyouseeme "${incoming_port}"
-		return "${?}"
-	else
-		return "${check_incoming_port_ifconfig_exit_code}"
-	fi
-}
-
-function check_incoming_port_ifconfig() {
-
-	local incoming_port="${1}"
-	shift
-
-	local site_name="ifconfig.co"
-
-	local response
-	response=$(curl --connect-timeout 30 --max-time 120 --silent "https://${site_name}/port/${incoming_port}" | jq ".reachable")
-
-	if [[ -z "${response}" ]]; then
-		echo "[warn] Failed to get json response from URL 'https://${site_name}/port/${incoming_port}', marking as failed"
-		return 2
-	fi
-
-	if [[ "${response}" == "true" ]]; then
-		echo "[info] Incoming port '${incoming_port}' is open according to '${site_name}'."
-		return 0
-	elif [[ "${response}" == "false" ]]; then
-		echo "[info] Incoming port '${incoming_port}' is closed according to '${site_name}'."
-		return 1
-	else
-		echo "[warn] Failed to web scrape URL 'https://${site_name}', marking as failed"
-		return 2
-	fi
-}
-
-
-function check_incoming_port_canyouseeme() {
-
-	local incoming_port="${1}"
-	shift
-
-	local site_name="canyouseeme.org"
-
-	local response
-	response=$(curl --connect-timeout 30 --max-time 120 --silent --data "port=${incoming_port}&submit=Check" -X POST "https://${site_name}")
-
-	if [[ -z "${response}" ]]; then
-		echo "[warn] Failed to web scrape URL 'https://${site_name}', marking as failed"
-		return 2
-	fi
-
-	if echo "${response}" | grep -i -P "success.*?on port.*?${incoming_port}" > /dev/null; then
-		echo "[info] Incoming port '${incoming_port}' is open according to '${site_name}'."
-		return 0
-	elif echo "${response}" | grep -i -P "error.*?on port.*?${incoming_port}" > /dev/null; then
-		echo "[error] Incoming port '${incoming_port}' is closed according to '${site_name}'."
-		return 1
-	else
-		echo "[warn] Failed to web scrape URL 'https://${site_name}', marking as failed"
-		return 2
 	fi
 }
 
@@ -254,7 +175,7 @@ function check_process() {
 		if pgrep -f "${process_name}" > /dev/null; then
 			echo "[info] Process '${process_name}' is running."
 		else
-			echo "[error] Process '${process_name}' is not running."
+			echo "[warn] Process '${process_name}' is not running."
 			return 1
 		fi
 	done
@@ -272,7 +193,7 @@ function check_gluetun_api() {
 
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
-    echo "[error] Failed to connect to gluetun Control Server after 10 attempts"
+    echo "[warn] Failed to connect to gluetun Control Server after 10 attempts"
 		return 1
 	else
 		echo "[info] Successfully connected to gluetun Control Server"
@@ -287,7 +208,7 @@ function check_gluetun_vpn_adapter() {
 
   VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
   if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
-    echo "[error] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
+    echo "[warn] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
 		return 1
   else
     echo "[info] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
@@ -324,7 +245,7 @@ function healthcheck_command() {
 		exit_code="${?}"
 	else
 		# Set retry count from environment variable, set default if not set
-		local max_retries="${HEALTHCHECK_RETRIES:-12}"
+		local max_retries="${HEALTHCHECK_RETRIES:-24}"
 		local retry_count=0
 		local retry_delay=5
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
@@ -362,9 +283,6 @@ function healthcheck_command() {
 				local gluetun_vpn_ip_exit_code=0
 			fi
 
-			check_incoming_port "${VPN_INCOMING_PORT}"
-			local incoming_port_exit_code="${?}"
-
 			# If any checks fail, set exit code to 1
 			if \
 			[[ "${dns_exit_code}" -ne 0 ]] || \
@@ -372,8 +290,7 @@ function healthcheck_command() {
 			[[ "${process_exit_code}" -ne 0 ]] || \
 			[[ "${gluetun_api_exit_code}" -ne 0 ]] || \
 			[[ "${gluetun_vpn_adapter_exit_code}" -ne 0 ]] || \
-			[[ "${gluetun_vpn_ip_exit_code}" -ne 0 ]] || \
-			[[ "${incoming_port_exit_code}" -ne 0 ]]; then
+			[[ "${gluetun_vpn_ip_exit_code}" -ne 0 ]]; then
 				exit_code=1
 			else
 				exit_code=0
@@ -390,14 +307,14 @@ function healthcheck_command() {
 			if [[ "${retry_count}" -lt "${max_retries}" ]]; then
 				echo "[warn] Healthcheck failed on attempt ${retry_count}/${max_retries}, retrying..."
 			else
-				echo "[error] All ${max_retries} healthcheck attempts failed"
+				echo "[warn] All ${max_retries} healthcheck attempts failed"
 			fi
 		done
 	fi
 
 	# check return code from healthcheck command and perform healthcheck action if exit code != 0
 	if [[ "${exit_code}" -ne 0 ]]; then
-		echo "[warn] Healthcheck failed, running healthcheck action..."
+		echo "[fatal] Healthcheck failed, running healthcheck action..."
 		healthcheck_action "${exit_code}"
 	else
 		echo "[info] Healthcheck passed, exiting script with exit code '${exit_code}'"

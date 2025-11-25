@@ -69,14 +69,13 @@ function compile_using_makepkg() {
 	local install_flag="${1}"
 	shift
 
-	local primary_url
-	local package_source_name
-
 	# trim whitespace
 	package=$(echo "${package}" | xargs)
 	echo "[info] Processing ${package_type} package '${package}'..."
 
 	# set URLs based on package type
+	local primary_url
+	local package_source_name
 	if [[ "${package_type}" == "AOR" ]]; then
 		primary_url="https://gitlab.archlinux.org/archlinux/packaging/packages/${package}.git"
 		package_source_name="Arch Official Repository (AOR)"
@@ -85,22 +84,46 @@ function compile_using_makepkg() {
 		package_source_name="Arch User Repository (AUR)"
 	fi
 
-	# create path to store snapshots
-	snapshots_path="${PACKAGE_PATH}/${package}/snapshots"
-	mkdir -p "${snapshots_path}"
+	# download, extract and compile package with retries
+	local retries_remaining=12
+	local retry_delay=10
+	local attempt=1
 
-	# download package snapshot
-	if [[ "${package_type}" == "AOR" && -n "${primary_url}" ]]; then
-		if ! stderr=$(git clone "${primary_url}" "${snapshots_path}"); then
-			echo "[warn] Failed to git clone from URL ${primary_url} for package ${package} from ${package_source_name}, error is '${stderr}'" >&2
-			return 1
+	while [[ ${retries_remaining} -gt 0 ]]; do
+
+		echo "[info] Attempting to download and compile package '${package}' (attempt ${attempt})..."
+
+		# clean up any previous attempt
+		local snapshots_path="${PACKAGE_PATH}/${package}/snapshots"
+		rm -rf "${snapshots_path}"
+		mkdir -p "${snapshots_path}"
+
+		# download package snapshot
+		if [[ "${package_type}" == "AOR" && -n "${primary_url}" ]]; then
+			if stderr=$(git clone "${primary_url}" "${snapshots_path}" 2>&1); then
+				break
+			else
+				echo "[warn] Failed to git clone from URL ${primary_url} for package ${package} from ${package_source_name}, error is '${stderr}'" >&2
+			fi
+		elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
+			if stderr=$(rcurl.sh -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}" 2>&1); then
+				break
+			else
+				echo "[warn] Failed to download tarball for package '${package}' from ${package_source_name}, error is '${stderr}'" >&2
+			fi
 		fi
-	elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
-		if ! stderr=$(rcurl.sh -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}"); then
-			echo "[warn] Failed to download ${package_type} package snapshot '${package}' from ${package_source_name}, error is '${stderr}'" >&2
-			return 1
+
+		# if we get here, something failed
+		retries_remaining=$((retries_remaining - 1))
+		attempt=$((attempt + 1))
+		if [[ ${retries_remaining} -gt 0 ]]; then
+			echo "[warn] Failed to download tarball for package '${package}', ${retries_remaining} retries remaining, retrying in ${retry_delay} seconds..."
+			sleep ${retry_delay}
+		else
+			echo "[error] Failed to download tarball for package '${package}' after all retry attempts, exiting script..."
+			exit 1
 		fi
-	fi
+	done
 
 	# navigate to extracted PKGBUILD
 	if [[ "${package_type}" == "AOR" ]]; then
@@ -109,27 +132,30 @@ function compile_using_makepkg() {
 		extracted_path="${snapshots_path}/${package}"
 	fi
 
-	cd "${extracted_path}" || { echo "[error] Cannot navigate to ${extracted_path}, skipping package..."; return 1; }
-
-	# edit PKGBUILD if command is specified
-	if [[ -n "${PKGBUILD_EDIT}" ]]; then
-		echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
-		if ! eval "${PKGBUILD_EDIT}"; then
-			echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}', continuing anyway..." >&2
-		else
-			echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
+	if cd "${extracted_path}"; then
+		# edit PKGBUILD if command is specified
+		if [[ -n "${PKGBUILD_EDIT}" ]]; then
+			echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
+			if ! eval "${PKGBUILD_EDIT}"; then
+				echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}'" >&2
+				exit 1
+			else
+				echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
+			fi
 		fi
+
+		# compile package if download and PKGBUILD edit were successful
+		if makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
+			echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
+		else
+			echo "[warn] makepkg failed for package '${package}'"
+			exit 1
+		fi
+	else
+		echo "[warn] Cannot navigate to extracted path '${extracted_path}'"
+		exit 1
 	fi
 
-	# compile package, note we ignore architecture specified in PKGBUILD to allow cross-compilation
-	echo "[info] Compiling package '${package}'..."
-	if ! makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
-		echo "[error] Failed to compile package '${package}', continuing with next package..." >&2
-		return 1
-	else
-		echo "[info] Successfully compiled package '${package}'"
-		return 0
-	fi
 }
 
 function compile_using_helper() {

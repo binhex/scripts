@@ -261,6 +261,51 @@ function check_process() {
 	return 0
 }
 
+function check_gluetun_api() {
+
+	echo "[info] Health checking gluetun API connectivity for URL '${control_server_url}'..."
+
+	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+  if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
+    echo "[error] Failed to connect to gluetun Control Server after 10 attempts"
+		return 1
+	else
+		echo "[info] Successfully connected to gluetun Control Server"
+		return 0
+  fi
+
+}
+
+function check_gluetun_vpn_adapter() {
+
+	echo "[info] Health checking gluetun VPN adapter..."
+
+  VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
+  if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
+    echo "[error] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
+		return 1
+  else
+    echo "[info] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
+		return 0
+  fi
+
+}
+
+function check_gluetun_vpn_ip() {
+
+	echo "[info] Health checking gluetun VPN IP address..."
+
+  VPN_IP_ADDRESS="$(ifconfig "${VPN_ADAPTER_NAME}" | grep 'inet ' | awk '{print $2}')"
+  if [[ -z "${VPN_IP_ADDRESS}" ]]; then
+    echo "[warn] Unable to determine VPN IP address, please check your gluetun configuration and ensure the VPN is connected."
+		return 1
+	else
+		echo "[info] Detected VPN IP address is '${VPN_IP_ADDRESS}'"
+		return 0
+  fi
+
+}
+
 function healthcheck_command() {
 
 	local exit_code=0
@@ -295,11 +340,32 @@ function healthcheck_command() {
 			local http_exit_code="${?}"
 			check_process
 			local process_exit_code="${?}"
+
+			if [[ "${GLUETUN_INCOMING_PORT}" == "yes" ]]; then
+				check_gluetun_api
+				local gluetun_api_exit_code="${?}"
+				check_gluetun_vpn_adapter
+				local gluetun_vpn_adapter_exit_code="${?}"
+				check_gluetun_vpn_ip
+				local gluetun_vpn_ip_exit_code="${?}"
+			else
+				local gluetun_api_exit_code=0
+				local gluetun_vpn_adapter_exit_code=0
+				local gluetun_vpn_ip_exit_code=0
+			fi
+
 			check_incoming_port "${VPN_INCOMING_PORT}"
 			local incoming_port_exit_code="${?}"
 
 			# If any checks fail, set exit code to 1
-			if [[ "${dns_exit_code}" -ne 0 ]] || [[ "${http_exit_code}" -ne 0 ]] || [[ "${process_exit_code}" -ne 0 ]] || [[ "${incoming_port_exit_code}" -ne 0 ]]; then
+			if \
+			[[ "${dns_exit_code}" -ne 0 ]] || \
+			[[ "${http_exit_code}" -ne 0 ]] || \
+			[[ "${process_exit_code}" -ne 0 ]] || \
+			[[ "${gluetun_api_exit_code}" -ne 0 ]] || \
+			[[ "${gluetun_vpn_adapter_exit_code}" -ne 0 ]] || \
+			[[ "${gluetun_vpn_ip_exit_code}" -ne 0 ]] || \
+			[[ "${incoming_port_exit_code}" -ne 0 ]]; then
 				exit_code=1
 			else
 				exit_code=0

@@ -179,58 +179,12 @@ function wait_for_port_to_be_listening() {
 
 }
 
-function get_vpn_ip_address() {
-
-  VPN_IP_ADDRESS="$(ifconfig "${VPN_ADAPTER_NAME}" | grep 'inet ' | awk '{print $2}')"
-  if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Internal IP address for VPN adapter: '${VPN_IP_ADDRESS}'"
-  fi
-
-  if [[ -z "${VPN_IP_ADDRESS}" ]]; then
-    echo "[WARN] Unable to determine VPN IP address, please check your gluetun configuration and ensure the VPN is connected."
-  fi
-
-}
-
-function get_vpn_adapter_name() {
-
-  if [[ -n "${VPN_INTERFACE}" ]]; then
-    VPN_ADAPTER_NAME="${VPN_INTERFACE}"
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Using VPN interface from environment variable: '${VPN_ADAPTER_NAME}'"
-    fi
-    return 0
-  else
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] No VPN interface specified in environment variable, attempting to determine automatically..."
-    fi
-  fi
-  VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
-  if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
-    echo "[ERROR] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
-    exec "${APP_PARAMETERS[@]}"
-  elif [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
-  fi
-
-}
-
 function get_incoming_port() {
 
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
   local vpn_public_ip
   local vpn_country_ip
   local vpn_city_ip
-
-  # Test connection to gluetun Control Server
-  if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
-    echo "[ERROR] Failed to connect to gluetun Control Server after ${max_retries} attempts"
-    echo "[INFO] Giving up on VPN port configuration, executing remaining arguments..."
-    if [[ "${#APP_PARAMETERS[@]}" -gt 0 ]]; then
-      echo "[INFO] Executing: ${APP_PARAMETERS[*]}"
-      exec "${APP_PARAMETERS[@]}"
-    fi
-  fi
 
   # Get port forward information from gluetun Control Server
   portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s)
@@ -288,22 +242,12 @@ function external_verify_incoming_port() {
 
 }
 
-function get_vpn_ip_and_port() {
-
-  get_vpn_ip_address
-  get_incoming_port
-
-}
-
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
 
-  # get vpn adapter name
-  get_vpn_adapter_name
-
   # calling functions to generate required globals
-  get_vpn_ip_and_port
+  get_incoming_port
 
   # run any initial pre-start configuration of the application and then start the application
   application_start
@@ -311,7 +255,7 @@ function main {
   while true; do
 
     # calling functions to generate required globals
-    get_vpn_ip_and_port
+    get_incoming_port
 
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port || ! external_verify_incoming_port; then
 

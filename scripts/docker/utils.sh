@@ -652,10 +652,10 @@ function curl_with_retry() {
   local url="${1}"
   shift
 
-  # Check if second argument is a number (max_retries)
   local max_retries=3  # Default
   local retry_delay=2  # Default
 
+  # Check if second and third arguments are numbers (max_retries and retry_delay)
   if [[ $# -gt 0 && "$1" =~ ^[0-9]+$ ]]; then
     max_retries="${1}"
     shift
@@ -675,15 +675,8 @@ function curl_with_retry() {
       echo "[DEBUG] Attempting curl request to '${url}', attempt $((retry_count + 1))/${max_retries}" >&2
     fi
 
-    local auth
-    if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
-      auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
-    else
-      auth=""
-    fi
-
     # Execute curl with all provided arguments
-    result=$(curl ${auth} "${curl_args[@]}" "${url}" 2>/dev/null)
+    result=$(curl "${curl_args[@]}" "${url}" 2>/dev/null)
     exit_code=$?
 
     if [[ "${exit_code}" -eq 0 ]]; then

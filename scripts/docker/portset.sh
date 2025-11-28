@@ -121,11 +121,18 @@ function get_incoming_port() {
   local vpn_country_ip
   local vpn_city_ip
 
+  local auth
+  if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+    auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+  else
+    auth=""
+  fi
+
   # Get port forward information from gluetun Control Server
-  portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s)
+  portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s ${auth})
 
   if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
-    portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s)
+    portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s ${auth})
   fi
 
   if [[ -z "${portforward_response}" ]]; then
@@ -140,7 +147,7 @@ function get_incoming_port() {
   fi
 
   # Get public ip and location information from gluetun Control Server
-  public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s)
+  public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s ${auth})
 
   if [[ -z "${public_ip}" ]]; then
     echo "[WARN] Unable to retrieve public IP information from gluetun Control Server"

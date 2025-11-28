@@ -191,8 +191,15 @@ function check_gluetun_api() {
 		GLUETUN_CONTROL_SERVER_PORT=8000
 	fi
 
+	local auth
+	if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+		auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+	else
+		auth=""
+	fi
+
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
-  if ! curl_with_retry "${control_server_url}" 10 1 -s >/dev/null; then
+  if ! curl_with_retry "${control_server_url}" 10 1 -s ${auth}; then
     echo "[warn] Failed to connect to gluetun Control Server after 10 attempts"
 		return 1
 	else

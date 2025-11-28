@@ -184,6 +184,31 @@ function external_verify_incoming_port() {
 
 }
 
+function restart_vpn_conection() {
+
+  local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+
+  local auth
+  if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+    auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+  else
+    auth=""
+  fi
+
+  vpn_desired_states=("stopped" "running")
+
+  for vpn_desired_state in "${vpn_desired_states[@]}"; do
+
+    echo "[INFO] Setting VPN status to '${vpn_desired_state}' via gluetun Control Server API..."
+    json="{
+      \"status\": \"${vpn_desired_state}\"
+    }"
+    curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X POST -d "json=${json}"
+
+  done
+
+}
+
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
@@ -493,7 +518,7 @@ function qbittorrent_api_config() {
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
   fi
 
-  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}" >/dev/null
+  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}"
 
 }
 

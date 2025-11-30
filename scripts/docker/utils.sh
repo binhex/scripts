@@ -704,3 +704,43 @@ function curl_with_retry() {
   return 1
 
 }
+
+function get_vpn_adapter_name() {
+
+	local adapter_names="${1:-'tun.*|tap.*|wg.*'}"
+	shift
+
+	echo "[info] Identifying VPN adapter name..." >&2
+	local vpn_adapter_name
+  vpn_adapter_name="$(ifconfig | grep 'mtu' | grep -P "${adapter_names}" | cut -d ':' -f1)"
+  if [[ -z "${vpn_adapter_name}" ]]; then
+		echo ""
+		return 1
+	else
+		echo "${vpn_adapter_name}"
+		return 0
+	fi
+
+}
+
+function check_vpn_adapter_ip_address() {
+
+	local vpn_adapter_name="${1}"
+	shift
+
+	if [[ -z "${vpn_adapter_name}" ]]; then
+		return 1
+	fi
+
+	echo "[info] Identifying VPN adapter IP address..." >&2
+	local vpn_adapter_ip_address
+  vpn_adapter_ip_address="$(ifconfig "${vpn_adapter_name}" | grep 'inet ' | awk '{print $2}')"
+  if [[ -z "${vpn_adapter_ip_address}" ]]; then
+		echo ""
+		return 1
+	else
+		echo "${vpn_adapter_ip_address}"
+		return 0
+	fi
+
+}

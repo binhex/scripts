@@ -42,6 +42,30 @@ fi
 # utility functions
 ####
 
+function check_gluetun_cs_api() {
+
+	echo "[INFO] Health checking gluetun Control Server API connectivity..."
+
+	local auth
+	if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+		auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+	else
+		auth=""
+	fi
+
+	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+  if ! curl_with_retry "${control_server_url}" 10 1 -s ${auth}; then
+    echo "[WARN] Failed to connect to gluetun Control Server API 'http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1'"
+		return 1
+	else
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Successfully connected to gluetun Control Server"
+    fi
+		return 0
+  fi
+
+}
+
 function start_process_background() {
 
   echo "[INFO] Starting single process: ${APP_PARAMETERS[*]}"
@@ -184,7 +208,7 @@ function external_verify_incoming_port() {
 
 }
 
-function restart_vpn_conection() {
+function restart_vpn_connection() {
 
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
 
@@ -195,6 +219,7 @@ function restart_vpn_conection() {
     auth=""
   fi
 
+  echo "[INFO] Restarting VPN connection..."
   vpn_desired_states=("stopped" "running")
 
   for vpn_desired_state in "${vpn_desired_states[@]}"; do
@@ -203,17 +228,27 @@ function restart_vpn_conection() {
     json="{
       \"status\": \"${vpn_desired_state}\"
     }"
-    curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X POST -d "json=${json}"
+
+    if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X PUT -d "json=${json}"; then
+      echo "[ERROR] Failed to set VPN status to '${vpn_desired_state}'"
+      return 1
+    fi
+
+    # Wait between state changes to allow VPN to process the command
+    if [[ "${vpn_desired_state}" == "stopped" ]]; then
+      echo "[INFO] Waiting 5 seconds for VPN to stop..."
+      sleep 5
+    fi
 
   done
-
+  echo "[INFO] VPN connection successfully restarted."
 }
 
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
 
-	# source in curl_with_retry function
+	# source in curl_with_retry function and vpn ip address and vpn adapter name
 	source utils.sh
 
   # calling functions to generate required globals
@@ -224,10 +259,49 @@ function main {
 
   while true; do
 
+    # ensure gluetun endpoint is reachable
+    if ! check_gluetun_cs_api; then
+      sleep "${POLL_DELAY}"
+      continue
+    fi
+
     # calling functions to generate required globals
     get_incoming_port
 
-    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port || ! external_verify_incoming_port; then
+    # retry loop for external port verification with VPN restart
+    local external_verify_attempts=0
+    local max_external_verify_attempts=5
+
+    while ! external_verify_incoming_port && [[ ${external_verify_attempts} -lt ${max_external_verify_attempts} ]]; do
+      echo "[WARN] External verification failed (attempt $((external_verify_attempts + 1))/${max_external_verify_attempts}), restarting VPN connection..."
+
+      if ! restart_vpn_connection; then
+        external_verify_attempts=$((external_verify_attempts + 1))
+        continue
+      fi
+
+      # wait for VPN to stabilize and get new port
+      echo "[INFO] Waiting 10 seconds for VPN to stabilize before getting new incoming port..."
+      sleep 10
+
+      # get potentially new incoming port after VPN restart
+      get_incoming_port
+
+      if [[ -z "${INCOMING_PORT}" ]]; then
+        echo "[WARN] Still no incoming port after VPN restart, will continue with remaining attempts..."
+      else
+        echo "[INFO] Retrieved incoming port '${INCOMING_PORT}' after VPN restart"
+        break
+      fi
+
+      external_verify_attempts=$((external_verify_attempts + 1))
+    done
+
+    if [[ ${external_verify_attempts} -ge ${max_external_verify_attempts} ]]; then
+      echo "[ERROR] External verification of incoming port failed after ${max_external_verify_attempts} attempts, continuing anyway..."
+    fi
+
+    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
 
       if [[ -z "${INCOMING_PORT}" ]]; then
         echo "[WARN] Incoming port is not set, this may be due to the VPN not being connected or the gluetun Control Server not being available, checking again in ${POLL_DELAY} seconds..."
@@ -421,10 +495,18 @@ function deluge_api_config() {
 
   echo "[INFO] Configuring '${APP_NAME}' for VPN..."
 
+  # set listening port to vpn port
   /usr/bin/deluge-console -c /config "config --set random_port false" 2>/dev/null
   /usr/bin/deluge-console -c /config "config --set listen_ports (${INCOMING_PORT},${INCOMING_PORT})" 2>/dev/null
-  /usr/bin/deluge-console -c /config "config --set listen_interface ${VPN_IP_ADDRESS}" 2>/dev/null
-  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${VPN_IP_ADDRESS}" 2>/dev/null
+
+  local vpn_adapter_name
+  vpn_adapter_name=$(get_vpn_adapter_name)
+
+  # set network interface for incoming and outgoing traffic to vpn adapter name
+  if [[ -n "${vpn_adapter_name}" ]]; then
+    /usr/bin/deluge-console -c /config "config --set listen_interface ${vpn_adapter_name}" 2>/dev/null
+    /usr/bin/deluge-console -c /config "config --set outgoing_interface ${vpn_adapter_name}" 2>/dev/null
+  fi
 
 }
 
@@ -503,16 +585,31 @@ function qbittorrent_api_config() {
     web_protocol="http"
   fi
 
-  # Set network interface binding via API
-  local interface_json="{
-    \"listen_port\": \"${INCOMING_PORT}\",
-    \"web_ui_upnp\": false,
-    \"upnp\": false,
-    \"random_port\": false,
-    \"current_network_interface\": \"${VPN_ADAPTER_NAME}\",
-    \"current_interface_name\": \"${VPN_ADAPTER_NAME}\",
-    \"bypass_local_auth\": true
-  }"
+  local vpn_adapter_name
+  vpn_adapter_name=$(get_vpn_adapter_name)
+
+  # Set network interface binding via API - use adapter name only if successfully retrieved
+  local interface_json
+  if [[ -n "${vpn_adapter_name}" ]]; then
+    interface_json="{
+      \"listen_port\": \"${INCOMING_PORT}\",
+      \"web_ui_upnp\": false,
+      \"upnp\": false,
+      \"random_port\": false,
+      \"current_network_interface\": \"${vpn_adapter_name}\",
+      \"current_interface_name\": \"${vpn_adapter_name}\",
+      \"bypass_local_auth\": true
+    }"
+  else
+    echo "[WARN] Could not retrieve VPN adapter name, configuring port only"
+    interface_json="{
+      \"listen_port\": \"${INCOMING_PORT}\",
+      \"web_ui_upnp\": false,
+      \"upnp\": false,
+      \"random_port\": false,
+      \"bypass_local_auth\": true
+    }"
+  fi
 
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
@@ -678,7 +775,7 @@ Where:
     Define the Gluetun Control Server username.
     No default.
 
-  -gcsp or --gluetun-control-server-password <password>
+  -gcspa or --gluetun-control-server-password <password>
     Define the Gluetun Control Server password.
     No default.
 

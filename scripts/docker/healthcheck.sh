@@ -8,7 +8,7 @@
 
 function check_dns() {
 
-	local hostname_check="${1:-google.com}"
+	local hostname_check="${1:-cloudflare.com}"
 	shift
 
 	echo "[info] Health checking DNS..."
@@ -25,7 +25,7 @@ function check_dns() {
 
 function check_https() {
 
-	local hostname_check="${1:-google.com}"
+	local hostname_check="${1:-cloudflare.com}"
 	shift
 
 	echo "[info] Health checking HTTPS..."
@@ -182,68 +182,11 @@ function check_process() {
 	return 0
 }
 
-function check_gluetun_api() {
-
-	echo "[info] Health checking gluetun API connectivity..."
-
-	# if no env var exists then use default value
-	if [[ -z "${GLUETUN_CONTROL_SERVER_PORT}" ]]; then
-		GLUETUN_CONTROL_SERVER_PORT=8000
-	fi
-
-	local auth
-	if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
-		auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
-	else
-		auth=""
-	fi
-
-	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
-  if ! curl_with_retry "${control_server_url}" 10 1 -s ${auth}; then
-    echo "[warn] Failed to connect to gluetun Control Server after 10 attempts"
-		return 1
-	else
-		echo "[info] Successfully connected to gluetun Control Server"
-		return 0
-  fi
-
-}
-
-function check_gluetun_vpn_adapter() {
-
-	echo "[info] Health checking gluetun VPN connectivity..."
-
-  VPN_ADAPTER_NAME="$(ifconfig | grep 'mtu' | grep -P 'tun.*|tap.*|wg.*' | cut -d ':' -f1)"
-  if [[ -z "${VPN_ADAPTER_NAME}" ]]; then
-    echo "[warn] Unable to determine VPN adapter name, please check your gluetun configuration and ensure the VPN is connected."
-		return 1
-  else
-    echo "[info] Detected VPN adapter name is '${VPN_ADAPTER_NAME}'"
-		return 0
-  fi
-
-}
-
-function check_gluetun_vpn_ip() {
-
-	echo "[info] Health checking gluetun VPN IP address..."
-
-  VPN_IP_ADDRESS="$(ifconfig "${VPN_ADAPTER_NAME}" | grep 'inet ' | awk '{print $2}')"
-  if [[ -z "${VPN_IP_ADDRESS}" ]]; then
-    echo "[warn] Unable to determine VPN IP address, please check your gluetun configuration and ensure the VPN is connected."
-		return 1
-	else
-		echo "[info] Detected VPN IP address is '${VPN_IP_ADDRESS}'"
-		return 0
-  fi
-
-}
-
 function healthcheck_command() {
 
 	local exit_code=0
 
-	# source in curl_with_retry function
+	# source in curl_with_retry function and vpn ip and adapter name functions
 	source utils.sh
 
 	if [[ -n "${HEALTHCHECK_COMMAND}" ]]; then
@@ -260,7 +203,7 @@ function healthcheck_command() {
 		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
 			local hostname_check="${HEALTHCHECK_HOSTNAME}"
 		else
-			local hostname_check="google.com"
+			local hostname_check=""
 		fi
 
 		while [[ "${retry_count}" -lt "${max_retries}" ]]; do
@@ -278,16 +221,13 @@ function healthcheck_command() {
 			local process_exit_code="${?}"
 
 			if [[ "${GLUETUN_INCOMING_PORT}" == "yes" ]]; then
-				check_gluetun_api
-				local gluetun_api_exit_code="${?}"
-				check_gluetun_vpn_adapter
-				local gluetun_vpn_adapter_exit_code="${?}"
-				check_gluetun_vpn_ip
-				local gluetun_vpn_ip_exit_code="${?}"
+				get_vpn_adapter_name
+				local vpn_adapter_name_exit_code="${?}"
+				get_vpn_ip_address
+				local vpn_ip_exit_code="${?}"
 			else
-				local gluetun_api_exit_code=0
-				local gluetun_vpn_adapter_exit_code=0
-				local gluetun_vpn_ip_exit_code=0
+				local vpn_adapter_name_exit_code=0
+				local vpn_ip_exit_code=0
 			fi
 
 			# If any checks fail, set exit code to 1
@@ -295,9 +235,8 @@ function healthcheck_command() {
 			[[ "${dns_exit_code}" -ne 0 ]] || \
 			[[ "${http_exit_code}" -ne 0 ]] || \
 			[[ "${process_exit_code}" -ne 0 ]] || \
-			[[ "${gluetun_api_exit_code}" -ne 0 ]] || \
-			[[ "${gluetun_vpn_adapter_exit_code}" -ne 0 ]] || \
-			[[ "${gluetun_vpn_ip_exit_code}" -ne 0 ]]; then
+			[[ "${vpn_adapter_name_exit_code}" -ne 0 ]] || \
+			[[ "${vpn_ip_exit_code}" -ne 0 ]]; then
 				exit_code=1
 			else
 				exit_code=0

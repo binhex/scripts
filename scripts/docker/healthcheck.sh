@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 # Script to check DNS resolution, HTTPS connectivity and processes, with optional custom
 # command and custom action defined via environment variables HEALTHCHECK_COMMAND and
 # HEALTHCHECK_ACTION and exit script with appropriate exit code.

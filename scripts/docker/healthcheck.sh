@@ -213,33 +213,29 @@ function healthcheck_command() {
 				sleep "${retry_delay}"
 			fi
 
-			check_dns "${hostname_check}"
-			local dns_exit_code="${?}"
-			check_https "${hostname_check}"
-			local http_exit_code="${?}"
-			check_process
-			local process_exit_code="${?}"
-
-			if [[ "${GLUETUN_INCOMING_PORT}" == "yes" ]]; then
-				get_vpn_adapter_name
-				local vpn_adapter_name_exit_code="${?}"
-				get_vpn_ip_address
-				local vpn_ip_exit_code="${?}"
-			else
-				local vpn_adapter_name_exit_code=0
-				local vpn_ip_exit_code=0
+			exit_code=0
+			if ! check_dns "${hostname_check}"; then
+				exit_code=1
 			fi
 
-			# If any checks fail, set exit code to 1
-			if \
-			[[ "${dns_exit_code}" -ne 0 ]] || \
-			[[ "${http_exit_code}" -ne 0 ]] || \
-			[[ "${process_exit_code}" -ne 0 ]] || \
-			[[ "${vpn_adapter_name_exit_code}" -ne 0 ]] || \
-			[[ "${vpn_ip_exit_code}" -ne 0 ]]; then
+			if ! check_https "${hostname_check}"; then
 				exit_code=1
-			else
-				exit_code=0
+			fi
+
+			if ! check_process; then
+				exit_code=1
+			fi
+
+			if [[ "${GLUETUN_INCOMING_PORT}" == "yes" ]]; then
+
+				if ! vpn_adapter_name=$(get_vpn_adapter_name); then
+					exit_code=1
+				fi
+
+				if ! get_vpn_ip_address "${vpn_adapter_name}"; then
+					exit_code=1
+				fi
+
 			fi
 
 			# If all checks pass, break out of retry loop

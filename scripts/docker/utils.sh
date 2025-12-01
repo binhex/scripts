@@ -707,12 +707,12 @@ function curl_with_retry() {
 
 function get_vpn_adapter_name() {
 
-	local adapter_names="${1:-'tun.*|tap.*|wg.*'}"
+	local vpn_adapter_names="${1:-'tun.*|tap.*|wg.*'}"
 	shift
 
 	echo "[info] Identifying VPN adapter name..." >&2
 	local vpn_adapter_name
-  vpn_adapter_name="$(ifconfig | grep 'mtu' | grep -P "${adapter_names}" | cut -d ':' -f1)"
+  vpn_adapter_name="$(ifconfig | grep 'mtu' | grep -P "${vpn_adapter_names}" | cut -d ':' -f1)"
   if [[ -z "${vpn_adapter_name}" ]]; then
 		echo ""
 		return 1
@@ -729,6 +729,7 @@ function check_vpn_adapter_ip_address() {
 	shift
 
 	if [[ -z "${vpn_adapter_name}" ]]; then
+		echo ""
 		return 1
 	fi
 

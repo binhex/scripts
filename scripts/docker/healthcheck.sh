@@ -8,13 +8,13 @@
 
 function check_dns() {
 
-	local hostname_check="${1:-cloudflare.com}"
+	local hostname_check="${1}"
 	shift
 
 	echo "[info] Health checking DNS..."
 
 	# check if DNS is working by resolving a known domain (ipv4 only)
-	if ! nslookup -4 "${hostname_check}" > /dev/null 2>&1; then
+	if ! nslookup "${hostname_check}" > /dev/null 2>&1; then
 		echo "[warn] DNS resolution failed"
 		return 1
 	else
@@ -25,7 +25,7 @@ function check_dns() {
 
 function check_https() {
 
-	local hostname_check="${1:-cloudflare.com}"
+	local hostname_check="${1}"
 	shift
 
 	echo "[info] Health checking HTTPS..."
@@ -203,7 +203,7 @@ function healthcheck_command() {
 		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
 			local hostname_check="${HEALTHCHECK_HOSTNAME}"
 		else
-			local hostname_check=""
+			local hostname_check="cloudflare.com"
 		fi
 
 		while [[ "${retry_count}" -lt "${max_retries}" ]]; do

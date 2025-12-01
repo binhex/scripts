@@ -19,6 +19,7 @@ readonly defaultGluetunControlServerPort="8000"
 readonly defaultGluetunIncomingPort="no"
 readonly defaultPollDelay="60"
 readonly defaultDebug="no"
+readonly defaultMaxStartupRetries="10"
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -28,6 +29,7 @@ GLUETUN_CONTROL_SERVER_PORT="${GLUETUN_CONTROL_SERVER_PORT:-${defaultGluetunCont
 GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
+MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
 
 # source in image build info, includes tag name and app name
 if [[ -f "${defaultImageBuildFilepath}" ]]; then
@@ -161,7 +163,7 @@ function get_incoming_port() {
 
   if [[ -z "${portforward_response}" ]]; then
     echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
-    INCOMING_PORT=""
+    return 1
   else
     # parse results
     INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
@@ -174,7 +176,7 @@ function get_incoming_port() {
   public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s ${auth})
 
   if [[ -z "${public_ip}" ]]; then
-    echo "[WARN] Unable to retrieve public IP information from gluetun Control Server"
+    return 1
   else
     vpn_public_ip="$(echo "${public_ip}" | jq -r '.public_ip')"
     vpn_country_ip="$(echo "${public_ip}" | jq -r '.country')"
@@ -244,6 +246,26 @@ function restart_vpn_connection() {
   echo "[INFO] VPN connection successfully restarted."
 }
 
+function check(){
+
+  if ! get_incoming_port; then
+    return 1
+  fi
+
+  if ! vpn_adapter_name=$(get_vpn_adapter_name); then
+    return 1
+  fi
+
+  if ! check_vpn_adapter_ip_address "${vpn_adapter_name}"; then
+    return 1
+  fi
+
+  if ! check_gluetun_cs_api; then
+    return 1
+  fi
+
+}
+
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
@@ -251,32 +273,42 @@ function main {
 	# source in curl_with_retry function and vpn ip address and vpn adapter name
 	source utils.sh
 
-  # calling functions to generate required globals
-  get_incoming_port
-
-  # run any initial pre-start configuration of the application and then start the application
-  application_start
+  local startup_retry_count=0
 
   while true; do
 
-    # ensure gluetun endpoint is reachable
-    if ! check_gluetun_cs_api; then
+    # run function to check all required conditions exist
+    if ! check; then
+      startup_retry_count=$((startup_retry_count + 1))
+      echo "[WARN] Required conditions not met (attempt ${startup_retry_count}/${MAX_STARTUP_RETRIES}), checking again in ${POLL_DELAY} seconds..."
+
+      if [[ ${startup_retry_count} -ge ${MAX_STARTUP_RETRIES} ]]; then
+        echo "[WARN] Maximum startup retries (${MAX_STARTUP_RETRIES}) reached, VPN conditions not met - executing application without VPN port configuration: '${APP_PARAMETERS[*]}'..."
+        exec "${APP_PARAMETERS[@]}"
+      fi
+
+      sleep "${POLL_DELAY}"
+      continue
+    else
+      # run any initial pre-start configuration of the application and then start the application
+      application_start
+      break
+    fi
+
+  done
+
+  while true; do
+
+    # run function to check all required conditions exist
+    if ! check; then
+      echo "[WARN] Required conditions not met, checking again in ${POLL_DELAY} seconds..."
       sleep "${POLL_DELAY}"
       continue
     fi
 
-    # calling functions to generate required globals
-    get_incoming_port
-
-    # retry loop for external port verification with VPN restart
-    local external_verify_attempts=0
-    local max_external_verify_attempts=5
-
-    while ! external_verify_incoming_port && [[ ${external_verify_attempts} -lt ${max_external_verify_attempts} ]]; do
-      echo "[WARN] External verification failed (attempt $((external_verify_attempts + 1))/${max_external_verify_attempts}), restarting VPN connection..."
+    while ! external_verify_incoming_port; do
 
       if ! restart_vpn_connection; then
-        external_verify_attempts=$((external_verify_attempts + 1))
         continue
       fi
 
@@ -287,27 +319,14 @@ function main {
       # get potentially new incoming port after VPN restart
       get_incoming_port
 
-      if [[ -z "${INCOMING_PORT}" ]]; then
-        echo "[WARN] Still no incoming port after VPN restart, will continue with remaining attempts..."
-      else
+      if [[ -n "${INCOMING_PORT}" ]]; then
         echo "[INFO] Retrieved incoming port '${INCOMING_PORT}' after VPN restart"
         break
       fi
 
-      external_verify_attempts=$((external_verify_attempts + 1))
     done
 
-    if [[ ${external_verify_attempts} -ge ${max_external_verify_attempts} ]]; then
-      echo "[ERROR] External verification of incoming port failed after ${max_external_verify_attempts} attempts, continuing anyway..."
-    fi
-
     if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
-
-      if [[ -z "${INCOMING_PORT}" ]]; then
-        echo "[WARN] Incoming port is not set, this may be due to the VPN not being connected or the gluetun Control Server not being available, checking again in ${POLL_DELAY} seconds..."
-        sleep "${POLL_DELAY}"
-        continue
-      fi
 
       if [[ "${DEBUG}" == 'yes' ]]; then
         if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
@@ -407,10 +426,6 @@ function edit_app_parameters() {
 
   echo "[INFO] Configuring '${APP_NAME}' app parameters with VPN incoming port '${INCOMING_PORT}'"
 
-  if [[ -z "${INCOMING_PORT}" ]]; then
-    return 1
-  fi
-
   # Create a new array to hold modified parameters
   local new_parameters=()
   local i=0
@@ -452,10 +467,6 @@ function verify_app_parameters() {
   local parameter_name="${1}"
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
-
-  if [[ -z "${INCOMING_PORT}" ]]; then
-    return 1
-  fi
 
   # Check if parameter exists in APP_PARAMETERS with correct value
   local i=0
@@ -503,10 +514,8 @@ function deluge_api_config() {
   vpn_adapter_name=$(get_vpn_adapter_name)
 
   # set network interface for incoming and outgoing traffic to vpn adapter name
-  if [[ -n "${vpn_adapter_name}" ]]; then
-    /usr/bin/deluge-console -c /config "config --set listen_interface ${vpn_adapter_name}" 2>/dev/null
-    /usr/bin/deluge-console -c /config "config --set outgoing_interface ${vpn_adapter_name}" 2>/dev/null
-  fi
+  /usr/bin/deluge-console -c /config "config --set listen_interface ${vpn_adapter_name}" 2>/dev/null
+  /usr/bin/deluge-console -c /config "config --set outgoing_interface ${vpn_adapter_name}" 2>/dev/null
 
 }
 
@@ -590,26 +599,15 @@ function qbittorrent_api_config() {
 
   # Set network interface binding via API - use adapter name only if successfully retrieved
   local interface_json
-  if [[ -n "${vpn_adapter_name}" ]]; then
-    interface_json="{
-      \"listen_port\": \"${INCOMING_PORT}\",
-      \"web_ui_upnp\": false,
-      \"upnp\": false,
-      \"random_port\": false,
-      \"current_network_interface\": \"${vpn_adapter_name}\",
-      \"current_interface_name\": \"${vpn_adapter_name}\",
-      \"bypass_local_auth\": true
-    }"
-  else
-    echo "[WARN] Could not retrieve VPN adapter name, configuring port only"
-    interface_json="{
-      \"listen_port\": \"${INCOMING_PORT}\",
-      \"web_ui_upnp\": false,
-      \"upnp\": false,
-      \"random_port\": false,
-      \"bypass_local_auth\": true
-    }"
-  fi
+  interface_json="{
+    \"listen_port\": \"${INCOMING_PORT}\",
+    \"web_ui_upnp\": false,
+    \"upnp\": false,
+    \"random_port\": false,
+    \"current_network_interface\": \"${vpn_adapter_name}\",
+    \"current_interface_name\": \"${vpn_adapter_name}\",
+    \"bypass_local_auth\": true
+  }"
 
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
@@ -626,10 +624,6 @@ function qbittorrent_verify_incoming_port() {
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
-  if [[ -z "${INCOMING_PORT}" ]]; then
-    return 1
-  fi
-
   # identify protocol, used by curl to connect to api
   if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
       web_protocol="https"
@@ -641,14 +635,14 @@ function qbittorrent_verify_incoming_port() {
   preferences_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/preferences" 10 1 -k -s)
   current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
 
-  if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current ${APP_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
-  fi
-
   # Check if the port was retrieved successfully
   if [[ "${current_port}" == "null" || -z "${current_port}" ]]; then
       echo "[WARN] Unable to retrieve current port from ${APP_NAME} API"
       return 1
+  fi
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Current ${APP_NAME} listen port: '${current_port}', Expected: '${INCOMING_PORT}'"
   fi
 
   if [[ "${current_port}" == "${INCOMING_PORT}" ]]; then
@@ -787,6 +781,10 @@ Where:
     Define the polling delay in seconds between incoming port checks.
     Defaults to '${defaultPollDelay}'.
 
+  -msr or --max-startup-retries <number>
+    Define the maximum number of startup retries before executing application without VPN configuration.
+    Defaults to '${defaultMaxStartupRetries}'.
+
   --debug
     Define whether debug mode is enabled.
     Defaults to not set.
@@ -815,6 +813,8 @@ Environment Variables:
     Set to 'yes' to enable VPN port monitoring and application configuration.
   POLL_DELAY
     Set the polling delay in seconds between incoming port checks.
+  MAX_STARTUP_RETRIES
+    Set the maximum number of startup retries before executing application without VPN configuration.
   DEBUG
     Set to 'yes' to enable debug mode.
 Notes:
@@ -872,6 +872,10 @@ do
     ;;
   -pd|--poll-delay)
     POLL_DELAY="${2}"
+    shift
+    ;;
+  -msr|--max-startup-retries)
+    MAX_STARTUP_RETRIES="${2}"
     shift
     ;;
   --debug)

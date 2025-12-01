@@ -707,7 +707,7 @@ function curl_with_retry() {
 
 function get_vpn_adapter_name() {
 
-	local vpn_adapter_names="${1:-'tun.*|tap.*|wg.*'}"
+	local vpn_adapter_names="${1:-tun.*|tap.*|wg.*}"
 	shift
 
 	echo "[info] Identifying VPN adapter name..." >&2

@@ -55,9 +55,9 @@ function check_gluetun_cs_api() {
 		auth=""
 	fi
 
-	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1/vpn/status"
   if ! curl_with_retry "${control_server_url}" 10 1 -s ${auth}; then
-    echo "[WARN] Failed to connect to gluetun Control Server API 'http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1'"
+    echo "[WARN] Failed to connect to gluetun Control Server API 'http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1/vpn/status'"
 		return 1
 	else
     if [[ "${DEBUG}" == "yes" ]]; then

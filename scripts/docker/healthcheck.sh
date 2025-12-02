@@ -230,10 +230,10 @@ function healthcheck_command() {
 
 				if ! vpn_adapter_name=$(get_vpn_adapter_name); then
 					exit_code=1
-				fi
-
-				if ! get_vpn_ip_address "${vpn_adapter_name}"; then
-					exit_code=1
+				else
+					if ! get_vpn_ip_address "${vpn_adapter_name}"; then
+						exit_code=1
+					fi
 				fi
 
 			fi

@@ -231,7 +231,7 @@ function healthcheck_command() {
 				if ! vpn_adapter_name=$(get_vpn_adapter_name); then
 					exit_code=1
 				else
-					if ! get_vpn_adapter_ip_address "${vpn_adapter_name}"; then
+					if ! get_vpn_adapter_ip_address "${vpn_adapter_name}" >/dev/null; then
 						exit_code=1
 					fi
 				fi

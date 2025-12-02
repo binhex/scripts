@@ -256,7 +256,7 @@ function check(){
     return 1
   fi
 
-  if ! get_vpn_adapter_ip_address "${vpn_adapter_name}"; then
+  if ! get_vpn_adapter_ip_address "${vpn_adapter_name}" >/dev/null; then
     return 1
   fi
 

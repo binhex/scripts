@@ -276,7 +276,7 @@ function symlink() {
 			shlog 2 "Symlink to '${dst_path}' is broken, removing symlink..."
 			rm -rf "${dst_path}"
 		# if dst_path does not point to src_path then delete
-		else [[ "$(readlink -f "${dst_path}")" != "${src_path}" ]]
+		elif [[ "$(readlink -f "${dst_path}")" != "${src_path}" ]]; then
 			shlog 2 "'${dst_path}' does NOT link to '${src_path}', removing symlink..."
 			rm -rf "${dst_path}"
 		fi

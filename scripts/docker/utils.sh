@@ -723,7 +723,7 @@ function get_vpn_adapter_name() {
 
 }
 
-function check_vpn_adapter_ip_address() {
+function get_vpn_adapter_ip_address() {
 
 	local vpn_adapter_name="${1}"
 	shift

@@ -229,9 +229,11 @@ function healthcheck_command() {
 			if [[ "${GLUETUN_INCOMING_PORT}" == "yes" ]]; then
 
 				if ! vpn_adapter_name=$(get_vpn_adapter_name); then
+					echo "[warn] Could not determine VPN adapter name"
 					exit_code=1
 				else
 					if ! get_vpn_adapter_ip_address "${vpn_adapter_name}" >/dev/null; then
+						echo "[warn] Could not determine VPN adapter IP address"
 						exit_code=1
 					fi
 				fi

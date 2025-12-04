@@ -235,7 +235,7 @@ function restart_vpn_connection() {
       \"status\": \"${vpn_desired_state}\"
     }"
 
-    if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X PUT -d "json=${json}"; then
+    if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X PUT -H "Content-Type: application/json" -d "${json}"; then
       echo "[ERROR] Failed to set VPN status to '${vpn_desired_state}'"
       return 1
     fi
@@ -871,7 +871,7 @@ do
     shift
     ;;
   -gip|--gluetun-incoming-port)
-    GLUETUN_INCOMING_PORT="${2,,}"
+    GLUETUN_INCOMING_PORT="${2}"
     shift
     ;;
   -pd|--poll-delay)

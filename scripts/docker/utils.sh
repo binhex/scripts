@@ -638,10 +638,10 @@ function process_env_var() {
 	else
 		# Variable is not defined
 		if [[ "${required}" == "true" ]]; then
-			echo "[error] ${var_name} not defined,(via -e ${var_name}), exiting script..." | ts '%Y-%m-%d %H:%M:%.S'
+			echo "[error] ${var_name} not defined via -e ${var_name}), exiting script..." | ts '%Y-%m-%d %H:%M:%.S'
 			exit 1
 		else
-			echo "[info] ${var_name} not defined,(via -e ${var_name}), defaulting to '${default_value}'" | ts '%Y-%m-%d %H:%M:%.S'
+			echo "[info] ${var_name} not defined (via -e ${var_name}), defaulting to '${default_value}'" | ts '%Y-%m-%d %H:%M:%.S'
 			export "${var_name}=${default_value}"
 		fi
 	fi

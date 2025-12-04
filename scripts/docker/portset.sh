@@ -7,8 +7,8 @@
 # 2. Ensure the application running this script is sharing the gluetun container's network.
 
 # script name and path
-readonly ourScriptName="$(basename -- "$0")"
-readonly ourScriptVersion="v1.0.0"
+ourScriptName="$(basename -- "$0")"
+ourScriptVersion="v1.0.0"
 
 # default values
 readonly defaultImageBuildFilepath="/etc/image-build-info"
@@ -161,12 +161,16 @@ function get_incoming_port() {
     portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s ${auth})
   fi
 
-  if [[ -z "${portforward_response}" ]]; then
+  if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
     echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
     return 1
   else
     # parse results
     INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
+    if [[ -z "${INCOMING_PORT}" || "${INCOMING_PORT}" == "null" ]]; then
+      echo "[WARN] No incoming port found in gluetun Control Server port forward response"
+      return 1
+    fi
     if [[ "${DEBUG}" == "yes" ]]; then
       echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
     fi

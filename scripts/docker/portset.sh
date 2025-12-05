@@ -250,6 +250,10 @@ function restart_vpn_connection() {
 
 function check(){
 
+  if ! check_gluetun_cs_api; then
+    return 1
+  fi
+
   if ! get_incoming_port; then
     return 1
   fi
@@ -259,10 +263,6 @@ function check(){
   fi
 
   if ! get_vpn_adapter_ip_address "${vpn_adapter_name}" >/dev/null; then
-    return 1
-  fi
-
-  if ! check_gluetun_cs_api; then
     return 1
   fi
 

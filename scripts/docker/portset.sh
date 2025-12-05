@@ -156,24 +156,22 @@ function get_incoming_port() {
 
   # Get port forward information from gluetun Control Server
   portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s ${auth})
-
   if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
     portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s ${auth})
-  fi
-
-  if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
-    echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
-    return 1
-  else
-    # parse results
-    INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
-    if [[ -z "${INCOMING_PORT}" || "${INCOMING_PORT}" == "null" ]]; then
-      echo "[WARN] No incoming port found in gluetun Control Server port forward response"
+    if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
+      echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
       return 1
     fi
-    if [[ "${DEBUG}" == "yes" ]]; then
-      echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
-    fi
+  fi
+
+  # parse results
+  INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
+  if [[ -z "${INCOMING_PORT}" || "${INCOMING_PORT}" == "null" ]]; then
+    echo "[WARN] No incoming port found in gluetun Control Server port forward response"
+    return 1
+  fi
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
   fi
 
   # Get public ip and location information from gluetun Control Server

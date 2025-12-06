@@ -7,132 +7,122 @@ readonly ourScriptVersion="v2.0.0"
 
 # set defaults
 readonly defaultConfirm='yes'
-readonly defaultNumBlocks="20000"
-readonly defaultDestructiveTest='no'
-readonly defaultTestPattern='0x00'
 readonly defaultLogLevel='info'
+readonly defaultVerifyWipe='no'
 
 CONFIRM="${defaultConfirm}"
-NUM_BLOCKS="${defaultNumBlocks}"
-DESTRUCTIVE_TEST="${defaultDestructiveTest}"
-TEST_PATTERN="${defaultTestPattern}"
 LOG_LEVEL="${defaultLogLevel}"
+VERIFY_WIPE="${defaultVerifyWipe}"
+
+# Global variable for cleanup
+CURRENT_DISK_SERIAL=""
+
+# Trap to ensure cleanup on exit, interrupt, or suspend
+trap 'cleanup_and_exit' EXIT INT TERM TSTP
+
+function cleanup_and_exit() {
+  if [[ -n "${CURRENT_DISK_SERIAL}" ]]; then
+    logger info "Cleaning up: removing disk serial '${CURRENT_DISK_SERIAL}' from in-progress file..."
+    remove_serial_from_in_progress_filepath "${CURRENT_DISK_SERIAL}"
+  fi
+}
 
 # TODO check if percentage notification works
 
 # Logger function
 function logger() {
 
-    local message_log_level=$1
-    shift
-    local log_message="$*"
+  local message_log_level=$1
+  shift
+  local log_message="$*"
 
-    # Get the current timestamp
-    local timestamp
-    timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  # Get the current timestamp
+  local timestamp
+  timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
-    # Map log levels to numeric values
-    local log_levels
-    declare -A log_levels
-    log_levels=(["debug"]=0 ["info"]=1 ["warn"]=2 ["error"]=3 ["critical"]=4)
+  # Map log levels to numeric values
+  local log_levels
+  declare -A log_levels
+  log_levels=(["debug"]=0 ["info"]=1 ["warn"]=2 ["error"]=3 ["critical"]=4)
 
-    # Determine the numeric value of the message log level and the configured log level
-    local message_log_level_num=${log_levels[${message_log_level}]}
-    local configured_log_level_num=${log_levels[${LOG_LEVEL}]}
+  # Determine the numeric value of the message log level and the configured log level
+  local message_log_level_num=${log_levels[${message_log_level}]}
+  local configured_log_level_num=${log_levels[${LOG_LEVEL}]}
 
-    # Only log messages that match or exceed the configured log level
-    if [[ ${message_log_level_num} -ge ${configured_log_level_num} ]]; then
-        echo "[$timestamp] [${message_log_level,,}] $log_message"
-    fi
+  # Only log messages that match or exceed the configured log level
+  if [[ ${message_log_level_num} -ge ${configured_log_level_num} ]]; then
+    echo "[$timestamp] [${message_log_level,,}] $log_message"
+  fi
 }
 
 function check_prereqs() {
 
-    logger info "Checking we have all required parameters before running..."
+  logger info "Checking we have all required parameters before running..."
 
-    if [[ -z "${ACTION}" ]]; then
-        logger warn "Action not defined via parameter -a or --action, displaying help..."
-        echo ""
-        show_help
-        exit 1
+  if [[ -z "${ACTION}" ]]; then
+    logger warn "Action not defined via parameter -a or --action, displaying help..."
+    echo ""
+    show_help
+    exit 1
+  fi
+
+  if [[ "${ACTION}" != 'list' && "${ACTION}" != 'test-shred' ]]; then
+    logger warn "Action defined via -a or --action does not match 'test-shred' or 'list', displaying help..."
+    echo ""
+    show_help
+    exit 2
+  fi
+
+  if [[ "${NOTIFY_SERVICE}" == 'ntfy' && -z "${NTFY_TOPIC}" ]]; then
+    logger warn "Notify Service defined as 'ntfy', but no topic spcified via -nt or --ntfy-topic, displaying help..."
+    echo ""
+    show_help
+    exit 5
+  fi
+
+  logger info "All required parameters are defined"
+
+  logger info "Checking we have all required tooling before running..."
+
+  tools="smartctl grep sed shred cmp cryptsetup"
+  for i in ${tools}; do
+    if ! command -v "${i}" > /dev/null 2>&1; then
+      logger error "Required tool '${i}' is missing, please install and re-run the script, exiting..."
+      exit 4
     fi
-
-    if [[ "${ACTION}" != 'test' && "${ACTION}" != 'list' && "${ACTION}" != 'check-smart' ]]; then
-        logger warn "Action defined via -a or --action does not match 'test', 'list', or 'check-smart', displaying help..."
-        echo ""
-        show_help
-        exit 2
-    fi
-
-    if [[ "${ACTION}" == 'check-smart' ]]; then
-        if [[ -z "${DRIVE_NAME}" ]]; then
-            logger warn "Drive name not defined via parameter -dn or --drive-name, displaying help..."
-            echo ""
-            show_help
-            exit 3
-        fi
-
-        if [[ "${DESTRUCTIVE_TEST}" == 'no' ]]; then
-            if [[ "${#TEST_PATTERN}" -gt 4 ]]; then
-                logger warn "Non destructive tests only supports a single test pattern via -tp or --test-pattern, displaying help..."
-                echo ""
-                show_help
-                exit 4
-            fi
-        fi
-
-    fi
-
-    if [[ "${NOTIFY_SERVICE}" == 'ntfy' && -z "${NTFY_TOPIC}" ]]; then
-        logger warn "Notify Service defined as 'ntfy', but no topic spcified via -nt or --ntfy-topic, displaying help..."
-        echo ""
-        show_help
-        exit 5
-    fi
-
-    logger info "All required parameters are defined"
-
-    logger info "Checking we have all required tooling before running..."
-
-    tools="smartctl badblocks blockdev grep sed"
-    for i in ${tools}; do
-        if ! command -v "${i}" > /dev/null 2>&1; then
-            logger error "Required tool '${i}' is missing, please install and re-run the script, exiting..."
-            exit 4
-        fi
-    done
-    logger info "All required tools are available"
+  done
+  logger info "All required tools are available"
 }
 
 function get_disk_name_and_serial() {
 
-    local disk_name_and_serial_filtered_disks_list
+  local disk_name_and_serial_filtered_disks_list
 
-    # get name e.g. sda, sdb,... and serial number for each disk, filtering out loop*, md*, and nvme devices
-    # use comma to separate name and serial number and a single space to separate each disk
-    disk_name_and_serial_filtered_disks_list=$(lsblk --nodeps -no name,serial | tr -s '[:blank:]' ',' | grep -v '^loop*' | grep -v '^nvme*' | grep -v '^md*' | xargs)
-    echo "${disk_name_and_serial_filtered_disks_list}"
+  # get name e.g. sda, sdb,... and serial number for each disk, filtering out loop*, md*, and nvme devices
+  # use comma to separate name and serial number and a single space to separate each disk
+  disk_name_and_serial_filtered_disks_list=$(lsblk --nodeps -no name,serial | tr -s '[:blank:]' ',' | grep -v '^loop*' | grep -v '^nvme*' | grep -v '^md*' | xargs)
+  echo "${disk_name_and_serial_filtered_disks_list}"
 }
 
 function filter_disks_not_in_scope() {
 
-    local disk_name="${1}"
+  local disk_name="${1}"
 
-    # if we cannot determine smart info then its unlikely to be a spinning disk
-    if ! smartctl -a "/dev/${disk_name}" > /dev/null 2>&1; then
-        return 0
-    fi
+  # if we cannot determine smart info then its unlikely to be a spinning disk
+  if ! smartctl -a "/dev/${disk_name}" > /dev/null 2>&1; then
+    return 0
+  fi
 
-    # filter out non spinning disks, such as ssd's
-    if smartctl -a "/dev/${disk_name}" | grep -P -q -o -m 1 '^Device Model\:.*SSD'; then
-        return 0
-    fi
+  # filter out non spinning disks, such as ssd's
+  if smartctl -a "/dev/${disk_name}" | grep -P -q -o -m 1 '^Device Model\:.*SSD'; then
+    return 0
+  fi
 
-    # filter out any disks being already processed
-    if read_serial_from_in_progress_filepath "${disk_serial}"; then
-        return 0
-    fi
-    return 1
+  # filter out any disks being already processed
+  if read_serial_from_in_progress_filepath "${disk_serial}"; then
+    return 0
+  fi
+  return 1
 }
 
 function find_all_disks_not_in_array() {
@@ -170,241 +160,249 @@ function find_all_disks_not_in_array() {
 
 function read_serial_from_in_progress_filepath() {
 
-    # construct required filepaths
-    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+# construct required filepaths
+  local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
 
-    # filter out any disks being already processed
-    if [ -f "${in_progress_filepath}" ]; then
-        if grep -P -o -q -m 1 "${disk_serial}" < "${in_progress_filepath}"; then
-            return 0
-        fi
+  # filter out any disks being already processed
+  if [ -f "${in_progress_filepath}" ]; then
+    if grep -P -o -q -m 1 "${disk_serial}" < "${in_progress_filepath}"; then
+      return 0
     fi
-    return 1
+  fi
+  return 1
 }
 
 function add_serial_to_in_progress_filepath() {
 
-    local disk_serial="${1}"
+  local disk_serial="${1}"
 
-    # construct required filepaths
-    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+  # construct required filepaths
+  local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
 
-    if [[ -z "${disk_serial}" ]]; then
-        logger warn "disk_serial is empty or undefined. Cannot add serial to in-progress file."
-        return 1
-    fi
+  if [[ -z "${disk_serial}" ]]; then
+    logger warn "disk_serial is empty or undefined. Cannot add serial to in-progress file."
+    return 1
+  fi
 
-    echo "${disk_serial}" >> "${in_progress_filepath}"
+  echo "${disk_serial}" >> "${in_progress_filepath}"
 }
 
 function remove_serial_from_in_progress_filepath() {
 
-    local disk_serial="${1}"
+  local disk_serial="${1}"
 
-    if [[ -z "${disk_serial}" ]]; then
-        logger warn "disk_serial is empty or undefined. Cannot remove serial from in-progress file."
-        return 1
-    fi
+  if [[ -z "${disk_serial}" ]]; then
+    logger warn "disk_serial is empty or undefined. Cannot remove serial from in-progress file."
+    return 1
+  fi
 
-    # construct required filepaths
-    local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
+  # construct required filepaths
+  local in_progress_filepath="/tmp/${ourFriendlyScriptName}"
 
-    # Remove the line containing the disk serial
-    sed -i "/${disk_serial}/d" "${in_progress_filepath}"
+  # Remove the line containing the disk serial
+  sed -i "/${disk_serial}/d" "${in_progress_filepath}"
 
-    # Remove any empty lines
-    sed -i '/^$/d' "${in_progress_filepath}"
+  # Remove any empty lines
+  sed -i '/^$/d' "${in_progress_filepath}"
 }
 
 function check_smart_attributes() {
 
-    local disk="${1}"
-    local smart_attributes_monitor_list="UDMA_CRC_Error_Count Reallocated_Event_Count Reallocated_Sector_Ct Current_Pending_Sector"
-    local smart_attribute_value
+  local disk_name="${1}"
+  shift
 
-    for i in ${smart_attributes_monitor_list}; do
-        # Get the SMART attribute value
-        smart_attribute_value=$(smartctl -a "/dev/${disk}" | grep "${i}" | rev | cut -d ' ' -f1)
+  local smart_attributes_monitor_list="UDMA_CRC_Error_Count Reallocated_Event_Count Reallocated_Sector_Ct Current_Pending_Sector"
+  local smart_attribute_value
 
-        # Skip if the attribute is not found
-        if [[ -z "${smart_attribute_value}" ]]; then
-            logger warn "S.M.A.R.T. attribute '${i}' not found for disk '/dev/${disk}', skipping..."
-            continue
-        fi
+  for i in ${smart_attributes_monitor_list}; do
+    # Get the SMART attribute value
+    smart_attribute_value=$(smartctl -a "/dev/${disk_name}" | grep "${i}" | rev | cut -d ' ' -f1)
 
-        # Check if the SMART attribute value is non-zero
-        if [[ "${smart_attribute_value}" != 0 ]]; then
-            if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
-                logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue"
-                if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
-                fi
-            else
-                logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk"
-                if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                    ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk '${disk}', this indicates a failing disk" "${NTFY_TOPIC}"
-                fi
-                return 1
-            fi
-        fi
-    done
-
-    logger info "S.M.A.R.T. attributes for disk '/dev/${disk}' all passed"
-    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[PASSED] S.M.A.R.T. attributes for disk '/dev/${disk}' all passed" "${NTFY_TOPIC}"
+    # Skip if the attribute is not found
+    if [[ -z "${smart_attribute_value}" ]]; then
+      logger warn "S.M.A.R.T. attribute '${i}' not found for disk_name '/dev/${disk_name}', skipping..."
+      continue
     fi
-    return 0
+
+    # Check if the SMART attribute value is non-zero
+    if [[ "${smart_attribute_value}" != 0 ]]; then
+      if [[ "${i}" == "UDMA_CRC_Error_Count" ]]; then
+        logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk name '${disk_name}', this normally indicates a cabling/power issue"
+        if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+          ntfy "[WARN] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk name '${disk_name}', this normally indicates a cabling/power issue" "${NTFY_TOPIC}"
+        fi
+      else
+        logger warn "S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk name '${disk_name}', this indicates a FAILING DISK"
+        if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+          ntfy "[FAILED] S.M.A.R.T. attribute '${i}' has value '${smart_attribute_value}' for disk name '${disk_name}', this indicates a FAILING DISK" "${NTFY_TOPIC}"
+        fi
+        return 1
+      fi
+    fi
+  done
+
+  logger info "S.M.A.R.T. attributes for disk name '/dev/${disk_name}' ALL PASSED"
+  if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+    ntfy "[PASSED] S.M.A.R.T. attributes for disk name '/dev/${disk_name}' ALL PASSED" "${NTFY_TOPIC}"
+  fi
+  return 0
 }
 
-function run_badblocks_test() {
+function run_shred_test() {
 
-    local disk_name="${1}"
-    shift
-    local disk_serial="${1}"
+  local disk_name="${1}"
+  shift
+  local disk_serial="${1}"
+  shift
 
-    local temp_file
-    local block_size
-    local badblocks_destructive_test_flag
-    local confirm_drive
+  # Set global variable for cleanup trap
+  CURRENT_DISK_SERIAL="${disk_serial}"
 
-    temp_file=$(mktemp)
+  logger info "Running shred test for disk '/dev/${disk_name}' started at '$(date)'..."
 
-    if [[ "${DESTRUCTIVE_TEST}" == "yes" ]]; then
-        badblocks_destructive_test_flag="-w"
-    else
-        badblocks_destructive_test_flag=""
-    fi
+  add_serial_to_in_progress_filepath "${disk_serial}"
 
-    if [[ "${CONFIRM}" == "yes" ]]; then
-        echo -n "Please confirm you wish to perform a badblocks test on drive '/dev/${disk_name}' by typing 'YES': "
-        read -r confirm_drive
+  if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+    ntfy "[INFO] Running shred test for disk '/dev/${disk_name}' started at '$(date)'."
+  fi
 
-        if [[ "${confirm_drive}" != "YES" ]]; then
-            logger info "Bad user response '${confirm_drive}', exiting script..."
-            exit 1
+  # Span a crypto layer above the device:
+  echo "" | cryptsetup open "/dev/${disk_name}" "${disk_name}" --type plain --cipher aes-xts-plain64 --batch-mode
+
+  # Fill the now opened decrypted layer with zeroes, which get written as encrypted data:
+  # Track progress and send notifications at key milestones
+  local last_notified_milestone=0
+  shred -v -n 0 -z "/dev/mapper/${disk_name}" 2>&1 | while IFS= read -r line; do
+    # Log the shred progress line
+    logger info "Shred progress: ${line}"
+
+    # Extract percentage from shred output (e.g., "shred: /dev/mapper/sdb: pass 1/1 (000000)...1.1TiB/3.7TiB 30%")
+    if [[ "${line}" =~ ([0-9]+)%$ ]]; then
+      local current_percentage="${BASH_REMATCH[1]}"
+
+      # Check for milestone notifications (0%, 25%, 50%, 75%, 100%)
+      local milestone=0
+      if [[ "${current_percentage}" -eq 0 ]]; then
+        milestone=0
+      elif [[ "${current_percentage}" -ge 5 && "${last_notified_milestone}" -lt 5 ]]; then
+        milestone=25
+      elif [[ "${current_percentage}" -ge 10 && "${last_notified_milestone}" -lt 10 ]]; then
+        milestone=50
+      elif [[ "${current_percentage}" -ge 15 && "${last_notified_milestone}" -lt 15 ]]; then
+        milestone=75
+      elif [[ "${current_percentage}" -eq 100 ]]; then
+        milestone=100
+      fi
+
+      # Send notification if we hit a milestone
+      if [[ "${milestone}" -gt 0 && "${milestone}" -gt "${last_notified_milestone}" ]]; then
+        logger info "Shred progress milestone reached: ${milestone}% for disk '/dev/${disk_name}'"
+        if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+          ntfy "[INFO] Shred progress: ${milestone}% complete for disk '/dev/${disk_name}'"
         fi
+        last_notified_milestone="${milestone}"
+      fi
     fi
+  done
 
-    # get block size of disk
-    block_size=$(blockdev --getbsz "/dev/${disk_name}")
-
-    if [[ -z "${block_size}" ]]; then
-        logger error "Failed to get block size for disk '/dev/${disk_name}', exiting script..."
-        exit 1
+  if [[ "${VERIFY_WIPE}" == 'yes' ]]; then
+    # Compare fresh zeroes with the decrypted layer:
+    if ! cmp -b /dev/zero "/dev/mapper/${disk_name}"; then
+      logger error "Verification of wipe FAILED for disk '/dev/${disk_name}'"
+      if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[ERROR] Verification of wipe FAILED for disk '/dev/${disk_name}'."
+      fi
+      # Close the device
+      cryptsetup close "${disk_name}"
+      remove_serial_from_in_progress_filepath "${disk_serial}"
+      exit 1
+    else
+      logger info "Verification of wipe PASSED for disk '/dev/${disk_name}'"
+      if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[INFO] Verification of wipe PASSED for disk '/dev/${disk_name}'."
+      fi
     fi
+  fi
 
-    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[INFO] Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified"
-    fi
+  # Close the device
+  cryptsetup close "${disk_name}"
 
-    logger info "Running badblocks for disk '/dev/${disk_name}' started at '$(date)', this may take several days depending on the test pattern specified..."
+  if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+    ntfy "[INFO] Shred test finished for disk '/dev/${disk_name}' at '$(date)'."
+  fi
 
-    add_serial_to_in_progress_filepath "${disk_serial}"
+  logger info "Shred test finished for disk '/dev/${disk_name}' at '$(date)'."
 
-    # run badblocks and capture its output
-    #
-    # -b = Size of blocks in bytes.
-    # -c = Number of blocks which are tested at a time.
-    # -t = Test pattern to use.
-    # -s = Show the progress of the scan.
-    # -w = Use write-mode test.  With this option, badblocks scans for bad blocks by writing some patterns (0xaa, 0x55, 0xff, 0x00) on every block of the device, reading every block and comparing the contents.
-    # -v = Verbose mode.
-    badblocks \
-        -s \
-        -v \
-        -b "${block_size}" \
-        -c "${NUM_BLOCKS}" \
-        -t "${TEST_PATTERN}" \
-        "${badblocks_destructive_test_flag}" \
-        "/dev/${disk_name}" 2>&1 | tee "${temp_file}"
-        while read -r line; do
-            echo "${line}"
-            # Check for the specific error message
-            if [[ "${line}" == *"badblocks: invalid last block"* ]]; then
-                logger error "badblocks encountered an error: 'invalid last block', possible faulty drive, displaying S.M.A.R.T. before exiting script..."
-                smartctl -a "/dev/${disk_name}"
-                exit 1
-            fi
-            # Extract the percentage from the output
-            if [[ "${line}" =~ ([0-9]+\.[0-9]+)% ]]; then
-                progress=${BASH_REMATCH[1]%%.*}  # Get the integer part of the percentage
-                case "${progress}" in
-                    0|25|50|75|100)
-                        logger info "Progress: ${progress}% completed for disk '/dev/${disk_name}'"
-                        if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-                            ntfy "[INFO] Progress: ${progress}% completed for disk '/dev/${disk_name}'"
-                        fi
-                        ;;
-                esac
-            fi
-        done < "${temp_file}"
-        rm -f "${temp_file}"
+  remove_serial_from_in_progress_filepath "${disk_serial}"
 
-    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[INFO] badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
-    fi
-
-    logger info "badblocks finished for disk '/dev/${disk_name}' at '$(date)'."
-
-    remove_serial_from_in_progress_filepath "${disk_serial}"
+  # Clear global variable since we're done
+  CURRENT_DISK_SERIAL=""
 
 }
 
 function ntfy() {
 
-    local message="${1}"
-    curl -s -d "[${ourFriendlyScriptName}] ${message}" "ntfy.sh/${NTFY_TOPIC}" &> /dev/null
+  local message="${1}"
+  curl -s -d "[${ourFriendlyScriptName}] ${message}" "ntfy.sh/${NTFY_TOPIC}" &> /dev/null
 }
 
 function main() {
 
-    local DISKS_NOT_IN_ARRAY_ARRAY
-    local disk_name
-    local disk_serial
-    local disk_entry
+  local disk_name
+  local disk_serial
+  local disk_entry
 
-    logger info "Script '${ourScriptName}' started at '$(date)'"
+  logger info "Script '${ourScriptName}' started at '$(date)'"
 
-    check_prereqs
+  check_prereqs
 
-    find_all_disks_not_in_array
+  find_all_disks_not_in_array
 
-    if [[ -z "${DISKS_NOT_IN_ARRAY_ARRAY}" ]]; then
-        logger info "No disks found that are not in the array, exiting script..."
-        exit 0
+  if [[ -z "${DISKS_NOT_IN_ARRAY_ARRAY}" ]]; then
+    logger info "No disks found that are not in the array, exiting script..."
+    exit 0
+  fi
+
+  if [[ "${ACTION}" == 'list' ]]; then
+    logger info "Disks listed above are NOT in the array (candidates for testing), operation complete for 'list' action, exiting script..."
+    return 0
+  fi
+
+  for disk_entry in "${DISKS_NOT_IN_ARRAY_ARRAY[@]}"; do
+
+    disk_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
+    disk_serial=$(echo "${disk_entry}" | cut -d ',' -f 2)
+
+    # Run smartctl -i on the device
+    logger info "Displaying S.M.A.R.T. information for device '/dev/${disk_name}'..."
+    smartctl -i "/dev/${disk_name}"
+
+    if [[ "${CONFIRM}" == "yes" ]]; then
+      echo -n "Please confirm you wish to perform a DESTRUCTIVE test on drive '/dev/${disk_name}' by typing 'YES': "
+      read -r confirm_drive
+
+      if [[ "${confirm_drive}" != "YES" ]]; then
+        logger info "Bad user response '${confirm_drive}', exiting script..."
+        exit 1
+      fi
     fi
 
-    for disk_entry in "${DISKS_NOT_IN_ARRAY_ARRAY[@]}"; do
+    logger info "Disks NOT in the array (candidates for testing) are '${disk_name}'"
 
-        disk_name=$(echo "${disk_entry}" | cut -d ',' -f 1)
-        disk_serial=$(echo "${disk_entry}" | cut -d ',' -f 2)
+    if [[ "${ACTION}" == 'test-shred' ]]; then
+      run_shred_test "${disk_name}" "${disk_serial}"
+      check_smart_attributes "${disk_name}"
+    fi
 
-        if [[ "${ACTION}" == 'list' || "${ACTION}" == 'test' ]]; then
-            logger info "Disks NOT in the array (candidates for testing) are '${disk_name}'"
+  done
 
-            # Run smartctl -i on the device
-            logger info "Displaying S.M.A.R.T. information for device '/dev/${disk_name}'..."
-            smartctl -i "/dev/${disk_name}"
-
-        fi
-
-        if [[ "${ACTION}" == 'test' ]]; then
-                run_badblocks_test "${disk_name}" "${disk_serial}"
-        fi
-
-        if [[ "${ACTION}" == 'check-smart' || "${ACTION}" == 'test' ]]; then
-            check_smart_attributes "${disk_name}"
-        fi
-
-    done
-
-    logger info "Script '${ourScriptName}' has finished at '$(date)'"
+  logger info "Script '${ourScriptName}' has finished at '$(date)'"
 }
 
 function show_help() {
-    cat <<ENDHELP
+  cat <<ENDHELP
 Description:
-    A simple bash script to test disks using badblocks prior to including in an UNRAID array.
+    A simple bash script to test disks using shred prior to including in an UNRAID array.
     ${ourScriptName} ${ourScriptVersion} - Created by binhex.
 
 Syntax:
@@ -414,29 +412,21 @@ Where:
     -h or --help
         Displays this text.
 
-    -a or --action <list|test|check-smart>
-        Define whether to list drives for testing, run badblocks, or check smart attributes.
-        No default.
-
-    -dn or --drive-name <drive name to test>
-        Define the drive name to test.
+    -a or --action <list|test-shred>
+        Define whether to list drives for testing, test using shred.
         No default.
 
     -c or --confirm <yes|no>
         Define whether to confirm destructive testing.
         Defaults to '${defaultConfirm}'.
 
-    -nb or --num-blocks <integer>
-        Define the number of blocks to test at a time for Badblocks - See Note ****
-        Defaults to '${defaultNumBlocks}'.
+    -c or --confirm <yes|no>
+        Define whether to confirm destructive testing.
+        Defaults to '${defaultConfirm}'.
 
-    -dt or --destructive-test <yes|no>
-        Define whether to perform destructive tests for Badblocks - See Note *
-        Defaults to '${defaultDestructiveTest}'.
-
-    -tp or --test-pattern <0xaa 0x55 0xff 0x00>
-        Define the test pattern(s) to perform, space seperated - See Note ** ***
-        Defaults to '${defaultTestPattern}'.
+    --vw or --verify-wipe <yes|no>
+        Define whether to verify the wipe after running shred.
+        Defaults to '${defaultVerifyWipe}'.
 
     -ns or --notify-service <ntfy>
         Define the service used to notify the user when a test has been started or completed.
@@ -451,91 +441,69 @@ Where:
         Defaults to '${defaultLogLevel}'.
 
 Examples:
-    Check S.M.A.R.T. attributes for a specific drive:
-        ./${ourScriptName} --action 'check-smart' --drive-name 'sdX'
-
     List drives not in the UNRAID array, candidates for testing:
         ./${ourScriptName} --action 'list'
 
-    Check S.M.A.R.T. attributes for failure:
-        ./${ourScriptName} --action 'check-smart' --drive-name 'sdX'
+    Test drive sdX with shred:
+        ./${ourScriptName} --action 'test-shred'
 
-    Test drive sdX with confirmation prompt, running a destructive test for all test patterns with debug logging:
-        ./${ourScriptName} --action 'test' --destructive-test 'yes' --log-level 'debug'
+    Test drive sdX with confirmation prompt, running shred with debug logging:
+        ./${ourScriptName} --action 'test-shred' --log-level 'debug'
 
-    Test drive sdX with confirmation prompt, running a destructive test with notify and specifying number of blocks (recommended):
-        ./${ourScriptName} --action 'test' --destructive-test 'yes' --notify-service 'ntfy' --ntfy-topic 'my_topic'
+    Test drive sdX with confirmation prompt, running shred with notify (recommended):
+        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic'
 
-    Test drive sdX with confirmation prompt, running a destructive test for 2 test patterns and sending push notifications to ntfy:
-        ./${ourScriptName} --action 'test' --destructive-test 'yes' --test-pattern '0xaa 0x00' --notify-service 'ntfy' --ntfy-topic 'my_topic'
+    Test drive sdX with confirmation prompt, running shred and then verifying the wipe with notify:
+        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --verify-wipe 'yes' --ntfy-topic 'my-topic'
 
-    Test drive sdX for a non-destructive test with test pattern 0xff:
-        ./${ourScriptName} --action 'test' --destructive-test 'no' --test-pattern '0xff'
-
-    Test drive sdX with no confirmation prompt, number of blocks to process at a time set to 10000, running a destructive test for specific test patterns:
-        ./${ourScriptName} --action 'test' --confirm 'no' --num-blocks '10000' --destructive-test 'yes' --test-pattern '0xaa 0xff 0x00'
-
+    Test drive sdX with no confirmation prompt, running shred:
+        ./${ourScriptName} --action 'test-shred' --confirm 'no'
 Notes:
-    *  Non-destructive tests will result in longer process times.
-    ** If -dt or --destructive-test is set to 'yes' then only a single pattern can be specified.
-    *** Each badblocks pattern will take approximately 2 days to complete.
-    **** Ensure to specify the number of blocks for optimal performance.
+    shred typically takes around 36 hours for a 18TB drive (connected via USB 3.0) to complete.
 
 ENDHELP
 }
 
 while [ "$#" != "0" ]
 do
-    case "$1"
-    in
-        -a|--action)
-            ACTION=$2
-            shift
-            ;;
-        -dn|--drive-name)
-            DRIVE_NAME=$2
-            shift
-            ;;
-        -c|--confirm)
-            CONFIRM=$2
-            shift
-            ;;
-        -bs| --num-blocks)
-            NUM_BLOCKS=$2
-            shift
-            ;;
-        -dt| --destructive-test)
-            DESTRUCTIVE_TEST=$2
-            shift
-            ;;
-        -tp| --test-pattern)
-            TEST_PATTERN=$2
-            shift
-            ;;
-        -ns| --notify-service)
-            NOTIFY_SERVICE=$2
-            shift
-            ;;
-        -nt| --ntfy-topic)
-            NTFY_TOPIC=$2
-            shift
-            ;;
-        -ll|--log-level)
-            LOG_LEVEL=$2
-            shift
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
-            echo ""
-            show_help
-            exit 1
-            ;;
-    esac
-    shift
+  case "$1"
+  in
+    -a|--action)
+      ACTION=$2
+      shift
+      ;;
+    -c|--confirm)
+      CONFIRM=$2
+      shift
+      ;;
+    --vw|--verify-wipe)
+      VERIFY_WIPE=$2
+      shift
+      ;;
+    -ns|--notify-service)
+      NOTIFY_SERVICE=$2
+      shift
+      ;;
+    -nt|--ntfy-topic)
+      NTFY_TOPIC=$2
+      shift
+      ;;
+    -ll|--log-level)
+      LOG_LEVEL=$2
+      shift
+      ;;
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    *)
+      echo "[WARN] Unrecognised argument '$1', displaying help..." >&2
+      echo ""
+      show_help
+      exit 1
+      ;;
+  esac
+  shift
 done
 
 # run main function

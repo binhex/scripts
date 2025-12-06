@@ -189,7 +189,7 @@ function healthcheck_command() {
 	# source in curl_with_retry function and vpn ip and adapter name functions
 	source utils.sh
 
-	if [[ "${ENABLE_HEALTHCHECK}" != "yes" ]]; then
+	if [[ "${ENABLE_HEALTHCHECK,,}" != "yes" ]]; then
 		echo "[info] Healthchecks are disabled via env var 'ENABLE_HEALTHCHECK', exiting script with exit code '0'"
 		exit 0
 	fi

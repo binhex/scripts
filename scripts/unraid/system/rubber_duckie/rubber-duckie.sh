@@ -284,11 +284,11 @@ function run_shred_test() {
       local milestone=0
       if [[ "${current_percentage}" -eq 0 ]]; then
         milestone=0
-      elif [[ "${current_percentage}" -ge 5 && "${last_notified_milestone}" -lt 5 ]]; then
+      elif [[ "${current_percentage}" -ge 25 && "${last_notified_milestone}" -lt 25 ]]; then
         milestone=25
-      elif [[ "${current_percentage}" -ge 10 && "${last_notified_milestone}" -lt 10 ]]; then
+      elif [[ "${current_percentage}" -ge 50 && "${last_notified_milestone}" -lt 50 ]]; then
         milestone=50
-      elif [[ "${current_percentage}" -ge 15 && "${last_notified_milestone}" -lt 15 ]]; then
+      elif [[ "${current_percentage}" -ge 75 && "${last_notified_milestone}" -lt 75 ]]; then
         milestone=75
       elif [[ "${current_percentage}" -eq 100 ]]; then
         milestone=100

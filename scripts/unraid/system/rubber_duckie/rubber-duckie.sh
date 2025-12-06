@@ -21,6 +21,7 @@ CURRENT_DISK_SERIAL=""
 trap 'cleanup_and_exit' EXIT INT TERM TSTP
 
 function cleanup_and_exit() {
+  logger info "Script exiting, performing cleanup..."
   if [[ -n "${CURRENT_DISK_SERIAL}" ]]; then
     logger info "Cleaning up: removing disk serial '${CURRENT_DISK_SERIAL}' from in-progress file..."
     remove_serial_from_in_progress_filepath "${CURRENT_DISK_SERIAL}"

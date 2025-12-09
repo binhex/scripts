@@ -415,7 +415,7 @@ function main() {
     DISK_NAME=$(echo "${disk_entry}" | cut -d ',' -f 1)
     DISK_SERIAL=$(echo "${disk_entry}" | cut -d ',' -f 2)
 
-    logger info "Disk found not in the array: Serial: '${DISK_SERIAL}', Device Name: '/dev/${DISK_NAME}'"
+    logger info "Disk(s) found NOT in the array: Serial: '${DISK_SERIAL}', Device Name: '/dev/${DISK_NAME}'"
     logger info "Displaying S.M.A.R.T. information for device '/dev/${DISK_NAME}'..."
     smartctl -i "/dev/${DISK_NAME}"
 

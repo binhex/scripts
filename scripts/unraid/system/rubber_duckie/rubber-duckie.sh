@@ -26,7 +26,7 @@ trap 'signal_handler' INT TERM TSTP
 
 function cleanup() {
 
-  if [[ "${ACTION}" == 'test-shred' ]]; then
+  if [[ "${ACTION}" == 'test' ]]; then
     if [[ -n "${DISK_SERIAL}" ]]; then
       logger info "Cleaning up: removing disk serial '${DISK_SERIAL}' from in-progress file..."
       remove_serial_from_in_progress_filepath
@@ -108,8 +108,8 @@ function check_prereqs() {
     return 1
   fi
 
-  if [[ "${ACTION}" != 'list' && "${ACTION}" != 'test-shred' ]]; then
-    logger warn "Action defined via -a or --action does not match 'test-shred' or 'list', displaying help..."
+  if [[ "${ACTION}" != 'list' && "${ACTION}" != 'test' ]]; then
+    logger warn "Action defined via -a or --action does not match 'test' or 'list', displaying help..."
     echo ""
     show_help
     return 1
@@ -433,7 +433,7 @@ function main() {
       fi
     fi
 
-    if [[ "${ACTION}" == 'test-shred' ]]; then
+    if [[ "${ACTION}" == 'test' ]]; then
       if ! run_shred_test; then
         cleanup_and_exit 1
       fi
@@ -466,7 +466,7 @@ Where:
     -h or --help
         Displays this text.
 
-    -a or --action <list|test-shred>
+    -a or --action <list|test>
         Define whether to list drives for testing, test using shred.
         No default.
 
@@ -499,19 +499,19 @@ Examples:
         ./${ourScriptName} --action 'list'
 
     Test drive with confirmation prompt, running shred with a single pass (default):
-        ./${ourScriptName} --action 'test-shred'
+        ./${ourScriptName} --action 'test'
 
     Test drive with no confirmation prompt, running shred with a single pass (default):
-        ./${ourScriptName} --action 'test-shred' --confirm 'no'
+        ./${ourScriptName} --action 'test' --confirm 'no'
 
     Test drive with confirmation prompt, running shred with a single pass (default) and set logging to 'debug':
-        ./${ourScriptName} --action 'test-shred' --log-level 'debug'
+        ./${ourScriptName} --action 'test' --log-level 'debug'
 
     Test drive with confirmation prompt, running shred with a single pass (default), verify the wipe and send notification via ntfy (recommended):
-        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic' --verify-wipe 'yes'
+        ./${ourScriptName} --action 'test' --notify-service 'ntfy' --ntfy-topic 'my-topic' --verify-wipe 'yes'
 
     Test drive with confirmation prompt, running shred with 3 passes, verify the wipe and send notification via ntfy (long):
-        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic' --passes '3' --verify-wipe 'yes'
+        ./${ourScriptName} --action 'test' --notify-service 'ntfy' --ntfy-topic 'my-topic' --passes '3' --verify-wipe 'yes'
 
 Notes:
     shred typically takes around 36 hours for a 18TB drive for a single pass (connected via USB 3.0) to complete, if you enable verify-wipe this will add additional time.

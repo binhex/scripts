@@ -495,23 +495,23 @@ Where:
         Defaults to '${defaultLogLevel}'.
 
 Examples:
-    List drives not in the UNRAID array, candidates for testing:
+    List drive(s) not in the UNRAID array, candidates for testing:
         ./${ourScriptName} --action 'list'
 
-    Test drive sdX with shred:
+    Test drive with confirmation prompt, running shred with a single pass (default):
         ./${ourScriptName} --action 'test-shred'
 
-    Test drive sdX with confirmation prompt, running shred with debug logging:
+    Test drive with no confirmation prompt, running shred with a single pass (default):
+        ./${ourScriptName} --action 'test-shred' --confirm 'no'
+
+    Test drive with confirmation prompt, running shred with a single pass (default) and set logging to 'debug':
         ./${ourScriptName} --action 'test-shred' --log-level 'debug'
 
-    Test drive sdX with confirmation prompt, running shred with a single pass (default) with notification via ntfy (recommended):
-        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic'
+    Test drive with confirmation prompt, running shred with a single pass (default), verify the wipe and send notification via ntfy (recommended):
+        ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic' --verify-wipe 'yes'
 
-    Test drive sdX with confirmation prompt, running shred with 3 passes and verifying the wipe and with notification via ntfy (intensive):
+    Test drive with confirmation prompt, running shred with 3 passes, verify the wipe and send notification via ntfy (long):
         ./${ourScriptName} --action 'test-shred' --notify-service 'ntfy' --ntfy-topic 'my-topic' --passes '3' --verify-wipe 'yes'
-
-    Test drive sdX with no confirmation prompt, running shred:
-        ./${ourScriptName} --action 'test-shred' --confirm 'no'
 
 Notes:
     shred typically takes around 36 hours for a 18TB drive for a single pass (connected via USB 3.0) to complete, if you enable verify-wipe this will add additional time.

@@ -8,19 +8,17 @@ DOWNLOAD_PATH="${defaultDownloadPath}"
 
 function prereq() {
 
-	# check if gh cli tool exists
-	if ! command -v gh &> /dev/null; then
-		echo "[info] GitHub CLI 'gh' not found, installing..."
-		pacman -Sy --noconfirm
-		pacman -S github-cli --noconfirm
-	fi
+  echo "[info] Checking we have all required tooling before running..."
 
-	# check if git cli tool exists
-	if ! command -v git &> /dev/null; then
-		echo "[info] Git CLI 'git' not found, installing..."
-		pacman -Sy --noconfirm
-		pacman -S git --noconfirm
-	fi
+  tools="git sed jq"
+  for i in ${tools}; do
+    if ! command -v "${i}" > /dev/null 2>&1; then
+      echo "[warn] Required tool '${i}' is missing, please install and re-run the script"
+			pacman -Sy --noconfirm
+			pacman -S "${i}" --noconfirm
+    fi
+  done
+  echo "[info] All required tools are available"
 
 	if [[ -z "${DOWNLOAD_TYPE}" ]]; then
 		echo "[warn] GitHub download type not defined via parameter -dt or --download-type, displaying help..."
@@ -37,8 +35,8 @@ function prereq() {
 	fi
 
 	if [[ "${DOWNLOAD_TYPE}" == 'release' && "${RELEASE_TYPE}" == 'binary' ]]; then
-		if [[ -z "${ASSET_GLOB}" ]]; then
-			echo "[warn] Asset glob not defined via parameter -ag or --asset-glob, displaying help..."
+		if [[ -z "${ASSET_REGEX}" ]]; then
+			echo "[warn] Asset regex not defined via parameter -ar or --asset-regex, displaying help..."
 			echo ""
 			show_help
 			exit 1
@@ -63,17 +61,64 @@ function prereq() {
 
 function release_download() {
 
-	if [[ "${RELEASE_TYPE}" == 'binary' ]]; then
-		type_flag="--pattern ${ASSET_GLOB}"
-	elif [[ "${RELEASE_TYPE}" == 'source' ]]; then
-		type_flag="--archive tar.gz"
-	fi
+    mkdir -p "${DOWNLOAD_PATH}"
 
-	mkdir -p "${DOWNLOAD_PATH}"
-	# currently github cli 'gh' requires authentication to download assets from public repositories
-	# hoeever there is a hack/workaround for this that this script makes use of.
-	# detailed hack here: https://github.com/cli/cli/issues/2680#issuecomment-1345491083
-	GH_HOST=foobar gh release download -R "github.com/${GITHUB_OWNER}/${GITHUB_REPO}" --dir "${DOWNLOAD_PATH}" ${type_flag}
+    # if release name regex is provided, get multiple releases and filter them
+    if [[ -n "${RELEASE_NAME_REGEX}" ]]; then
+        echo "[info] Searching for releases matching regex: ${RELEASE_NAME_REGEX}"
+
+        # get list of releases with their tag names using GitHub API
+        release_list=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=50" | jq '[.[] | {name: .name, tagName: .tag_name, isPrerelease: .prerelease, isLatest: (.tag_name == "latest")}]')
+
+        # filter releases by name regex
+        matching_releases=$(jq -r --arg regex "${RELEASE_NAME_REGEX}" '.[] | select(.name | test($regex))' <<< "${release_list}")
+
+        if [[ -z "${matching_releases}" ]]; then
+            echo "[warn] No releases found matching regex '${RELEASE_NAME_REGEX}'"
+            return 1
+        fi
+
+        release_count=$(jq -s 'length' <<< "${matching_releases}")
+        echo "[info] Found ${release_count} matching release(s) '${RELEASE_NAME_REGEX}'"
+
+        # process each matching release
+        while IFS= read -r release; do
+            release_name=$(jq -r '.name' <<< "${release}")
+            release_tag=$(jq -r '.tagName' <<< "${release}")
+
+            echo "[info] Processing release: ${release_name} (tag: ${release_tag})"
+
+            if [[ "${RELEASE_TYPE}" == 'binary' ]]; then
+                # get assets for this release and download matching ones
+                assets=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tags/${release_tag}" | jq -r --arg pattern "${ASSET_REGEX}" '.assets[] | select(.name | test($pattern)) | .browser_download_url')
+                for asset_url in ${assets}; do
+                    echo "[info] Downloading asset: $(basename "${asset_url}")"
+                    curl -s -L -o "${DOWNLOAD_PATH}/$(basename "${asset_url}")" "${asset_url}"
+                done
+            elif [[ "${RELEASE_TYPE}" == 'source' ]]; then
+                # download source tarball
+                echo "[info] Downloading source tarball for ${release_tag}"
+                curl -s -L -o "${DOWNLOAD_PATH}/${GITHUB_REPO}-${release_tag}.tar.gz" "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/tarball/${release_tag}"
+            fi
+
+        done <<< "$(jq -c '.' <<< "${matching_releases}")"
+
+    else
+        # no regex provided, use original behavior (latest release only)
+        if [[ "${RELEASE_TYPE}" == 'binary' ]]; then
+            # get latest release and download matching assets
+            assets=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest" | jq -r --arg pattern "${ASSET_REGEX}" '.assets[] | select(.name | test($pattern)) | .browser_download_url')
+            for asset_url in ${assets}; do
+                echo "[info] Downloading asset: $(basename "${asset_url}")"
+                curl -s -L -o "${DOWNLOAD_PATH}/$(basename "${asset_url}")" "${asset_url}"
+            done
+        elif [[ "${RELEASE_TYPE}" == 'source' ]]; then
+            # get latest release tag and download source tarball
+            latest_tag=$(curl -s "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest" | jq -r '.tag_name')
+            echo "[info] Downloading source tarball for ${latest_tag}"
+            curl -s -L -o "${DOWNLOAD_PATH}/${GITHUB_REPO}-${latest_tag}.tar.gz" "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/tarball/${latest_tag}"
+        fi
+    fi
 
 }
 
@@ -106,8 +151,12 @@ Where:
 		Define whether to download the release binary or release source.
 		No default.
 
-	-ag or --asset-glob <glob pattern>
-		Define the asset glob pattern to download (only applies when --release-type is 'binary')
+	-ar or --asset-regex <regex pattern>
+		Define the asset regex pattern to download (only applies when --release-type is 'binary')
+		No default.
+
+	-rn or --release-name-regex <regex>
+		Define a regex pattern to match release names.
 		No default.
 
 	-go or --github-owner <owner>
@@ -120,7 +169,10 @@ Where:
 
 Examples:
 	GitHub release binary asset download:
-	./${ourScriptName} --github-owner zakkarry --github-repo deluge-ltconfig --download-type release --release-type binary --download-path /home/nobody --asset-glob '*.egg'
+	./${ourScriptName} --github-owner zakkarry --github-repo deluge-ltconfig --download-type release --release-type binary --download-path /home/nobody --asset-regex '.*egg$'
+
+	GitHub release binary asset download (matching specific release name):
+	./${ourScriptName} --github-owner Arihany --github-repo WinlatorWCPHub --download-type release --release-type binary --download-path /home/nobody --asset-regex '.*wcp$' --release-name-regex '^WOWBOX64$'
 
 	GitHub release source code asset download:
 	./${ourScriptName} --github-owner bitmagnet-io --github-repo bitmagnet --download-type release --release-type source --download-path /home/nobody
@@ -147,8 +199,12 @@ do
 			RELEASE_TYPE=$2
 			shift
 			;;
-		-ag|--asset-glob)
-			ASSET_GLOB=$2
+		-ar|--asset-regex)
+			ASSET_REGEX=$2
+			shift
+			;;
+		-rn|--release-name-regex)
+			RELEASE_NAME_REGEX=$2
 			shift
 			;;
 		-go|--github-owner)

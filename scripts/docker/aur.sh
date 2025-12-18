@@ -119,7 +119,8 @@ function compile_using_makepkg() {
 			echo "[warn] Failed to download tarball for package '${package}', ${retries_remaining} retries remaining, retrying in ${retry_delay} seconds..."
 			sleep ${retry_delay}
 		else
-			echo "[error] Failed to download tarball for package '${package}' after all retry attempts, exiting script..."
+			echo "[error] Failed to download tarball for package '${package}' after all retry attempts, displaying incomplete download and then exiting script..."
+			cat "${snapshots_path}/${package}.tar.gz"
 			exit 1
 		fi
 	done

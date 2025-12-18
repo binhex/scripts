@@ -13,7 +13,7 @@ retry="${defaultRetry}"
 retry_delay="${defaultRetryDelay}"
 max_time="${defaultMaxTime}"
 
-header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+user_agent="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
 
 function build_curl_command() {
 
@@ -50,8 +50,8 @@ function build_curl_command() {
 		curl_command="${curl_command} --retry-max-time ${retry_max_time}"
 	fi
 
-	if [[ "${curl_command}" != *"--header"* ]]; then
-		curl_command="${curl_command} --header '${header}'"
+	if [[ "${curl_command}" != *"--user-agent"* ]]; then
+		curl_command="${curl_command} --user-agent '${user_agent}'"
 	fi
 
 }

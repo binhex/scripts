@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # A simple bash script to build/install Arch AUR packages using makepkg or an AUR helper.
-
+set -x
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
 readonly ourScriptVersion="v1.0.0"

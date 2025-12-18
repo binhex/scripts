@@ -105,7 +105,7 @@ function compile_using_makepkg() {
 				echo "[warn] Failed to git clone from URL ${primary_url} for package ${package} from ${package_source_name}, error is '${stderr}'" >&2
 			fi
 		elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
-			if stderr=$(rcurl.sh --header '' -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}" 2>&1); then
+			if stderr=$(curl -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}" 2>&1); then
 				break
 			else
 				echo "[warn] Failed to download tarball for package '${package}' from ${package_source_name}, error is '${stderr}'" >&2

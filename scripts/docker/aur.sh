@@ -150,6 +150,7 @@ function compile_using_makepkg() {
 			echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
 		else
 			echo "[warn] makepkg failed for package '${package}'"
+			find /usr -name libLLVM*
 			exit 1
 		fi
 	else
@@ -253,7 +254,6 @@ function install_helper() {
 	done
 
 	echo "[error] All AUR helper installation attempts failed, exiting script..."
-	find /usr -name libLLVM*
 	exit 1
 
 }

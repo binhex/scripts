@@ -237,7 +237,7 @@ function process_package() {
 function install_helper() {
 
 	local install_flag="--install"
-	local helper_packages=('paru-bin' 'yay-bin')
+	local helper_packages=('paru-bin' 'paru')
 
 	# try each package in order until one succeeds
 	for helper_package in "${helper_packages[@]}"; do

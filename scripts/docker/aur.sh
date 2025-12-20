@@ -253,6 +253,7 @@ function install_helper() {
 	done
 
 	echo "[error] All AUR helper installation attempts failed, exiting script..."
+	find /usr -name libLLVM*
 	exit 1
 
 }

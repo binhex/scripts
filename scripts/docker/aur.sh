@@ -257,7 +257,7 @@ function install_helper() {
 function test_helper(){
 	local helper_package="${1}"
 	shift
-	local test_aur_package=' ttf-ms-fonts'
+	local test_aur_package='ttf-ms-fonts'
 
 	if paru -S "${test_aur_package}" --noconfirm; then
 		echo "[info] AUR helper package '${helper_package}' successfully installed test package '${test_aur_package}'"

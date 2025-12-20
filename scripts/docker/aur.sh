@@ -182,7 +182,7 @@ function compile_using_helper() {
 
 		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf --skippgpcheck' --noconfirm ${package_list}"; then
 			echo "[info] Successfully compiled and installed package(s) '${package_list}' on attempt ${attempt}"
-			break
+			return 0
 		else
 			retries_remaining=$((retries_remaining - 1))
 			attempt=$((attempt + 1))
@@ -190,8 +190,8 @@ function compile_using_helper() {
 				echo "[warn] Failed to compile package(s) '${package_list}', ${retries_remaining} retries remaining, retrying in ${retry_delay} seconds..."
 				sleep ${retry_delay}
 			else
-				echo "[error] Failed to compile package(s) '${package_list}' after all retry attempts, exiting..."
-				exit 1
+				echo "[error] Failed to compile package(s) '${package_list}' after all retry attempts"
+				return 1
 			fi
 		fi
 	done
@@ -244,7 +244,7 @@ function install_helper() {
 		echo "[info] Attempting to install AUR helper package '${helper_package}'..."
 		compile_using_makepkg "${helper_package}" "AUR" "${install_flag}"
 
-		if test_helper "${helper_package}"; then
+		if compile_using_helper; then
 			return 0
 		fi
 	done
@@ -252,22 +252,6 @@ function install_helper() {
 	echo "[error] All AUR helper installation attempts failed, exiting script..."
 	exit 1
 
-}
-
-function test_helper(){
-	local helper_package="${1}"
-	shift
-	local test_aur_package='ttf-ms-fonts'
-
-	if paru -S "${test_aur_package}" --noconfirm; then
-		echo "[info] AUR helper package '${helper_package}' successfully installed test package '${test_aur_package}'"
-		pacman -Rns "${test_aur_package}" --noconfirm
-		return 0
-	else
-		echo "[warn] AUR helper package '${helper_package}' failed to install test package '${test_aur_package}'" >&2
-		pacman -Rns "${helper_package}" --noconfirm
-		return 1
-	fi
 }
 
 function show_help() {

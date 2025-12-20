@@ -237,35 +237,37 @@ function process_package() {
 function install_helper() {
 
 	local install_flag="--install"
-	local packages=('paru-bin' 'paru')
-	local test_aur_package=' ttf-ms-fonts'
-
-	if command -v paru >/dev/null 2>&1; then
-		echo "[info] AUR helper is already installed"
-		return 0
-	fi
+	local helper_packages=('paru-bin' 'paru')
 
 	# try each package in order until one succeeds
-	for package in "${packages[@]}"; do
-		echo "[info] Attempting to install AUR helper package '${package}'..."
-		compile_using_makepkg "${package}" "AUR" "${install_flag}"
+	for helper_package in "${helper_packages[@]}"; do
+		echo "[info] Attempting to install AUR helper package '${helper_package}'..."
+		compile_using_makepkg "${helper_package}" "AUR" "${install_flag}"
 
-		if command -v paru >/dev/null 2>&1; then
-			if paru -S "${test_aur_package}" --noconfirm >/dev/null 2>&1; then
-				echo "[info] AUR helper '${package}' installed successfully"
-				return 0
-			else
-				echo "[warn] AUR helper package '${package}' installed but test package '${test_aur_package}' command failed" >&2
-				pacman -Rns "${package}" --noconfirm
-				continue
-			fi
+		if test_helper "${helper_package}"; then
+			return 0
 		fi
-		echo "[warn] AUR helper package '${package}' failed to install"
 	done
 
 	echo "[error] All AUR helper installation attempts failed, exiting script..."
 	exit 1
 
+}
+
+function test_helper(){
+	local helper_package="${1}"
+	shift
+	local test_aur_package=' ttf-ms-fonts'
+
+	if paru -S "${test_aur_package}" --noconfirm >/dev/null 2>&1; then
+		echo "[info] AUR helper package '${helper_package}' successfully installed test package '${test_aur_package}'"
+		pacman -Rns "${test_aur_package}" --noconfirm
+		return 0
+	else
+		echo "[warn] AUR helper package '${helper_package}' failed to install test package '${test_aur_package}'" >&2
+		pacman -Rns "${helper_package}" --noconfirm
+		return 1
+	fi
 }
 
 function show_help() {

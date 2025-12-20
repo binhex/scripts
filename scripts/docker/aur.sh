@@ -246,6 +246,9 @@ function install_helper() {
 
 		if compile_using_helper; then
 			return 0
+		else
+			echo "[warn] Failed to install AUR helper package '${helper_package}', trying next helper if available..."
+			pacman -R "${helper_package}" --noconfirm
 		fi
 	done
 

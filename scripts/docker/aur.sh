@@ -238,6 +238,7 @@ function install_helper() {
 
 	local install_flag="--install"
 	local packages=('paru-bin' 'paru')
+	local test_aur_package=' ttf-ms-fonts'
 
 	if command -v paru >/dev/null 2>&1; then
 		echo "[info] AUR helper is already installed"
@@ -250,8 +251,14 @@ function install_helper() {
 		compile_using_makepkg "${package}" "AUR" "${install_flag}"
 
 		if command -v paru >/dev/null 2>&1; then
-			echo "[info] AUR helper '${package}' installed successfully"
-			return 0
+			if paru -S "${test_aur_package}" --noconfirm >/dev/null 2>&1; then
+				echo "[info] AUR helper '${package}' installed successfully"
+				return 0
+			else
+				echo "[warn] AUR helper package '${package}' installed but test package '${test_aur_package}' command failed" >&2
+				pacman -Rns "${package}" --noconfirm
+				continue
+			fi
 		fi
 		echo "[warn] AUR helper package '${package}' failed to install"
 	done

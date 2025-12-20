@@ -259,7 +259,7 @@ function test_helper(){
 	shift
 	local test_aur_package=' ttf-ms-fonts'
 
-	if paru -S "${test_aur_package}" --noconfirm >/dev/null 2>&1; then
+	if paru -S "${test_aur_package}" --noconfirm; then
 		echo "[info] AUR helper package '${helper_package}' successfully installed test package '${test_aur_package}'"
 		pacman -Rns "${test_aur_package}" --noconfirm
 		return 0

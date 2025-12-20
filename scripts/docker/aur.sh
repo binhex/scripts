@@ -237,20 +237,27 @@ function process_package() {
 function install_helper() {
 
 	local install_flag="--install"
-	local package='paru-bin'
+	local packages=('paru-bin' 'paru')
 
 	if command -v paru >/dev/null 2>&1; then
 		echo "[info] AUR helper is already installed"
 		return 0
 	fi
 
-	# compile and install helper
-	compile_using_makepkg "${package}" "AUR" "${install_flag}"
+	# try each package in order until one succeeds
+	for package in "${packages[@]}"; do
+		echo "[info] Attempting to install AUR helper package '${package}'..."
+		compile_using_makepkg "${package}" "AUR" "${install_flag}"
 
-	if ! command -v paru >/dev/null 2>&1; then
-		echo "[info] AUR helper failed to install, exiting script..."
-		exit 1
-	fi
+		if command -v paru >/dev/null 2>&1; then
+			echo "[info] AUR helper '${package}' installed successfully"
+			return 0
+		fi
+		echo "[warn] AUR helper package '${package}' failed to install"
+	done
+
+	echo "[error] All AUR helper installation attempts failed, exiting script..."
+	exit 1
 
 }
 

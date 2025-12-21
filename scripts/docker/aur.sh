@@ -150,7 +150,6 @@ function compile_using_makepkg() {
 			echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
 		else
 			echo "[warn] makepkg failed for package '${package}'"
-			find /usr -name libLLVM*
 			exit 1
 		fi
 	else
@@ -199,43 +198,7 @@ function compile_using_helper() {
 
 }
 
-function process_package() {
-
-	local install_flag=""
-	local package
-
-	# set install flag if required
-	if [[ "${INSTALL_PACKAGE}" == "true" ]]; then
-		install_flag='--install'
-	fi
-
-	# process AUR packages if defined
-	if [[ -n "${AUR_PACKAGE}" ]]; then
-		echo "[info] Processing AUR packages..."
-		# convert comma-separated list to array
-		IFS=',' read -ra AUR_PACKAGE_ARRAY <<< "${AUR_PACKAGE}"
-
-		# loop through each AUR package
-		for package in "${AUR_PACKAGE_ARRAY[@]}"; do
-			compile_using_makepkg "${package}" "AUR" "${install_flag}"
-		done
-	fi
-
-	# process AOR packages if defined
-	if [[ -n "${AOR_PACKAGE}" ]]; then
-		echo "[info] Processing AOR packages..."
-		# convert comma-separated list to array
-		IFS=',' read -ra AOR_PACKAGE_ARRAY <<< "${AOR_PACKAGE}"
-
-		# loop through each AOR package
-		for package in "${AOR_PACKAGE_ARRAY[@]}"; do
-			compile_using_makepkg "${package}" "AOR" "${install_flag}"
-		done
-	fi
-
-}
-
-function install_helper() {
+function install_helper_and_compile() {
 
 	local install_flag="--install"
 	local helper_packages=('paru-bin' 'paru')
@@ -420,8 +383,7 @@ function main() {
 			done
 		else
 			echo "[info] '--use-makepkg' is not defined, compiling AUR packages using helper..."
-			install_helper
-			compile_using_helper
+			install_helper_and_compile
 		fi
 	fi
 

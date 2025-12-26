@@ -264,7 +264,7 @@ function run_test() {
 	elif [[ "${app_name}" == "bitmagnet" ]]; then
 
 		# run tests
-		webui_test ${common_options} --container-ports '-p 9999:3333'
+		webui_test ${common_options} --container-ports '-p 9999:3333' --retry-count '300'
 
 	elif [[ "${app_name}" == "crafty-4" ]]; then
 

@@ -375,6 +375,11 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8080' --env-vars '-e VPN_ENABLED=no' --additional-args '--privileged=true' --protocol 'http'
 
+	elif [[ "${app_name}" == "seerr" ]]; then
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:5055' --retry-count '300' --url '/setup'
+
 	elif [[ "${app_name}" == "sickchill" ]]; then
 
 		# run tests

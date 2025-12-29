@@ -17,7 +17,7 @@ defaultGitHubDownloadPath="$(pwd)"
 defaultGitHubAssetNumber="0"
 defaultLogLevel=info
 defaultLogSizeMB=10
-defaultLogPath="${ourScriptPath}/logs"
+defaultLogPath="/tmp/logs"
 defaultLogRotation=5
 
 LOG_LEVEL="${defaultLogLevel}"

@@ -200,7 +200,7 @@ function healthcheck_command() {
 		exit_code="${?}"
 	else
 		# Set retry count from environment variable, set default if not set
-		local max_retries="${HEALTHCHECK_RETRIES:-24}"
+		local max_retries="${HEALTHCHECK_RETRIES:-12}"
 		local retry_count=0
 		local retry_delay=5
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."

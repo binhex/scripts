@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # A simple bash script to build/install Arch AUR packages using makepkg or an AUR helper.
-set -x
+
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
 readonly ourScriptVersion="v1.0.0"
@@ -198,26 +198,75 @@ function compile_using_helper() {
 
 }
 
+function verify_helper_installed() {
+
+	if command -v paru >/dev/null 2>&1; then
+		echo "[info] AUR helper paru is installed"
+		return 0
+	else
+		echo "[warn] AUR helper paru is not installed"
+		return 1
+	fi
+}
+
+function verify_helper_working() {
+
+	# use dummy package to excercise paru
+	local test_package='texlive-dummy'
+
+	if paru -S "${test_package}" --noconfirm >/dev/null 2>&1; then
+		echo "[info] AUR helper paru is installed and working"
+		return 0
+	else
+		echo "[warn] AUR helper paru is not installed or not working"
+		return 1
+	fi
+}
+
 function install_helper_and_compile() {
+
+	if verify_helper_installed; then
+		echo "[info] AUR helper already installed, proceeding to compile packages using helper..."
+		if verify_helper_working; then
+			echo "[info] AUR helper is working, proceeding to compile packages using helper..."
+			if compile_using_helper; then
+				return 0
+			else
+				return 1
+			fi
+		else
+			pacman -R $(pacman -Ssq paru*) --noconfirm
+		fi
+	fi
 
 	local install_flag="--install"
 	local helper_packages=('paru-bin' 'paru')
 
-	# try each package in order until one succeeds
+	# loop through helper packages to attempt installation
 	for helper_package in "${helper_packages[@]}"; do
+
 		echo "[info] Attempting to install AUR helper package '${helper_package}'..."
 		compile_using_makepkg "${helper_package}" "AUR" "${install_flag}"
 
-		if compile_using_helper; then
-			return 0
-		else
-			echo "[warn] Failed to install AUR helper package '${helper_package}', trying next helper if available..."
-			pacman -R "${helper_package}" --noconfirm
+		# if paru already installed try to use it first
+		if verify_helper_installed; then
+			echo "[info] AUR helper already installed, proceeding to compile packages using helper..."
+			if verify_helper_working; then
+				echo "[info] AUR helper is working, proceeding to compile packages using helper..."
+				if compile_using_helper; then
+					return 0
+				else
+					return 1
+				fi
+			else
+				echo "[warn] Failed to install AUR helper package '${helper_package}', trying next helper if available..."
+				pacman -R $(pacman -Ssq paru*) --noconfirm
+			fi
 		fi
 	done
 
-	echo "[error] All AUR helper installation attempts failed, exiting script..."
-	exit 1
+	echo "[error] All AUR helper installation attempts failed"
+	return 1
 
 }
 
@@ -383,7 +432,12 @@ function main() {
 			done
 		else
 			echo "[info] '--use-makepkg' is not defined, compiling AUR packages using helper..."
-			install_helper_and_compile
+			if ! install_helper_and_compile; then
+				echo "[error] Failed to compile AUR packages using helper, exiting script..."
+				exit 1
+			else
+				echo "[info] Successfully compiled AUR packages using helper."
+			fi
 		fi
 	fi
 

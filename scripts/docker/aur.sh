@@ -235,7 +235,7 @@ function install_helper_and_compile() {
 				return 1
 			fi
 		else
-			pacman -R $(pacman -Ssq paru*) --noconfirm
+			pacman -Rns $(pacman -Qq | grep -E '^paru') --noconfirm 2>/dev/null || true
 		fi
 	fi
 
@@ -260,7 +260,7 @@ function install_helper_and_compile() {
 				fi
 			else
 				echo "[warn] Failed to install AUR helper package '${helper_package}', trying next helper if available..."
-				pacman -R $(pacman -Ssq paru*) --noconfirm
+				pacman -Rns $(pacman -Qq | grep -E '^paru') --noconfirm 2>/dev/null || true
 			fi
 		fi
 	done

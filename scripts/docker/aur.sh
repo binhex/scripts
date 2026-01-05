@@ -161,6 +161,9 @@ function compile_using_makepkg() {
 
 function compile_using_helper() {
 
+	local test_package="${1}"
+	shift
+
 	# prevent sudo prompt for password when installing compiled package via pacman
 	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
 
@@ -169,9 +172,13 @@ function compile_using_helper() {
 		"${PACKAGE_PATH}"
 
 	# convert comma-separated list to space-separated for paru
-	local package_list="${AUR_PACKAGE//,/ }"
-	echo "[info] Processing package list: ${package_list}"
+	if [[ -n "${package}" ]]; then
+		local package_list="${test_package}"
+	else
+		local package_list="${AUR_PACKAGE//,/ }"
+	fi
 
+	echo "[info] Processing package list: ${package_list}"
 	# switch to user 'nobody' and run aur helper to compile and install package(s) with retries
 	local retries_remaining=12
 	local retry_delay=10
@@ -214,11 +221,11 @@ function verify_helper_working() {
 	# use dummy package to excercise paru
 	local test_package='texlive-dummy'
 
-	if paru -S "${test_package}" --noconfirm >/dev/null 2>&1; then
-		echo "[info] AUR helper paru is installed and working"
+	if compile_using_helper "${test_package}"; then
+		echo "[info] AUR helper paru is working"
 		return 0
 	else
-		echo "[warn] AUR helper paru is not installed or not working"
+		echo "[warn] AUR helper paru is not working"
 		return 1
 	fi
 }

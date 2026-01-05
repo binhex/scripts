@@ -233,9 +233,7 @@ function verify_helper_working() {
 function install_helper_and_compile() {
 
 	if verify_helper_installed; then
-		echo "[info] AUR helper already installed, proceeding to compile packages using helper..."
 		if verify_helper_working; then
-			echo "[info] AUR helper is working, proceeding to compile packages using helper..."
 			if compile_using_helper; then
 				return 0
 			else
@@ -257,9 +255,7 @@ function install_helper_and_compile() {
 
 		# if paru already installed try to use it first
 		if verify_helper_installed; then
-			echo "[info] AUR helper already installed, proceeding to compile packages using helper..."
 			if verify_helper_working; then
-				echo "[info] AUR helper is working, proceeding to compile packages using helper..."
 				if compile_using_helper; then
 					return 0
 				else

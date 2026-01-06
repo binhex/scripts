@@ -172,7 +172,7 @@ function compile_using_helper() {
 		"${PACKAGE_PATH}"
 
 	# convert comma-separated list to space-separated for paru
-	if [[ -n "${package}" ]]; then
+	if [[ -n "${test_package}" ]]; then
 		local package_list="${test_package}"
 	else
 		local package_list="${AUR_PACKAGE//,/ }"

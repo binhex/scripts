@@ -365,27 +365,32 @@ function run_shred_test() {
 
   if [[ "${VERIFY_WIPE}" == 'yes' ]]; then
     # Compare fresh zeroes with the decrypted layer:
-    if ! cmp -b /dev/zero "/dev/mapper/${DISK_NAME}"; then
-      logger warn "Verification of wipe FAILED for disk '/dev/${DISK_NAME}'"
-      if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[WARN] Verification of wipe FAILED for disk '/dev/${DISK_NAME}'."
-      fi
+    logger info "[INFO] Running verification of zeroes for disk '/dev/${DISK_NAME}'..."
+    if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+      ntfy "[INFO] Running verification of zeroes for disk '/dev/${DISK_NAME}'..."
+    fi
 
-      cleanup
-      return 1
-    else
+    # TODO check if cmp exit code 1 trips up the script here
+    cmp_output=$(cmp -b /dev/zero "/dev/mapper/${DISK_NAME}" 2>&1)
+    if echo "${cmp_output}" | grep -q "cmp: EOF on ‘/dev/mapper/${DISK_NAME}’ after byte"; then
       logger info "Verification of wipe PASSED for disk '/dev/${DISK_NAME}'"
       if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
         ntfy "[INFO] Verification of wipe PASSED for disk '/dev/${DISK_NAME}'."
       fi
+    else
+      logger warn "Verification of wipe FAILED for disk '/dev/${DISK_NAME}'"
+      if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
+        ntfy "[WARN] Verification of wipe FAILED for disk '/dev/${DISK_NAME}'."
+      fi
+      cleanup
+      return 1
     fi
   fi
 
+  logger info "Shred test finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
   if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
     ntfy "[INFO] Shred test finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
   fi
-
-  logger info "Shred test finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
 
 }
 

@@ -4,8 +4,8 @@
 # setup default values
 readonly ourScriptName=$(basename -- "$0")
 readonly defaultDownloadFilename="github-source.zip"
-readonly defaultDownloadPath="/tmp"
-readonly defaultExtractPath="/tmp/extracted"
+readonly defaultDownloadPath="/tmp/github"
+readonly defaultExtractPath="${defaultDownloadPath}/extracted"
 readonly defaultQueryType="releases/latest"
 readonly defaultDownloadBranch="master"
 readonly defaultStripComponents="0"
@@ -91,6 +91,8 @@ function github_downloader() {
 	shift
 	local download_filename="${1}"
 	shift
+
+	mkdir -p "${download_path}"
 
 	if [ -n "${download_assets}" ]; then
 
@@ -211,11 +213,36 @@ function archive_extractor() {
 
 	else
 
-		echo -e "[warn] File extension '${download_ext}' not known as an archive"
+		echo -e "[info] File extension '${download_ext}' not known as an archive, skipping extraction"
 		return 1
 
 	fi
 
+}
+
+function is_filepath() {
+	# Determines if the given path is a file path (not a directory)
+	# Returns 0 (true) if it's a file path, 1 (false) if it's a directory
+	#
+	# Logic:
+	# - If path ends with '/' -> directory
+	# - If path already exists as a directory -> directory
+	# - Otherwise -> file path (assumes user wants to rename the asset)
+
+	local path="${1}"
+
+	# If path ends with '/', it's a directory
+	if [[ "${path}" == */ ]]; then
+		return 1
+	fi
+
+	# If path already exists as a directory, it's a directory
+	if [[ -d "${path}" ]]; then
+		return 1
+	fi
+
+	# Otherwise, treat as a file path
+	return 0
 }
 
 function copy_to_install_path() {
@@ -238,7 +265,23 @@ function copy_to_install_path() {
 		return 1
 	fi
 
-	mkdir -p "${install_path}"
+	# Determine if install_path is a file path or directory
+	local target_dir=""
+	local target_filename=""
+
+	if is_filepath "${install_path}"; then
+		# install_path is a file path (e.g., /usr/bin/apprise)
+		target_dir="$(dirname "${install_path}")"
+		target_filename="$(basename "${install_path}")"
+		echo -e "[info] Install path is a file path, target directory: '${target_dir}', target filename: '${target_filename}'"
+	else
+		# install_path is a directory (e.g., /usr/bin/)
+		target_dir="${install_path}"
+		target_filename=""
+		echo -e "[info] Install path is a directory: '${target_dir}'"
+	fi
+
+	mkdir -p "${target_dir}"
 
 	if [[ "${download_ext}" == "zip" ]] && [[ -z "${match_asset_name}" ]]; then
 
@@ -248,8 +291,8 @@ function copy_to_install_path() {
 		fi
 
 		echo -e "[info] Copying source from extraction path to install path..."
-		echo -e "[info] cp -R ${extract_path}/*/* ${install_path}"
-		cp -R "${extract_path}"/*/* "${install_path}"
+		echo -e "[info] cp -R ${extract_path}/*/* ${target_dir}"
+		cp -R "${extract_path}"/*/* "${target_dir}"
 
 	elif [[ "${download_ext}" == "zip" ]] || [[ "${download_ext}" == "gz" ]] && [[ -n "${match_asset_name}" ]]; then
 
@@ -258,15 +301,45 @@ function copy_to_install_path() {
 			return 1
 		fi
 
-		echo -e "[info] Copying binary asset from extraction path to install path..."
-		echo -e "[info] cp -R ${extract_path}/* ${install_path}"
-		cp -R "${extract_path}"/* "${install_path}"
+		if [[ -n "${target_filename}" ]]; then
+			# Rename asset to target filename
+			echo -e "[info] Copying and renaming binary asset from extraction path to '${target_dir}/${target_filename}'..."
+			# Get the first file from extraction (assuming single binary asset)
+			local extracted_file
+			extracted_file=$(find "${extract_path}" -maxdepth 1 -type f | head -1)
+			if [[ -n "${extracted_file}" ]]; then
+				echo -e "[info] cp '${extracted_file}' '${target_dir}/${target_filename}'"
+				cp "${extracted_file}" "${target_dir}/${target_filename}"
+			else
+				echo -e "[info] cp -R ${extract_path}/* ${target_dir}/${target_filename}"
+				cp -R "${extract_path}"/* "${target_dir}/${target_filename}"
+			fi
+		else
+			echo -e "[info] Copying binary asset from extraction path to install path..."
+			echo -e "[info] cp -R ${extract_path}/* ${target_dir}"
+			cp -R "${extract_path}"/* "${target_dir}"
+		fi
 
 	else
 
-		echo -e "[info] Copying binary asset from downloaded path to install path..."
-		echo -e "[info] cp -R ${download_path}/* ${install_path}"
-		cp -R "${download_path}"/* "${install_path}"
+		if [[ -n "${target_filename}" ]]; then
+			# Rename asset to target filename
+			echo -e "[info] Copying and renaming binary asset from downloaded path to '${target_dir}/${target_filename}'..."
+			local downloaded_file="${download_path}/${match_asset_name}"
+			if [[ -f "${downloaded_file}" ]]; then
+				echo -e "[info] cp '${downloaded_file}' '${target_dir}/${target_filename}'"
+				cp "${downloaded_file}" "${target_dir}/${target_filename}"
+			else
+				# Fallback: copy first file found
+				downloaded_file=$(find "${download_path}" -maxdepth 1 -type f | head -1)
+				echo -e "[info] cp '${downloaded_file}' '${target_dir}/${target_filename}'"
+				cp "${downloaded_file}" "${target_dir}/${target_filename}"
+			fi
+		else
+			echo -e "[info] Copying binary asset from downloaded path to install path..."
+			echo -e "[info] cp -R ${download_path}/* ${target_dir}"
+			cp -R "${download_path}"/* "${target_dir}"
+		fi
 
 	fi
 

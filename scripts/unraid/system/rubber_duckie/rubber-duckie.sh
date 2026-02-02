@@ -292,12 +292,12 @@ function check_smart_attributes() {
 function run_shred_test() {
 
   # Uses global DISK_NAME and DISK_SERIAL variables
-  logger info "Running shred test for disk '/dev/${DISK_NAME}' started at '$(date +"%Y-%m-%d %H:%M:%S")'..."
+  logger info "Running write of random data to disk '/dev/${DISK_NAME}' started at '$(date +"%Y-%m-%d %H:%M:%S")'..."
 
   add_serial_to_in_progress_filepath
 
   if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-    ntfy "[INFO] Running shred test for disk '/dev/${DISK_NAME}' started at '$(date +"%Y-%m-%d %H:%M:%S")'."
+    ntfy "[INFO] Running write of random data to disk '/dev/${DISK_NAME}' started at '$(date +"%Y-%m-%d %H:%M:%S")'."
   fi
 
   # Span a crypto layer above the device:
@@ -310,7 +310,7 @@ function run_shred_test() {
     return 1
   fi
 
-  # Fill the now opened decrypted layer with zeroes, which get written as encrypted data:
+  # Fill the now opened decrypted layer with random data, which get written as encrypted data:
   # Track progress and send notifications at key milestones
   local last_notified_milestone=0
 
@@ -320,7 +320,7 @@ function run_shred_test() {
   # Run shred and process output, capturing exit code
   if ! shred -v -n "${PASSES}" -z "/dev/mapper/${DISK_NAME}" 2>&1 | while IFS= read -r line; do
     # Log the shred progress line
-    logger info "Shred progress: ${line}"
+    logger info "Write progress: ${line}"
 
     # Extract percentage from shred output (e.g., "shred: /dev/mapper/sdb: pass 1/1 (000000)...1.1TiB/3.7TiB 30%")
     if [[ "${line}" =~ ([0-9]+)%$ ]]; then
@@ -342,17 +342,17 @@ function run_shred_test() {
 
       # Send notification if we hit a milestone
       if [[ "${milestone}" -gt 0 && "${milestone}" -gt "${last_notified_milestone}" ]]; then
-        logger info "Shred progress milestone reached: ${milestone}% for disk '/dev/${DISK_NAME}'"
+        logger info "Write progress milestone reached: ${milestone}% for disk '/dev/${DISK_NAME}'"
         if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-          ntfy "[INFO] Shred progress: ${milestone}% complete for disk '/dev/${DISK_NAME}'"
+          ntfy "[INFO] Write progress: ${milestone}% complete for disk '/dev/${DISK_NAME}'"
         fi
         last_notified_milestone="${milestone}"
       fi
     fi
   done; then
-    logger warn "Shred command failed for disk '/dev/${DISK_NAME}'"
+    logger warn "Write command failed for disk '/dev/${DISK_NAME}'"
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-      ntfy "[WARN] Shred command failed for disk '/dev/${DISK_NAME}'"
+      ntfy "[WARN] Write command failed for disk '/dev/${DISK_NAME}'"
     fi
     # Reset pipefail
     set +o pipefail
@@ -364,32 +364,32 @@ function run_shred_test() {
   set +o pipefail
 
   if [[ "${VERIFY_WIPE}" == 'yes' ]]; then
-    # Compare fresh zeroes with the decrypted layer:
-    logger info "[INFO] Running verification of zeroes for disk '/dev/${DISK_NAME}'..."
+    # Compare fresh write with the decrypted layer:
+    logger info "[INFO] Running verification of write for disk '/dev/${DISK_NAME}', this will take several hours (no progress shown)..."
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-      ntfy "[INFO] Running verification of zeroes for disk '/dev/${DISK_NAME}'..."
+      ntfy "[INFO] Running verification of write for disk '/dev/${DISK_NAME}', this will take several hours (no progress shown)..."
     fi
 
     # TODO check if cmp exit code 1 trips up the script here
     cmp_output=$(cmp -b /dev/zero "/dev/mapper/${DISK_NAME}" 2>&1)
     if echo "${cmp_output}" | grep -q "cmp: EOF on ‘/dev/mapper/${DISK_NAME}’ after byte"; then
-      logger info "Verification of wipe PASSED for disk '/dev/${DISK_NAME}'"
+      logger info "Verification of write PASSED for disk '/dev/${DISK_NAME}'"
       if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[INFO] Verification of wipe PASSED for disk '/dev/${DISK_NAME}'."
+        ntfy "[INFO] Verification of write PASSED for disk '/dev/${DISK_NAME}'."
       fi
     else
-      logger warn "Verification of wipe FAILED for disk '/dev/${DISK_NAME}'"
+      logger warn "Verification of write FAILED for disk '/dev/${DISK_NAME}'"
       if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-        ntfy "[WARN] Verification of wipe FAILED for disk '/dev/${DISK_NAME}'."
+        ntfy "[WARN] Verification of write FAILED for disk '/dev/${DISK_NAME}'."
       fi
       cleanup
       return 1
     fi
   fi
 
-  logger info "Shred test finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
+  logger info "Write and verify finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
   if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
-    ntfy "[INFO] Shred test finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
+    ntfy "[INFO] Write and verify finished for disk '/dev/${DISK_NAME}' at '$(date +"%Y-%m-%d %H:%M:%S")'."
   fi
 
 }

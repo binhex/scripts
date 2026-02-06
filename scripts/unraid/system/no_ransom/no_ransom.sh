@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v2.0.0"
+readonly ourScriptVersion="v3.0.0"
 
 # setup default values
 readonly defaultInlcudeExtensions="*"
@@ -19,8 +19,7 @@ readonly defaultExcludeExtensions=""
 readonly defaultIncludeFolders=""
 readonly defaultExcludeFolders=""
 readonly defaultDebug="no"
-readonly defaultSecureChattr="yes"
-readonly defaultSecureChattrRename="rttahc"
+readonly defaultSecureChattr="rttahc"
 readonly defaultLockType="files"
 
 include_extensions="${defaultInlcudeExtensions}"
@@ -28,16 +27,35 @@ exclude_extensions="${defaultExcludeExtensions}"
 include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
 secure_chattr="${defaultSecureChattr}"
-secure_chattr_rename="${defaultSecureChattrRename}"
 lock_type="${defaultLockType}"
 debug="{defaultDebug}"
 
-if [[ ! -f '/usr/bin/chattr' && ! -f "/usr/bin/${secure_chattr_rename}" ]]; then
-	echo "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."
-	exit 1
-fi
+function prereq() {
 
-function lock_chattr(){
+	echo "[info] Checking we have all required parameters before running..."
+
+	if [[ -z "${lock}" ]]; then
+		echo "[warn] Lock files not defined via parameter -l or --lock, displaying help..."
+		echo ""
+		show_help
+		exit 1
+	fi
+
+	if [[ -z "${media_shares}" ]]; then
+		echo "[warn] Array user shares not defined via parameter -ms or --media-shares, displaying help..."
+		echo ""
+		show_help
+		exit 1
+	fi
+
+}
+
+function lock_chattr() {
+
+	if [[ ! -f '/usr/bin/chattr' && ! -f "/usr/bin/${secure_chattr}" ]]; then
+		echo "[warn] 'chattr' is required but is not installed, please install 'chattr', exiting script..."
+		exit 1
+	fi
 
 	if [ -f '/usr/bin/chattr' ]; then
 
@@ -51,11 +69,11 @@ function lock_chattr(){
 				echo "[debug] Locking chattr..."
 			fi
 
-			# remove execute permissions (all users) to prevent execution by ransomware
-			chmod -x '/usr/bin/chattr'
-
 			# rename chattr to make it harder for ransomware to run
-			mv '/usr/bin/chattr' "/usr/bin/${secure_chattr_rename}"
+			mv '/usr/bin/chattr' "/usr/bin/${secure_chattr}"
+
+			# ensure only root can run chattr
+			chmod 700 "/usr/bin/${secure_chattr}"
 
 		else
 
@@ -63,33 +81,10 @@ function lock_chattr(){
 
 		fi
 
-	fi
-}
+	else
 
-function unlock_chattr(){
-
-	if [ -f "/usr/bin/${secure_chattr_rename}" ]; then
-
-		# identify user running this script
-		user_id=$(id -u)
-
-		# if not root then we cannot lock chattr
-		if [[ "${user_id}" == "0" ]]; then
-
-			if [[ "${debug}" == "yes" ]]; then
-				echo "[debug] Unlocking chattr..."
-			fi
-
-			# reset permissions to correct values
-			chmod 755 "/usr/bin/${secure_chattr_rename}"
-
-			# rename chattr back to correct name
-			mv "/usr/bin/${secure_chattr_rename}" '/usr/bin/chattr'
-
-		else
-
-			echo "[warn] User ID '${user_id}' is not 'root', skipping unlocking of chattr"
-
+		if [[ "${debug}" == "yes" ]]; then
+			echo "[debug] chattr already renamed and locked down, skipping..."
 		fi
 
 	fi
@@ -98,11 +93,8 @@ function unlock_chattr(){
 
 function process_files() {
 
-	# unlock chattr by resetting permissions and renaming
-	unlock_chattr
-
 	# get all disks in the array, -v sorts numbers in natural order
-	all_disks=$(ls -dv /mnt/disk* | xargs)
+	all_disks=$(printf '%s\n' /mnt/disk* | sort -V | xargs)
 
 	# check that disks exists
 	if [[ -z "${all_disks}" ]]; then
@@ -112,20 +104,20 @@ function process_files() {
 	# split space separated disks in the array
 	IFS=' ' read -ra all_disks_list <<< "${all_disks}"
 
-	# split comma separated media user shares
-	IFS=',' read -ra media_shares_list <<< "${media_shares}"
+	# split pipe separated media user shares
+	IFS='|' read -ra media_shares_list <<< "${media_shares}"
 
-	# split comma separated include file extensions
-	IFS=',' read -ra include_extensions_list <<< "${include_extensions}"
+	# split pipe separated include file extensions
+	IFS='|' read -ra include_extensions_list <<< "${include_extensions}"
 
-	# split comma separated exclude file extensions
-	IFS=',' read -ra exclude_extensions_list <<< "${exclude_extensions}"
+	# split pipe separated exclude file extensions
+	IFS='|' read -ra exclude_extensions_list <<< "${exclude_extensions}"
 
-	# split comma separated include folders
-	IFS=',' read -ra include_folders_list <<< "${include_folders}"
+	# split pipe separated include folders
+	IFS='|' read -ra include_folders_list <<< "${include_folders}"
 
-	# split comma separated exclude folders
-	IFS=',' read -ra exclude_folders_list <<< "${exclude_folders}"
+	# split pipe separated exclude folders
+	IFS='|' read -ra exclude_folders_list <<< "${exclude_folders}"
 
 	include_extensions_cmd=""
 
@@ -205,11 +197,11 @@ function process_files() {
 		exclude_folders_cmd="\( ${exclude_folders_cmd} \)"
 	fi
 
-	# if lock files then set chattr to +i
+	# if lock files then set chattr to +i, using obfuscated name
 	if [[ "${lock}" == "yes" ]]; then
-		chattr_cmd="chattr +i"
+		chattr_cmd="/usr/bin/${secure_chattr} +i"
 	else
-		chattr_cmd="chattr -i"
+		chattr_cmd="/usr/bin/${secure_chattr} -i"
 	fi
 
 	# loop over list of disk shares looking for top level user share matches
@@ -258,11 +250,21 @@ function process_files() {
 
 	done
 
-	if [[ "${secure_chattr}" == "yes" ]]; then
-		# lock chattr by removing execute permissions and renaming
-		lock_chattr
-	fi
+}
 
+function main () {
+	echo "[info] Running ${ourScriptName} script..."
+
+	# check we have all required tooling
+	prereq
+
+	# rename and lock down permissions for chattr
+	lock_chattr
+
+	# process all shares/files
+	process_files
+
+	echo "[info] ${ourScriptName} script finished"
 }
 
 function show_help() {
@@ -286,29 +288,29 @@ Where:
 		Define whether to lock files, folders or both.
 		Defaults to '${defaultLockType}'.
 
-	-ms or --media-shares <comma seperated list of user shares>
+	-ms or --media-shares <pipe seperated list of user shares>
 		Define the list of user share names to process.
 		No default.
 
-	-ie or --include-extensions <comma seperated list of extensions>
+	-ie or --include-extensions <pipe seperated list of extensions>
 		Define the list of file extensions to process.
 		Defaults to '${defaultInlcudeExtensions}'.
 
-	-ee or --exclude-extensions <comma seperated list of extensions>
+	-ee or --exclude-extensions <pipe seperated list of extensions>
 		Define the list of file extensions to exclude from processing.
 		Defaults to no exclusions.
 
-	-if or --include-folders <comma seperated list of folders>
+	-if or --include-folders <pipe seperated list of folders>
 		Define the list of folders to include (recursive) in processing.
 		Defaults to include all folders.
 
-	-ef or --exclude-folders <comma seperated list of folders>
+	-ef or --exclude-folders <pipe seperated list of folders>
 		Define the list of folders to exclude (recursive) from processing.
 		Defaults to no excluded folders.
 
-	-sc or --secure-chattr <yes|no>
-		Define whether you want to remove execution permissions and rename chattr to prevent it being run.
-		Defaults to '${defaultSecureChattr}'.
+	-sc or --secure-chattr <name>
+		Define the obfuscated name to use for chattr.
+		Defaults to '${defaultSecureChattr}' (chattr reversed).
 
 	--debug <yes|no>
 		Define whether debug is turned on or not.
@@ -316,28 +318,28 @@ Where:
 
 Examples:
 	Make all files and folders in a user share read only with no exclusions and debug turned on:
-		${ourScriptName} --lock 'yes' --lock-type 'both' --media-shares 'Movies,TV' --debug 'yes'
+		${ourScriptName} --lock 'yes' --lock-type 'both' --media-shares 'Movies|TV' --debug 'yes'
 
 	Make files in a user share read only with specific included file extensions:
-		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --include-extensions '*.mkv,*.mp4'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies|TV' --include-extensions '*.mkv|*.mp4'
 
 	Make files in a user share read only with excluded file extensions:
-		${ourScriptName} --lock 'yes' --lock-type 'files'--media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png'
+		${ourScriptName} --lock 'yes' --lock-type 'files'--media-shares 'Movies|TV' --exclude-extensions '*.jpg|*.png'
 
 	Make files in a user share read only with excluded file extensions and specific included folders:
-		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --include-folders 'tvshows,movies'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies|TV' --exclude-extensions '*.jpg|*.png' --include-folders 'tvshows|movies'
 
 	Make files in a user share read only with excluded file extensions and excluded folders:
-		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies,TV' --exclude-extensions '*.jpg,*.png' --exclude-folders 'to_sort,temp'
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies|TV' --exclude-extensions '*.jpg|*.png' --exclude-folders 'to_sort|temp'
 
 	Make all files in a user share writeable with no exclusions and debug turned on:
-		${ourScriptName} --lock 'no' --lock-type 'files' --media-shares 'Movies,TV' --debug 'yes'
+		${ourScriptName} --lock 'no' --lock-type 'files' --media-shares 'Movies|TV' --debug 'yes'
 
 	Make all files and folders in a user share writeable with no exclusions and debug turned on:
-		${ourScriptName} --lock 'no' --lock-type 'both' --media-shares 'Movies,TV' --debug 'yes'
+		${ourScriptName} --lock 'no' --lock-type 'both' --media-shares 'Movies|TV' --debug 'yes'
 
 Notes:
-	If you specify --lock-type 'both' then the specified media be read only, you will not be able to create new files/folders or alter any existing files/folders.
+	If you specify --lock-type 'both' you will not be able to create new files/folders or alter any existing files/folders.
 ENDHELP
 }
 
@@ -389,31 +391,10 @@ do
 			echo "[warn] Unrecognised argument '$1', displaying help..." >&2
 			echo ""
 			show_help
-			 exit 1
-			 ;;
-	 esac
-	 shift
+			exit 1
+			;;
+	esac
+	shift
 done
 
-echo "[info] Running ${ourScriptName} script..."
-
-echo "[info] Checking we have all required parameters before running..."
-
-if [[ -z "${lock}" ]]; then
-	echo "[warn] Lock files not defined via parameter -l or --lock, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
-if [[ -z "${media_shares}" ]]; then
-	echo "[warn] Array user shares not defined via parameter -ms or --media-shares, displaying help..."
-	echo ""
-	show_help
-	exit 1
-fi
-
-# run main function
-process_files
-
-echo "[info] ${ourScriptName} script finished"
+main

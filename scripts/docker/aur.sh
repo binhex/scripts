@@ -85,7 +85,7 @@ function compile_using_makepkg() {
 	fi
 
 	# download, extract and compile package with retries
-	local retries_remaining=12
+	local retries_remaining=6
 	local retry_delay=10
 	local attempt=1
 
@@ -98,64 +98,66 @@ function compile_using_makepkg() {
 		mkdir -p "${snapshots_path}"
 
 		# download package snapshot
+		local download_success=false
 		if [[ "${package_type}" == "AOR" && -n "${primary_url}" ]]; then
 			if stderr=$(git clone "${primary_url}" "${snapshots_path}" 2>&1); then
-				break
+				download_success=true
 			else
 				echo "[warn] Failed to git clone from URL ${primary_url} for package ${package} from ${package_source_name}, error is '${stderr}'" >&2
 			fi
 		elif [[ "${package_type}" == "AUR" && -n "${primary_url}" ]]; then
 			# note we override the default web browser fake user agent, otherwise bot detection occurs
 			if stderr=$(rcurl.sh -o "${snapshots_path}/${package}.tar.gz" -L "${primary_url}" --user-agent 'curl' && tar -xvf "${snapshots_path}/${package}.tar.gz" -C "${snapshots_path}" 2>&1); then
-				break
+				download_success=true
 			else
 				echo "[warn] Failed to download tarball for package '${package}' from ${package_source_name}, error is '${stderr}'" >&2
 			fi
 		fi
 
-		# if we get here, something failed
-		retries_remaining=$((retries_remaining - 1))
-		attempt=$((attempt + 1))
-		if [[ ${retries_remaining} -gt 0 ]]; then
-			echo "[warn] Failed to download tarball for package '${package}', ${retries_remaining} retries remaining, retrying in ${retry_delay} seconds..."
-			sleep ${retry_delay}
-		else
-			echo "[error] Failed to download tarball for package '${package}' after all retry attempts, displaying incomplete download and then exiting script..."
-			cat "${snapshots_path}/${package}.tar.gz"
-			exit 1
-		fi
-	done
+		# if download succeeded, try to compile
+		if [[ "${download_success}" == "true" ]]; then
+			# navigate to extracted PKGBUILD
+			if [[ "${package_type}" == "AOR" ]]; then
+				extracted_path="${snapshots_path}"
+			elif [[ "${package_type}" == "AUR" ]]; then
+				extracted_path="${snapshots_path}/${package}"
+			fi
 
-	# navigate to extracted PKGBUILD
-	if [[ "${package_type}" == "AOR" ]]; then
-		extracted_path="${snapshots_path}"
-	elif [[ "${package_type}" == "AUR" ]]; then
-		extracted_path="${snapshots_path}/${package}"
-	fi
+			if cd "${extracted_path}"; then
+				# edit PKGBUILD if command is specified
+				if [[ -n "${PKGBUILD_EDIT}" ]]; then
+					echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
+					if ! eval "${PKGBUILD_EDIT}"; then
+						echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}'" >&2
+						exit 1
+					else
+						echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
+					fi
+				fi
 
-	if cd "${extracted_path}"; then
-		# edit PKGBUILD if command is specified
-		if [[ -n "${PKGBUILD_EDIT}" ]]; then
-			echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
-			if ! eval "${PKGBUILD_EDIT}"; then
-				echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}'" >&2
-				exit 1
+				# compile package if download and PKGBUILD edit were successful
+				if makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
+					echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
+					return 0
+				else
+					echo "[warn] makepkg failed for package '${package}' on attempt ${attempt}"
+				fi
 			else
-				echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
+				echo "[warn] Cannot navigate to extracted path '${extracted_path}'"
 			fi
 		fi
 
-		# compile package if download and PKGBUILD edit were successful
-		if makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
-			echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
+		# if we get here, something failed (download or compilation)
+		retries_remaining=$((retries_remaining - 1))
+		attempt=$((attempt + 1))
+		if [[ ${retries_remaining} -gt 0 ]]; then
+			echo "[warn] Failed to compile package '${package}', ${retries_remaining} retries remaining, retrying in ${retry_delay} seconds..."
+			sleep ${retry_delay}
 		else
-			echo "[warn] makepkg failed for package '${package}'"
+			echo "[error] Failed to compile package '${package}' after all retry attempts"
 			exit 1
 		fi
-	else
-		echo "[warn] Cannot navigate to extracted path '${extracted_path}'"
-		exit 1
-	fi
+	done
 
 }
 

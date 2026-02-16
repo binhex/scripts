@@ -41,7 +41,7 @@ function cleanup() {
 
 function cleanup_and_exit(){
 
-  exit_code="${1:-0}"
+  local exit_code="${1:-0}"
   shift
 
   cleanup
@@ -53,7 +53,6 @@ function cleanup_and_exit(){
 function signal_handler() {
 
   logger warn "Script exiting due to signal"
-  cleanup
   if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
     if [[ -n "${DISK_NAME}" && -n "${DISK_SERIAL}" ]]; then
       ntfy "[WARN] Script exited due to signal at '$(date +"%Y-%m-%d %H:%M:%S")' Serial: '${DISK_SERIAL}', Device Name: '/dev/${DISK_NAME}'"
@@ -66,7 +65,7 @@ function signal_handler() {
   else
     logger warn "Script exited due to signal at '$(date +"%Y-%m-%d %H:%M:%S")'"
   fi
-  exit 1
+  cleanup_and_exit 1
 
 }
 
@@ -306,8 +305,7 @@ function run_shred_test() {
     if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
       ntfy "[WARN] Cryptsetup open command failed for disk '/dev/${DISK_NAME}'"
     fi
-    cleanup
-    return 1
+    cleanup_and_exit 1
   fi
 
   # Fill the now opened decrypted layer with random data, which get written as encrypted data:
@@ -356,8 +354,7 @@ function run_shred_test() {
     fi
     # Reset pipefail
     set +o pipefail
-    cleanup
-    return 1
+    cleanup_and_exit 1
   fi
 
   # Reset pipefail
@@ -382,8 +379,7 @@ function run_shred_test() {
       if [[ "${NOTIFY_SERVICE}" == 'ntfy' ]]; then
         ntfy "[WARN] Verification of write FAILED for disk '/dev/${DISK_NAME}'."
       fi
-      cleanup
-      return 1
+      cleanup_and_exit 1
     fi
   fi
 

@@ -281,6 +281,11 @@ function run_test() {
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8096'
 
+	elif [[ "${app_name}" == "filebrowser" ]]; then
+
+		# run tests
+		webui_test ${common_options} --container-ports '-p 9999:8125'
+
 	elif [[ "${app_name}" == "flaresolverr" ]]; then
 
 		# run tests

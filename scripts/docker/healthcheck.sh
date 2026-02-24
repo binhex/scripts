@@ -73,6 +73,8 @@ function check_process() {
 		process_names=('^/usr/bin/python /usr/bin/deluged' '^deluge-web' 'openvpn|wg')
 	elif [[ "${APPNAME}" == 'emby' ]]; then
 		process_names=('EmbyServer')
+	elif [[ "${APPNAME}" == 'filebrowser' ]]; then
+		process_names=('filebrowser')
 	elif [[ "${APPNAME}" == 'flaresolverr' ]]; then
 		process_names=('flaresolverr')
 	elif [[ "${APPNAME}" == 'fleet' ]]; then

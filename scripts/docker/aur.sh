@@ -182,7 +182,7 @@ function compile_using_helper() {
 
 	echo "[info] Processing package list: ${package_list}"
 	# switch to user 'nobody' and run aur helper to compile and install package(s) with retries
-	local retries_remaining=12
+	local retries_remaining=6
 	local retry_delay=10
 	local attempt=1
 

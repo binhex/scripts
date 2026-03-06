@@ -194,6 +194,8 @@ function webui_test() {
 	# self-signed certs (cert uses hostname when generated)
 	echo "${host_ip_address}	 ${container_name}" | sudo tee -a '/etc/hosts'
 
+	sudo iptables -S
+
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 

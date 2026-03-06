@@ -187,33 +187,9 @@ function webui_test() {
 		trust_self_signed_cert
 	fi
 
-	# get hosts ip address, as we can no longer use localhost (127.0.0.1)
-	host_ip_address="$(hostname --all-ip-addresses | cut -d ' ' -f1)"
-
-	# set hostname in hosts file so we can use the name to match any
-	# self-signed certs (cert uses hostname when generated)
-	echo "${host_ip_address}	 ${container_name}" | sudo tee -a '/etc/hosts'
-
-	# Set default policies to ACCEPT (so you don't lock yourself out)
-	sudo iptables -P INPUT ACCEPT
-	sudo iptables -P FORWARD ACCEPT
-	sudo iptables -P OUTPUT ACCEPT
-
-	# Flush all rules in all chains
-	sudo iptables -F
-
-	# Delete all user-defined chains
-	sudo iptables -X
-
-	# Zero all counters (optional)
-	sudo iptables -Z
-
-	sudo iptables -t nat -F
-	sudo iptables -t nat -X
-	sudo iptables -t mangle -F
-	sudo iptables -t mangle -X
-
-	sudo iptables -S
+	# set hostname in hosts file so we can use the name to match the
+	# self-signed cert generated (cert uses hostname when generated)
+	echo "127.0.0.1	 ${container_name}" | sudo tee -a '/etc/hosts'
 
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do

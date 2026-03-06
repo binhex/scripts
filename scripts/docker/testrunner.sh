@@ -194,6 +194,25 @@ function webui_test() {
 	# self-signed certs (cert uses hostname when generated)
 	echo "${host_ip_address}	 ${container_name}" | sudo tee -a '/etc/hosts'
 
+	# Set default policies to ACCEPT (so you don't lock yourself out)
+	sudo iptables -P INPUT ACCEPT
+	sudo iptables -P FORWARD ACCEPT
+	sudo iptables -P OUTPUT ACCEPT
+
+	# Flush all rules in all chains
+	sudo iptables -F
+
+	# Delete all user-defined chains
+	sudo iptables -X
+
+	# Zero all counters (optional)
+	sudo iptables -Z
+
+	sudo iptables -t nat -F
+	sudo iptables -t nat -X
+	sudo iptables -t mangle -F
+	sudo iptables -t mangle -X
+
 	sudo iptables -S
 
 	# loop over list of host ports

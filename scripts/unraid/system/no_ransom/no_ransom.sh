@@ -11,7 +11,7 @@
 
 # script name and version
 readonly ourScriptName=$(basename -- "$0")
-readonly ourScriptVersion="v3.0.0"
+readonly ourScriptVersion="v3.0.1"
 
 # setup default values
 readonly defaultInlcudeExtensions="*"
@@ -28,7 +28,7 @@ include_folders="${defaultIncludeFolders}"
 exclude_folders="${defaultExcludeFolders}"
 secure_chattr="${defaultSecureChattr}"
 lock_type="${defaultLockType}"
-debug="{defaultDebug}"
+debug="${defaultDebug}"
 
 function prereq() {
 

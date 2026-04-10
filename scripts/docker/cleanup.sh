@@ -15,7 +15,7 @@ for i in ${package_reoval_list}; do
 done
 
 # delete cache and build home directories
-rm -rf /home/nobody/.cache/paru /home/nobody/.cache/yarn /home/nobody/.cargo /home/nobody/.dotnet /home/nobody/.nuget /home/nobody/.rustup /home/nobody/.yarn /home/nobody/.local/share/pnpm /home/nobody/.cache/pnpm
+rm -rf /home/nobody/.cache/paru /home/nobody/.config/go /home/nobody/go /home/nobody/.cache/yarn /home/nobody/.cargo /home/nobody/.dotnet /home/nobody/.nuget /home/nobody/.rustup /home/nobody/.yarn /home/nobody/.local/share/pnpm /home/nobody/.cache/pnpm
 
 # general cleanup
 yes|pacman -Scc

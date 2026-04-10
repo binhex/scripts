@@ -184,6 +184,108 @@ function check_process() {
 	return 0
 }
 
+# Checks a log file for error patterns within a recent time window.
+# Continuation lines (e.g. .NET stack frames) are included when they follow a
+# timestamped line that falls within the window, so multi-line exceptions are caught.
+#
+# Args: log_file [pattern ...]
+# Env:  APP_LOG_CHECK_MINUTES  - window size in minutes (default: 5)
+function check_app_logs() {
+
+	local log_file="${1}"
+	shift
+	local error_patterns=("${@}")
+	local window_minutes="${APP_LOG_CHECK_MINUTES:-5}"
+
+	if [[ ! -f "${log_file}" ]]; then
+		echo "[info] Log file '${log_file}' not found, skipping log check."
+		return 0
+	fi
+
+	echo "[info] Health checking application logs (last ${window_minutes} minute(s))..."
+
+	local cutoff
+	cutoff=$(date -d "${window_minutes} minutes ago" '+%Y-%m-%d %H:%M')
+
+	# Extract lines from the time window. Timestamped lines set in_window; continuation
+	# lines (stack frames, inner exceptions) inherit the in_window state of the last
+	# timestamped line, so multi-line exception blocks are captured in full.
+	local recent_logs
+	recent_logs=$(tail -n 10000 "${log_file}" | awk -v cutoff="${cutoff}" '
+		/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]/ {
+			in_window = (substr($0, 1, 16) >= cutoff)
+		}
+		in_window { print }
+	')
+
+	if [[ -z "${recent_logs}" ]]; then
+		echo "[info] No log entries found within the last ${window_minutes} minute(s)."
+		return 0
+	fi
+
+	for pattern in "${error_patterns[@]}"; do
+		if echo "${recent_logs}" | grep -qi -- "${pattern}"; then
+			echo "[warn] Error pattern '${pattern}' detected in recent application logs."
+			return 1
+		fi
+	done
+
+	echo "[info] No critical errors found in recent application logs."
+	return 0
+}
+
+# Runs app-specific health checks based on APPNAME.
+# Currently checks supervisord.log for network-related exceptions in apps that use
+# supervisord. A network exception in the recent window means the app has lost
+# connectivity and is silently failing, even though the process is still running.
+function check_app_specific() {
+
+	echo "[info] Health checking application-specific state..."
+
+	# shellcheck disable=SC1091
+	source /etc/image-build-info
+
+	if [[ -z "${APPNAME}" ]]; then
+		echo "[info] APPNAME is not defined, skipping app-specific checks."
+		return 0
+	fi
+
+	local supervisord_log="/config/supervisord.log"
+
+	# Network-specific exception class name and OS-level error messages.
+	# Uses SocketException (the root .NET transport exception, low false-positive risk)
+	# plus OS error strings unique to connectivity failures. Bare HttpRequestException
+	# and WebException are intentionally excluded — they also fire on protocol-level
+	# errors (4xx/5xx responses, auth rejections) that do not indicate a network outage.
+	# TaskCanceledException is covered via 'HttpClient.Timeout' rather than the bare
+	# exception name, which would also match routine request cancellations.
+	local net_error_patterns=(
+		# Root .NET exception for socket-level failures (DNS, connect, unreachable, EAGAIN)
+		'SocketException'
+		# OS error messages that accompany socket failures — unique to network failures
+		'Resource temporarily unavailable'  # EAGAIN  (errno 11) — user's reported case
+		'Network is unreachable'            # ENETUNREACH (errno 101)
+		'No route to host'                  # EHOSTUNREACH (errno 113)
+		'Name or service not known'         # DNS resolution failure
+		'Connection timed out'              # ETIMEDOUT (errno 110)
+		# HTTP client timeout: TaskCanceledException message specific to network timeouts
+		'HttpClient.Timeout'
+	)
+
+	# Apps that write .NET exceptions to supervisord.log.
+	local supervised_apps=('jackett' 'lidarr' 'prowlarr' 'radarr' 'readarr' 'sonarr')
+
+	local app
+	for app in "${supervised_apps[@]}"; do
+		if [[ "${APPNAME}" == "${app}" ]]; then
+			check_app_logs "${supervisord_log}" "${net_error_patterns[@]}"
+			return "${?}"
+		fi
+	done
+
+	return 0
+}
+
 function healthcheck_command() {
 
 	local exit_code=0
@@ -230,6 +332,10 @@ function healthcheck_command() {
 			fi
 
 			if ! check_process; then
+				exit_code=1
+			fi
+
+			if ! check_app_specific; then
 				exit_code=1
 			fi
 

@@ -422,7 +422,8 @@ Where:
 		Defaults to '${defaultDownloadFilename}'.
 
 	-da or --download-assets <asset name>
-		Define name of the asset file(s) to download, asset name can use regex, use comma to separate multiple assets.
+		Define name of the asset file(s) to download, asset name can use regex, use
+		comma to separate multiple assets.
 		No default.
 
 	-dp or --download-path <path>
@@ -444,6 +445,8 @@ Where:
 	-ip or --install-path <path>
 		Define path to install to.
 		No default.
+		Note: If the path does not exist and does not contain an end forward slash
+		'/' then it will be treated as a file path.
 
 	-go or --github-owner <owner>
 		Define GitHub owners name.

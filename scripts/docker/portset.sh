@@ -212,6 +212,36 @@ function external_verify_incoming_port() {
 
 }
 
+function get_vpn_status() {
+
+  local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+
+  local auth
+  if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+    auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+  else
+    auth=""
+  fi
+
+  local status_response
+  status_response=$(curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth})
+  if [[ -z "${status_response}" ]]; then
+    echo "[WARN] Unable to retrieve VPN status from gluetun Control Server API" >&2
+    return 1
+  fi
+
+  local vpn_status
+  vpn_status=$(echo "${status_response}" | jq -r '.status')
+  if [[ -z "${vpn_status}" || "${vpn_status}" == "null" ]]; then
+    echo "[WARN] Unable to parse VPN status from gluetun Control Server API response" >&2
+    return 1
+  fi
+
+  echo "${vpn_status}"
+  return 0
+
+}
+
 function restart_vpn_connection() {
 
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
@@ -224,7 +254,25 @@ function restart_vpn_connection() {
   fi
 
   echo "[INFO] Restarting VPN connection..."
-  vpn_desired_states=("stopped" "running")
+
+  # Check the current VPN state before taking any action. If the script previously
+  # crashed mid-restart (e.g. after sending 'stopped' but before sending 'running'),
+  # the VPN may already be stopped. Querying state first ensures we only send the
+  # transitions that are actually needed, making the restart idempotent.
+  local current_vpn_status
+  if ! current_vpn_status=$(get_vpn_status); then
+    echo "[ERROR] Unable to determine current VPN status, cannot safely restart"
+    return 1
+  fi
+  echo "[INFO] Current VPN status is '${current_vpn_status}'"
+
+  local vpn_desired_states=()
+  if [[ "${current_vpn_status}" == "stopped" ]]; then
+    echo "[INFO] VPN is already stopped, skipping stop step and proceeding directly to start..."
+    vpn_desired_states=("running")
+  else
+    vpn_desired_states=("stopped" "running")
+  fi
 
   for vpn_desired_state in "${vpn_desired_states[@]}"; do
 

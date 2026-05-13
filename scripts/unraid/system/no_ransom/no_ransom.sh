@@ -338,6 +338,12 @@ Where:
 		Define the obfuscated name to use for chattr.
 		Defaults to '${defaultSecureChattr}' (chattr reversed).
 
+	-nsc or --no-secure-chattr
+		Define whether to skip chattr obfuscation (rename) and permission lockdown (chmod 700).
+		Use this flag if you want to keep chattr as-is on the host system.
+		Mutually exclusive with --secure-chattr.
+		Defaults to not set (obfuscation enabled).
+
 	--debug <yes|no>
 		Define whether debug is turned on or not.
 		Defaults to '${defaultDebug}'.
@@ -363,6 +369,9 @@ Examples:
 
 	Make all files and folders in a user share writeable with no exclusions and debug turned on:
 		${ourScriptName} --lock 'no' --lock-type 'both' --media-shares 'Movies|TV' --debug 'yes'
+
+	Make files in a user share read only without obfuscating chattr:
+		${ourScriptName} --lock 'yes' --lock-type 'files' --media-shares 'Movies|TV' --no-secure-chattr
 
 Notes:
 	If you specify --lock-type 'both' you will not be able to create new files/folders or alter any existing files/folders.

@@ -66,6 +66,10 @@ function lock_chattr() {
 	fi
 
 	if [[ "${no_secure_chattr}" == "yes" ]]; then
+		if [[ ! -f '/usr/bin/chattr' ]]; then
+			echo "[warn] --no-secure-chattr specified but 'chattr' is not installed at /usr/bin/chattr, exiting script..."
+			exit 1
+		fi
 		if [[ "${debug}" == "yes" ]]; then
 			echo "[debug] --no-secure-chattr specified, skipping chattr obfuscation and chmod..."
 		fi
@@ -212,11 +216,18 @@ function process_files() {
 		exclude_folders_cmd="\( ${exclude_folders_cmd} \)"
 	fi
 
-	# if lock files then set chattr to +i, using obfuscated name
-	if [[ "${lock}" == "yes" ]]; then
-		chattr_cmd="/usr/bin/${secure_chattr} +i"
+	# determine chattr binary path
+	if [[ "${no_secure_chattr}" == "yes" ]]; then
+		chattr_bin="/usr/bin/chattr"
 	else
-		chattr_cmd="/usr/bin/${secure_chattr} -i"
+		chattr_bin="/usr/bin/${secure_chattr}"
+	fi
+
+	# if lock files then set chattr to +i
+	if [[ "${lock}" == "yes" ]]; then
+		chattr_cmd="${chattr_bin} +i"
+	else
+		chattr_cmd="${chattr_bin} -i"
 	fi
 
 	# loop over list of disk shares looking for top level user share matches

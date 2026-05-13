@@ -51,6 +51,11 @@ function prereq() {
 		exit 1
 	fi
 
+	if [[ "${secure_chattr}" != "${defaultSecureChattr}" && "${no_secure_chattr}" == "yes" ]]; then
+		echo "[warn] --secure-chattr and --no-secure-chattr are mutually exclusive, exiting script..."
+		exit 1
+	fi
+
 }
 
 function lock_chattr() {

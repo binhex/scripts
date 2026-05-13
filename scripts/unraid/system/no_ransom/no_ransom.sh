@@ -65,6 +65,13 @@ function lock_chattr() {
 		exit 1
 	fi
 
+	if [[ "${no_secure_chattr}" == "yes" ]]; then
+		if [[ "${debug}" == "yes" ]]; then
+			echo "[debug] --no-secure-chattr specified, skipping chattr obfuscation and chmod..."
+		fi
+		return
+	fi
+
 	if [ -f '/usr/bin/chattr' ]; then
 
 		# identify user running this script

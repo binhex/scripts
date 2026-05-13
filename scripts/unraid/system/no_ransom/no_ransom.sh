@@ -30,6 +30,9 @@ secure_chattr="${defaultSecureChattr}"
 lock_type="${defaultLockType}"
 debug="${defaultDebug}"
 
+readonly defaultNoSecureChattr="no"
+no_secure_chattr="${defaultNoSecureChattr}"
+
 function prereq() {
 
 	echo "[info] Checking we have all required parameters before running..."
@@ -378,6 +381,9 @@ do
 		-sc|--secure-chattr)
 			secure_chattr=$2
 			shift
+			;;
+		-nsc|--no-secure-chattr)
+			no_secure_chattr="yes"
 			;;
 		--debug)
 			debug=$2

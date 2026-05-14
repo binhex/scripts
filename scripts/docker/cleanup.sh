@@ -9,7 +9,7 @@ if pacman -Qg "base-devel" > /dev/null ; then
 fi
 
 # remove any build tools that maybe present from the build
-package_reoval_list="dotnet-sdk yarn git github-cli yay-bin reflector gcc binutils rust clank go sudo"
+package_reoval_list="dotnet-sdk yarn yay-bin reflector gcc binutils rust clank go sudo"
 for i in ${package_reoval_list}; do
 	pacman -Ru ${i} --noconfirm 2> /dev/null || true
 done

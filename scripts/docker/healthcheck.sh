@@ -286,6 +286,30 @@ function check_app_specific() {
 	return 0
 }
 
+function check_incoming_port() {
+
+	# Use shared function from utils.sh to query gluetun for the forwarded port
+	if ! get_gluetun_forwarded_port 3 2; then
+		echo "[warn] Failed to retrieve forwarded port from gluetun API"
+		return 1
+	fi
+
+	local incoming_port="${GLUETUN_FORWARDED_PORT}"
+
+	echo "[info] Verifying incoming port '${incoming_port}' reachability via external service..."
+
+	local result
+	result=$(curl_with_retry "https://ifconfig.co/port/${incoming_port}" 3 2 -s | jq -r '.reachable' 2>/dev/null)
+
+	if [[ "${result}" == "true" ]]; then
+		echo "[info] Incoming port '${incoming_port}' is reachable."
+		return 0
+	else
+		echo "[warn] Incoming port '${incoming_port}' is NOT reachable."
+		return 1
+	fi
+}
+
 function healthcheck_command() {
 
 	local exit_code=0
@@ -351,6 +375,15 @@ function healthcheck_command() {
 					fi
 				fi
 
+				# Also verify the forwarded port is actually reachable from outside.
+				# This catches cases where the VPN tunnel is up but port forwarding
+				# is broken -- otherwise the healthcheck would pass (because the VPN
+				# adapter is healthy) while qbit's web UI and API are unreachable.
+				if ! check_incoming_port; then
+					echo "[warn] Incoming port healthcheck failed"
+					exit_code=1
+				fi
+
 			fi
 
 			# If all checks pass, break out of retry loop
@@ -388,6 +421,8 @@ function healthcheck_action() {
 	if [[ -n "${HEALTHCHECK_ACTION}" ]]; then
 		echo "[info] Healthcheck action specified, running '${HEALTHCHECK_ACTION}'..."
 		eval "${HEALTHCHECK_ACTION}"
+		echo "[info] Healthcheck action completed, exiting with code '${exit_code}'"
+		exit "${exit_code}"
 	else
 		echo "[info] No custom healthcheck action defined via env var 'HEALTHCHECK_ACTION', defaulting to exiting script with exit code '${exit_code}'"
 		exit "${exit_code}"

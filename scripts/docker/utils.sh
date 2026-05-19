@@ -745,3 +745,56 @@ function get_vpn_adapter_ip_address() {
 	fi
 
 }
+
+# Query gluetun Control Server API for the forwarded incoming port.
+# Sets GLUETUN_FORWARDED_PORT to the port number on success, or empty on failure.
+#
+# Args: [max_retries] [retry_delay]  (defaults: 3, 2)
+# Env:  GLUETUN_CONTROL_SERVER_PORT (default: 8000)
+#       GLUETUN_CONTROL_SERVER_USERNAME / GLUETUN_CONTROL_SERVER_PASSWORD (optional auth)
+function get_gluetun_forwarded_port() {
+
+	local max_retries="${1:-3}"
+	local retry_delay="${2:-2}"
+	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT:-8000}/v1"
+
+	local auth=""
+	if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+		auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+	fi
+
+	echo "[info] Retrieving incoming port from gluetun API..." >&2
+
+	local portforward_response
+	# unquoted: auth can be empty or multi-word (e.g. "-u user:pass")
+	# shellcheck disable=SC2086
+	portforward_response=$(curl_with_retry "${control_server_url}/portforward" "${max_retries}" "${retry_delay}" -s ${auth})
+
+	if [[ -z "${portforward_response}" || "${portforward_response}" == "Unauthorized"* ]]; then
+		# unquoted: auth can be empty or multi-word (e.g. "-u user:pass")
+		# shellcheck disable=SC2086
+		portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" "${max_retries}" "${retry_delay}" -s ${auth})
+	fi
+
+	if [[ -z "${portforward_response}" || "${portforward_response}" == "Unauthorized"* ]]; then
+		echo "[warn] Unable to retrieve forwarded port from gluetun API" >&2
+		GLUETUN_FORWARDED_PORT=""
+		return 1
+	fi
+
+	if ! command -v jq &> /dev/null; then
+		echo "[warn] jq not available, cannot parse gluetun API response" >&2
+		GLUETUN_FORWARDED_PORT=""
+		return 1
+	fi
+
+	GLUETUN_FORWARDED_PORT="$(echo "${portforward_response}" | jq -r '.port' 2>/dev/null)"
+	if [[ -z "${GLUETUN_FORWARDED_PORT}" || "${GLUETUN_FORWARDED_PORT}" == "null" || "${GLUETUN_FORWARDED_PORT}" == "0" ]]; then
+		echo "[warn] No valid forwarded port in gluetun API response" >&2
+		GLUETUN_FORWARDED_PORT=""
+		return 1
+	fi
+
+	echo "[info] Retrieved forwarded port '${GLUETUN_FORWARDED_PORT}' from gluetun API" >&2
+	return 0
+}

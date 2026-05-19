@@ -20,6 +20,7 @@ readonly defaultGluetunIncomingPort="no"
 readonly defaultPollDelay="60"
 readonly defaultDebug="no"
 readonly defaultMaxStartupRetries="10"
+readonly defaultMaxPortVerifyRetries="3"
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -30,6 +31,7 @@ GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
+MAX_PORT_VERIFY_RETRIES="${MAX_PORT_VERIFY_RETRIES:-${defaultMaxPortVerifyRetries}}"
 
 # source in image build info, includes tag name and app name
 if [[ -f "${defaultImageBuildFilepath}" ]]; then
@@ -154,27 +156,18 @@ function get_incoming_port() {
     auth=""
   fi
 
-  # Get port forward information from gluetun Control Server
-  portforward_response=$(curl_with_retry "${control_server_url}/portforward" 10 1 -s ${auth})
-  if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
-    portforward_response=$(curl_with_retry "${control_server_url}/openvpn/portforwarded" 10 1 -s ${auth})
-    if [[ "${portforward_response}" == "Unauthorized" || -z "${portforward_response}" ]]; then
-      echo "[WARN] Unable to retrieve port forwarded information from gluetun Control Server"
-      return 1
-    fi
-  fi
-
-  # parse results
-  INCOMING_PORT="$(echo "${portforward_response}" | jq -r '.port')"
-  if [[ -z "${INCOMING_PORT}" || "${INCOMING_PORT}" == "null" ]]; then
-    echo "[WARN] No incoming port found in gluetun Control Server port forward response"
+  # Get port forward information from gluetun Control Server (shared function)
+  if ! get_gluetun_forwarded_port 10 1; then
     return 1
   fi
+  INCOMING_PORT="${GLUETUN_FORWARDED_PORT}"
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
   fi
 
   # Get public ip and location information from gluetun Control Server
+  # unquoted: auth can be empty or multi-word
+  # shellcheck disable=SC2086
   public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s ${auth})
 
   if [[ -z "${public_ip}" ]]; then
@@ -356,7 +349,16 @@ function main {
       continue
     fi
 
+    local port_verify_retry_count=0
+
     while ! external_verify_incoming_port; do
+
+      port_verify_retry_count=$((port_verify_retry_count + 1))
+
+      if [[ ${port_verify_retry_count} -ge ${MAX_PORT_VERIFY_RETRIES} ]]; then
+        echo "[WARN] Maximum port verification retries (${MAX_PORT_VERIFY_RETRIES}) reached, VPN port not verified - executing application without VPN port configuration: '${APP_PARAMETERS[*]}'..."
+        exec "${APP_PARAMETERS[@]}"
+      fi
 
       if ! restart_vpn_connection; then
         continue

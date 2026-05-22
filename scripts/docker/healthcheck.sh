@@ -379,9 +379,29 @@ function healthcheck_command() {
 				# This catches cases where the VPN tunnel is up but port forwarding
 				# is broken -- otherwise the healthcheck would pass (because the VPN
 				# adapter is healthy) while qbit's web UI and API are unreachable.
+				# Check if portset.sh has already attempted gluetun-unhealthy escalation.
+				# If so, don't mark this container unhealthy — the escalation either worked
+				# (gluetun will restart) or it didn't, and repeatedly marking qbittorrent
+				# unhealthy only triggers useless external restarts.
 				if ! check_incoming_port; then
-					echo "[warn] Incoming port healthcheck failed"
-					exit_code=1
+					if [[ -f "/tmp/gluetun_escalation_attempted" ]]; then
+						local escalation_time
+						escalation_time=$(cat /tmp/gluetun_escalation_attempted 2>/dev/null || echo "0")
+						local now
+						now=$(date +%s)
+						local elapsed=$((now - escalation_time))
+						# Within 10 minutes of escalation, don't mark unhealthy (allows gluetun
+						# time to restart from watchdog without triggering qbittorrent restarts)
+						if [[ ${elapsed} -lt 600 ]]; then
+							echo "[info] Incoming port unavailable but escalation attempted ${elapsed}s ago — deferring to gluetun restart"
+						else
+							echo "[warn] Incoming port healthcheck failed (escalation cooldown expired)"
+							exit_code=1
+						fi
+					else
+						echo "[warn] Incoming port healthcheck failed"
+						exit_code=1
+					fi
 				fi
 
 			fi

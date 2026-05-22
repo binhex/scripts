@@ -481,7 +481,7 @@ function ensure_incoming_port() {
   # A cooldown file prevents this from firing more than once per 5 minutes,
   # avoiding repeated gluetun restarts in a tight loop.
   local cooldown_file="/tmp/gluetun_escalation_cooldown"
-  local cooldown_seconds="${GLUETUN_ESCALATION_COOLDOWN:-300}"  # 5 minute default
+  local cooldown_seconds="${GLUETUN_ESCALATION_COOLDOWN}"  # resolves to module-level default (300s)
 
   if [[ -f "${cooldown_file}" ]]; then
     local last_escalation

@@ -386,7 +386,8 @@ function healthcheck_command() {
 				if ! check_incoming_port; then
 					if [[ -f "/tmp/gluetun_escalation_attempted" ]]; then
 						local escalation_time
-						escalation_time=$(cat /tmp/gluetun_escalation_attempted 2>/dev/null || echo "0")
+						escalation_time=$(cat /tmp/gluetun_escalation_attempted 2>/dev/null)
+						escalation_time="${escalation_time:-0}"
 						local now
 						now=$(date +%s)
 						local elapsed=$((now - escalation_time))

@@ -506,13 +506,14 @@ function ensure_incoming_port() {
     return 1
   fi
 
-  # Write both flag files atomically to prevent a TOCTOU race where a crash
-  # between two separate writes would leave the cooldown file intact but the
-  # escalation_attempted flag missing, permanently blocking Phase 4 re-fire
-  # while healthcheck.sh keeps marking the container unhealthy.
+  # Write the escalation_attempted flag FIRST, then the cooldown file.
+  # If a crash occurs between the two writes, the escalation flag exists
+  # (healthcheck suppresses) but the cooldown is missing (Phase 4 can
+  # re-fire). This is safe — the alternative (cooldown exists but flag
+  # missing) would permanently block both escalation AND suppression.
   local ts; ts=$(date +%s)
-  echo "${ts}" > "${cooldown_file}"
   echo "${ts}" > /tmp/gluetun_escalation_attempted
+  echo "${ts}" > "${cooldown_file}"
 
   echo "[WARN] VPN stopped via gluetun API. Waiting for Docker healthcheck to detect failure..."
   echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."
@@ -979,6 +980,8 @@ Environment Variables:
     Set the polling delay in seconds between incoming port checks.
   MAX_STARTUP_RETRIES
     Set the maximum number of startup retries before executing application without VPN configuration.
+  GLUETUN_ESCALATION_COOLDOWN
+    Set the cooldown period in seconds between Phase 4 escalation attempts (default: 300).
   DEBUG
     Set to 'yes' to enable debug mode.
 Notes:

@@ -823,7 +823,7 @@ function set_vpn_status() {
 	local json="{\"status\": \"${desired_state}\"}"
 
 	# shellcheck disable=SC2086
-	if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} \
+	if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X PUT \
 		-H "Content-Type: application/json" -d "${json}"; then
 		echo "[ERROR] Failed to set VPN status to '${desired_state}'" >&2
 		return 1

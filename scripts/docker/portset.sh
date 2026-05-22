@@ -344,7 +344,21 @@ function main {
 
     # run function to check all required conditions exist
     if ! check; then
-      echo "[WARN] Required conditions not met, checking again in ${POLL_DELAY} seconds..."
+      # When check() fails (e.g. port=0 from gluetun, unreachable API,
+      # missing VPN adapter), attempt recovery via the escalation handler.
+      # The handler will retry the port query, and if still failing,
+      # restart the VPN connection via gluetun Control Server API.
+      echo "[WARN] Required conditions not met, attempting recovery..."
+      if ensure_incoming_port; then
+        echo "[INFO] Incoming port recovered after escalation, re-validating all conditions..."
+      else
+        echo "[WARN] Recovery failed, checking again in ${POLL_DELAY} seconds..."
+      fi
+      # Always sleep before re-checking, regardless of recovery outcome.
+      # This prevents a busy-loop when check() fails for a non-port reason
+      # (e.g. adapter name/IP missing) while the port is healthy — in that
+      # case ensure_incoming_port returns immediately, and without the sleep
+      # the loop would spin at 100% CPU re-entering check().
       sleep "${POLL_DELAY}"
       continue
     fi
@@ -406,6 +420,56 @@ function main {
     sleep "${POLL_DELAY}"
   done
 
+}
+
+# Escalation handler for when get_incoming_port() fails (port=0 or unreachable).
+# Retries, then restarts the VPN connection and retries again.
+# Returns 0 if a valid port was obtained, 1 if recovery failed.
+function ensure_incoming_port() {
+
+  local max_retries="${1:-3}"
+  local retry_count=0
+
+  # Phase 1: Retry getting the port (may recover on its own)
+  while [[ ${retry_count} -lt ${max_retries} ]]; do
+    echo "[WARN] Attempting to retrieve incoming port (attempt $((retry_count + 1))/${max_retries})..."
+    if get_incoming_port; then
+      return 0
+    fi
+    retry_count=$((retry_count + 1))
+    if [[ ${retry_count} -lt ${max_retries} ]]; then
+      sleep 10
+    fi
+  done
+
+  # Phase 2: Restart VPN connection via gluetun Control Server API
+  echo "[WARN] Port not available after ${max_retries} retries, restarting VPN connection..."
+  if ! restart_vpn_connection; then
+    echo "[ERROR] Failed to restart VPN connection via gluetun API"
+    return 1
+  fi
+
+  echo "[INFO] Waiting 10 seconds for VPN to stabilize after restart..."
+  sleep 10
+
+  # Phase 3: Retry after the VPN restart (incorporates the single
+  # post-restart attempt that used to precede this phase)
+  echo "[WARN] Re-checking incoming port after VPN restart..."
+  retry_count=0
+  while [[ ${retry_count} -lt ${max_retries} ]]; do
+    echo "[WARN] Attempting to retrieve incoming port after VPN restart (attempt $((retry_count + 1))/${max_retries})..."
+    if get_incoming_port; then
+      echo "[INFO] Incoming port recovered after VPN restart and retries"
+      return 0
+    fi
+    retry_count=$((retry_count + 1))
+    if [[ ${retry_count} -lt ${max_retries} ]]; then
+      sleep 10
+    fi
+  done
+
+  echo "[ERROR] Incoming port not available after VPN restart and multiple retries"
+  return 1
 }
 
 function application_start() {
@@ -882,6 +946,10 @@ Examples:
 ENDHELP
 }
 
+# ── Execution gate ────────────────────────────────────────────────
+# Allow sourcing for testing without running argument parsing or main.
+if [[ -z "${PORTSET_TEST_MODE}" ]]; then
+
 while [ "$#" != "0" ]
 do
   case "$1"
@@ -974,3 +1042,5 @@ else
 fi
 
 main
+
+fi

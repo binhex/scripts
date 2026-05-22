@@ -798,3 +798,37 @@ function get_gluetun_forwarded_port() {
 	echo "[info] Retrieved forwarded port '${GLUETUN_FORWARDED_PORT}' from gluetun API" >&2
 	return 0
 }
+
+# Set gluetun VPN status to a desired state (running or stopped).
+# Uses the same auth/URL pattern as restart_vpn_connection() in portset.sh.
+#
+# Args: desired_state ("running" or "stopped")
+# Env:  GLUETUN_CONTROL_SERVER_PORT (default: 8000)
+#       GLUETUN_CONTROL_SERVER_USERNAME / GLUETUN_CONTROL_SERVER_PASSWORD (optional)
+function set_vpn_status() {
+
+	local desired_state="${1}"
+	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT:-8000}/v1"
+
+	if [[ -z "${desired_state}" ]]; then
+		echo "[ERROR] No desired state specified for set_vpn_status" >&2
+		return 1
+	fi
+
+	local auth=""
+	if [[ -n "${GLUETUN_CONTROL_SERVER_USERNAME}" ]]; then
+		auth="-u ${GLUETUN_CONTROL_SERVER_USERNAME}:${GLUETUN_CONTROL_SERVER_PASSWORD}"
+	fi
+
+	local json="{\"status\": \"${desired_state}\"}"
+
+	# shellcheck disable=SC2086
+	if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} \
+		-H "Content-Type: application/json" -d "${json}"; then
+		echo "[ERROR] Failed to set VPN status to '${desired_state}'" >&2
+		return 1
+	fi
+
+	echo "[info] VPN status set to '${desired_state}'" >&2
+	return 0
+}

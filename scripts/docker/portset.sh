@@ -497,16 +497,19 @@ function ensure_incoming_port() {
   fi
 
   echo "[WARN] Phase 4: Stopping VPN to trigger gluetun container restart (final escalation)..."
-  date +%s > "${cooldown_file}"
 
-  # Signal to healthcheck.sh that escalation was attempted (to prevent qbittorrent restart loop)
-  date +%s > /tmp/gluetun_escalation_attempted
-
+  # Only write flag files AFTER the API call succeeds — otherwise we'd suppress
+  # the healthcheck while no actual escalation action was taken.
   if ! set_vpn_status "stopped"; then
     echo "[ERROR] Phase 4 escalation failed — could not stop VPN via gluetun API"
     echo "[ERROR] Incoming port not available after all escalation phases exhausted"
     return 1
   fi
+
+  date +%s > "${cooldown_file}"
+
+  # Signal to healthcheck.sh that escalation was attempted (to prevent qbittorrent restart loop)
+  date +%s > /tmp/gluetun_escalation_attempted
 
   echo "[WARN] VPN stopped via gluetun API. Waiting for Docker healthcheck to detect failure..."
   echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."

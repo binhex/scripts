@@ -390,9 +390,14 @@ function healthcheck_command() {
 						local now
 						now=$(date +%s)
 						local elapsed=$((now - escalation_time))
-						# Within 10 minutes of escalation, don't mark unhealthy (allows gluetun
-						# time to restart from watchdog without triggering qbittorrent restarts)
-						if [[ ${elapsed} -lt 600 ]]; then
+						# Derive the suppression window from portset.sh's escalation cooldown.
+						# Use 2x the cooldown to give gluetun time to restart after the watchdog
+						# detects the failure (default: 300s * 2 = 600s = 10 minutes).
+						local suppression_window=$((GLUETUN_ESCALATION_COOLDOWN * 2))
+						if [[ -z "${GLUETUN_ESCALATION_COOLDOWN}" ]]; then
+							suppression_window=600
+						fi
+						if [[ ${elapsed} -lt ${suppression_window} ]]; then
 							echo "[info] Incoming port unavailable but escalation attempted ${elapsed}s ago — deferring to gluetun restart"
 						else
 							echo "[warn] Incoming port healthcheck failed (escalation cooldown expired)"

@@ -21,6 +21,7 @@ readonly defaultPollDelay="60"
 readonly defaultDebug="no"
 readonly defaultMaxStartupRetries="10"
 readonly defaultMaxPortVerifyRetries="3"
+readonly defaultGluetunEscalationCooldown="300"
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -32,6 +33,7 @@ POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
 MAX_PORT_VERIFY_RETRIES="${MAX_PORT_VERIFY_RETRIES:-${defaultMaxPortVerifyRetries}}"
+GLUETUN_ESCALATION_COOLDOWN="${GLUETUN_ESCALATION_COOLDOWN:-${defaultGluetunEscalationCooldown}}"
 
 # source in image build info, includes tag name and app name
 if [[ -f "${defaultImageBuildFilepath}" ]]; then
@@ -469,6 +471,46 @@ function ensure_incoming_port() {
   done
 
   echo "[ERROR] Incoming port not available after VPN restart and multiple retries"
+
+  # Phase 4: Final escalation — stop VPN to trigger gluetun container restart.
+  # Stops the VPN via gluetun Control Server API. This causes gluetun's
+  # Docker healthcheck (queries health server every 5s) to return 500,
+  # marking the container unhealthy. The watchdog restarts gluetun,
+  # giving us a fresh VPN connection and a new port from PIA.
+  #
+  # A cooldown file prevents this from firing more than once per 5 minutes,
+  # avoiding repeated gluetun restarts in a tight loop.
+  local cooldown_file="/tmp/gluetun_escalation_cooldown"
+  local cooldown_seconds="${GLUETUN_ESCALATION_COOLDOWN:-300}"  # 5 minute default
+
+  if [[ -f "${cooldown_file}" ]]; then
+    local last_escalation
+    last_escalation=$(cat "${cooldown_file}")
+    local now
+    now=$(date +%s)
+    local elapsed=$((now - last_escalation))
+    if [[ ${elapsed} -lt ${cooldown_seconds} ]]; then
+      echo "[WARN] Skipping Phase 4 escalation — cooldown active ($((cooldown_seconds - elapsed))s remaining)"
+      echo "[ERROR] Incoming port not available after all escalation phases exhausted"
+      return 1
+    fi
+  fi
+
+  echo "[WARN] Phase 4: Stopping VPN to trigger gluetun container restart (final escalation)..."
+  date +%s > "${cooldown_file}"
+
+  # Signal to healthcheck.sh that escalation was attempted (to prevent qbittorrent restart loop)
+  date +%s > /tmp/gluetun_escalation_attempted
+
+  if ! set_vpn_status "stopped"; then
+    echo "[ERROR] Phase 4 escalation failed — could not stop VPN via gluetun API"
+    echo "[ERROR] Incoming port not available after all escalation phases exhausted"
+    return 1
+  fi
+
+  echo "[WARN] VPN stopped via gluetun API. Waiting for Docker healthcheck to detect failure..."
+  echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."
+  echo "[ERROR] Incoming port not available after all escalation phases exhausted"
   return 1
 }
 

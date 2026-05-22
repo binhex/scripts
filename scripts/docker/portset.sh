@@ -506,10 +506,13 @@ function ensure_incoming_port() {
     return 1
   fi
 
-  date +%s > "${cooldown_file}"
-
-  # Signal to healthcheck.sh that escalation was attempted (to prevent qbittorrent restart loop)
-  date +%s > /tmp/gluetun_escalation_attempted
+  # Write both flag files atomically to prevent a TOCTOU race where a crash
+  # between two separate writes would leave the cooldown file intact but the
+  # escalation_attempted flag missing, permanently blocking Phase 4 re-fire
+  # while healthcheck.sh keeps marking the container unhealthy.
+  local ts; ts=$(date +%s)
+  echo "${ts}" > "${cooldown_file}"
+  echo "${ts}" > /tmp/gluetun_escalation_attempted
 
   echo "[WARN] VPN stopped via gluetun API. Waiting for Docker healthcheck to detect failure..."
   echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."

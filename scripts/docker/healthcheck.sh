@@ -393,10 +393,10 @@ function healthcheck_command() {
 						# Derive the suppression window from portset.sh's escalation cooldown.
 						# Use 2x the cooldown to give gluetun time to restart after the watchdog
 						# detects the failure (default: 300s * 2 = 600s = 10 minutes).
-						local suppression_window=$((GLUETUN_ESCALATION_COOLDOWN * 2))
-						if [[ -z "${GLUETUN_ESCALATION_COOLDOWN}" ]]; then
-							suppression_window=600
-						fi
+						# Check emptiness first before arithmetic to avoid brittle
+						# arithmetic-on-empty behaviour in $(( )).
+						local escalation_cooldown_secs="${GLUETUN_ESCALATION_COOLDOWN:-300}"
+						local suppression_window=$((escalation_cooldown_secs * 2))
 						if [[ ${elapsed} -lt ${suppression_window} ]]; then
 							echo "[info] Incoming port unavailable but escalation attempted ${elapsed}s ago — deferring to gluetun restart"
 						else

@@ -22,6 +22,11 @@ readonly defaultDebug="no"
 readonly defaultMaxStartupRetries="10"
 readonly defaultMaxPortVerifyRetries="3"
 readonly defaultGluetunEscalationCooldown="300"
+readonly defaultQbittorrentWebuiUser="admin"
+readonly defaultQbittorrentCookieJar="/tmp/qbittorrent_sid.txt"
+
+# auto-generated qBittorrent password (populated by qbittorrent_edit_config if no existing password in config)
+QBITTORRENT_AUTO_PASSWORD=""
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -34,6 +39,8 @@ DEBUG="${DEBUG:-${defaultDebug}}"
 MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
 MAX_PORT_VERIFY_RETRIES="${MAX_PORT_VERIFY_RETRIES:-${defaultMaxPortVerifyRetries}}"
 GLUETUN_ESCALATION_COOLDOWN="${GLUETUN_ESCALATION_COOLDOWN:-${defaultGluetunEscalationCooldown}}"
+QBITTORRENT_WEBUI_USER="${QBITTORRENT_WEBUI_USER:-${defaultQbittorrentWebuiUser}}"
+QBITTORRENT_WEBUI_PASSWORD="${QBITTORRENT_WEBUI_PASSWORD:-}"
 
 # source in image build info, includes tag name and app name
 if [[ -f "${defaultImageBuildFilepath}" ]]; then
@@ -731,6 +738,58 @@ function deluge_verify_incoming_port() {
 # qBittorrent functions
 ####
 
+function qbittorrent_api_login() {
+
+  # identify protocol
+  local web_protocol="http"
+  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null; then
+    web_protocol="https"
+  fi
+
+  local cookie_jar="${defaultQbittorrentCookieJar}"
+
+  # Determine which password to use for API auth:
+  #   1. QBITTORRENT_WEBUI_PASSWORD (from env var / template arg) — highest priority
+  #   2. QBITTORRENT_AUTO_PASSWORD (auto-generated in edit_config when no existing password)
+  #   3. Neither — can't authenticate
+  local login_password="${QBITTORRENT_WEBUI_PASSWORD}"
+  if [[ -z "${login_password}" ]]; then
+    login_password="${QBITTORRENT_AUTO_PASSWORD}"
+  fi
+
+  if [[ -z "${login_password}" ]]; then
+    echo "[WARN] No qBittorrent WebUI password available for API authentication."
+    echo "[WARN] Set QBITTORRENT_WEBUI_PASSWORD env var to enable API-based port configuration."
+    return 1
+  fi
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Authenticating with qBittorrent WebUI API at ${web_protocol}://localhost:${WEBUI_PORT}..."
+  fi
+
+  # login and capture SID cookie
+  rm -f "${cookie_jar}"
+
+  local login_response
+  login_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/auth/login" 3 2 -k -s \
+    -c "${cookie_jar}" \
+    --header "Referer: ${web_protocol}://localhost:${WEBUI_PORT}" \
+    --data-urlencode "username=${QBITTORRENT_WEBUI_USER}" \
+    --data-urlencode "password=${login_password}")
+
+  if [[ ! -f "${cookie_jar}" ]] || ! grep -q "SID" "${cookie_jar}" 2>/dev/null; then
+    echo "[WARN] Failed to authenticate with qBittorrent API (response: '${login_response}')"
+    return 1
+  fi
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] Successfully authenticated with qBittorrent WebUI API"
+  fi
+
+  return 0
+
+}
+
 function qbittorrent_start() {
 
   echo "[INFO] Starting '${APP_NAME}' with VPN incoming port '${INCOMING_PORT}'..."
@@ -740,12 +799,130 @@ function qbittorrent_start() {
 
 function qbittorrent_edit_config() {
 
-  if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Setting bypass authentication for localhost, required to configure ${APP_NAME} incoming port via API: ${QBITTORRENT_CONFIG_FILEPATH}"
+  local qbittorrent_config_dir
+  qbittorrent_config_dir="$(dirname "${QBITTORRENT_CONFIG_FILEPATH}")"
+
+  # ensure config directory exists
+  mkdir -p "${qbittorrent_config_dir}"
+
+  # Ensure config file exists on disk before qBittorrent starts.
+  # On first run we copy the pre-generated template (has VPN binding, UPnP=false, etc.);
+  # on subsequent runs the config from the previous session is already present.
+  local qbittorrent_template_config="/home/nobody/qbittorrent/config/qBittorrent.conf"
+
+  if [[ ! -f "${QBITTORRENT_CONFIG_FILEPATH}" ]]; then
+    if [[ ! -f "${qbittorrent_template_config}" ]]; then
+      echo "[warn] qBittorrent template config not found at '${qbittorrent_template_config}'"
+      echo "[warn] Cannot pre-configure WebUI credentials; qBittorrent will generate a temporary password"
+      return 1
+    fi
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Copying pre-generated config from '${qbittorrent_template_config}'"
+    fi
+    cp "${qbittorrent_template_config}" "${QBITTORRENT_CONFIG_FILEPATH}"
   fi
 
-  if ! grep -q 'WebUI\\LocalHostAuth=false' "${QBITTORRENT_CONFIG_FILEPATH}"; then
-    sed -i 's~^WebUI\\LocalHostAuth.*~WebUI\\LocalHostAuth=false~' "${QBITTORRENT_CONFIG_FILEPATH}"
+  # Remove obsolete LocalHostAuth setting (removed in qBittorrent 5)
+  sed -i '/^WebUI\\LocalHostAuth/d' "${QBITTORRENT_CONFIG_FILEPATH}"
+
+  # Always update the username (harmless — this is the login name, not a secret)
+  if grep -q '^WebUI\\Username' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+    sed -i "s~^WebUI\\Username.*~WebUI\\\\Username=${QBITTORRENT_WEBUI_USER}~" "${QBITTORRENT_CONFIG_FILEPATH}"
+  else
+    sed -i "/^\\[Preferences\\]/a\\WebUI\\\\Username=${QBITTORRENT_WEBUI_USER}" "${QBITTORRENT_CONFIG_FILEPATH}"
+  fi
+
+  # ── Password handling ─────────────────────────────────────────────────
+  # CRITICAL: Never overwrite an existing Password_PBKDF2 in the user's config.
+  # If the user already has a WebUI password set, overwriting it would lock them
+  # out of the WebUI on next restart — a support nightmare.
+  #
+  # Rules:
+  #   1. If Password_PBKDF2 already has a value in the config → leave it alone.
+  #      The user's existing password is preserved. We can't extract the plaintext
+  #      from the PBKDF2 hash, so API auth will only work if QBITTORRENT_WEBUI_PASSWORD
+  #      env var is provided.
+  #   2. If Password_PBKDF2 is absent/empty → we are the first to set it.
+  #      Auto-generate a password, store its PBKDF2 hash in the config, and save
+  #      the plaintext in QBITTORRENT_AUTO_PASSWORD for later API login.
+  #   3. If QBITTORRENT_WEBUI_PASSWORD env var is provided → it takes priority for
+  #      API auth regardless, but we still don't overwrite an existing hash in the
+  #      config (the user would change it via the WebUI preferences if they wanted to).
+
+  local existing_password_hash
+  existing_password_hash=$(grep '^WebUI\\Password_PBKDF2' "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null | cut -d= -f2-)
+
+  if [[ -n "${existing_password_hash}" ]]; then
+    # Password already exists in config — preserve it
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] WebUI password already set in config, preserving existing credentials"
+    fi
+    if [[ -n "${QBITTORRENT_WEBUI_PASSWORD}" ]]; then
+      echo "[info] Using QBITTORRENT_WEBUI_PASSWORD from env var for API authentication"
+    else
+      echo "[info] WebUI password already configured. To enable API-based port configuration,"
+      echo "[info] set QBITTORRENT_WEBUI_PASSWORD env var to match your qBittorrent WebUI password."
+    fi
+    return 0
+  fi
+
+  # No existing password — determine what plaintext to use
+  local qbittorrent_password="${QBITTORRENT_WEBUI_PASSWORD}"
+
+  if [[ -z "${qbittorrent_password}" ]]; then
+    # No password supplied via env var or arg; auto-generate one (9 chars, matching qBittorrent's own approach)
+    if command -v python3 &> /dev/null; then
+      qbittorrent_password="$(python3 -c "
+import secrets
+alphabet = '23456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz'
+print(''.join(secrets.choice(alphabet) for _ in range(9)))
+")"
+    else
+      # fallback: use openssl rand
+      qbittorrent_password="$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 9)"
+    fi
+    echo "[info] QBITTORRENT_WEBUI_PASSWORD not set, auto-generated password: ${qbittorrent_password}"
+    echo "[info] Set QBITTORRENT_WEBUI_PASSWORD env var to use a custom password"
+  fi
+
+  # Store plaintext for later API login
+  QBITTORRENT_AUTO_PASSWORD="${qbittorrent_password}"
+
+  # generate PBKDF2-SHA512 hash
+  local pbkdf2_hash
+  if command -v python3 &> /dev/null; then
+    pbkdf2_hash="$(QBITTORRENT_PBKDF2_PASSWORD="${qbittorrent_password}" python3 -c "
+import os
+import hashlib
+import base64
+
+password = os.environ['QBITTORRENT_PBKDF2_PASSWORD'].encode()
+salt = os.urandom(16)
+iterations = 100000
+dk = hashlib.pbkdf2_hmac('sha512', password, salt, iterations, dklen=64)
+
+result = base64.b64encode(salt).decode('ascii') + ':' + base64.b64encode(dk).decode('ascii')
+print(result)
+")"
+  else
+    echo "[warn] python3 not available, cannot pre-hash qBittorrent password. API auth may fail."
+    return 1
+  fi
+
+  if [[ -z "${pbkdf2_hash}" ]]; then
+    echo "[warn] Failed to generate PBKDF2 hash for qBittorrent password"
+    return 1
+  fi
+
+  # Write Password_PBKDF2 to config
+  if grep -q '^WebUI\\Password_PBKDF2' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+    sed -i "s~^WebUI\\Password_PBKDF2.*~WebUI\\\\Password_PBKDF2=${pbkdf2_hash}~" "${QBITTORRENT_CONFIG_FILEPATH}"
+  else
+    sed -i "/^\\[Preferences\\]/a\\WebUI\\\\Password_PBKDF2=${pbkdf2_hash}" "${QBITTORRENT_CONFIG_FILEPATH}"
+  fi
+
+  if [[ "${DEBUG}" == "yes" ]]; then
+    echo "[DEBUG] qBittorrent config updated with new WebUI credentials"
   fi
 
 }
@@ -753,10 +930,17 @@ function qbittorrent_edit_config() {
 function qbittorrent_api_config() {
 
   # identify protocol, used by curl to connect to api
-  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+  local web_protocol="http"
+  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null; then
     web_protocol="https"
-  else
-    web_protocol="http"
+  fi
+
+  local cookie_jar="${defaultQbittorrentCookieJar}"
+
+  # authenticate first (required by qBittorrent 5+)
+  if ! qbittorrent_api_login; then
+    echo "[WARN] Unable to authenticate with qBittorrent API, port config may fail"
+    return 1
   fi
 
   local vpn_adapter_name
@@ -778,7 +962,10 @@ function qbittorrent_api_config() {
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
   fi
 
-  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s -X POST -d "json=${interface_json}"
+  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s \
+    -b "${cookie_jar}" \
+    --header "Referer: ${web_protocol}://localhost:${WEBUI_PORT}" \
+    -X POST -d "json=${interface_json}"
 
 }
 
@@ -790,14 +977,23 @@ function qbittorrent_verify_incoming_port() {
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
   # identify protocol, used by curl to connect to api
-  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}"; then
+  local web_protocol="http"
+  if grep -q 'WebUI\\HTTPS\\Enabled=true' "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null; then
       web_protocol="https"
-  else
-      web_protocol="http"
+  fi
+
+  local cookie_jar="${defaultQbittorrentCookieJar}"
+
+  # authenticate first (required by qBittorrent 5+)
+  if ! qbittorrent_api_login; then
+    echo "[WARN] Unable to authenticate with qBittorrent API, cannot verify port"
+    return 1
   fi
 
   # Get current preferences from qBittorrent API using curl_with_retry
-  preferences_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/preferences" 10 1 -k -s)
+  preferences_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/preferences" 10 1 -k -s \
+    -b "${cookie_jar}" \
+    --header "Referer: ${web_protocol}://localhost:${WEBUI_PORT}")
   current_port=$(echo "${preferences_response}" | jq -r '.listen_port')
 
   # Check if the port was retrieved successfully
@@ -942,6 +1138,16 @@ Where:
     Define whether to enable VPN port monitoring and application configuration.
     Defaults to '${defaultGluetunIncomingPort}'.
 
+  -qbu or --qbittorrent-webui-user <username>
+    Define the qBittorrent WebUI username for API authentication.
+    Only used when APP_NAME is 'qbittorrent'.
+    Defaults to '${defaultQbittorrentWebuiUser}'.
+
+  -qbp or --qbittorrent-webui-password <password>
+    Define the qBittorrent WebUI password for API authentication.
+    Only used when APP_NAME is 'qbittorrent'. If left empty, a random password
+    will be auto-generated and written to the config before qBittorrent starts.
+
   -pd or --poll-delay <seconds>
     Define the polling delay in seconds between incoming port checks.
     Defaults to '${defaultPollDelay}'.
@@ -974,6 +1180,12 @@ Environment Variables:
     Set the file path to the Nicotine+ configuration file (nicotine.conf).
   GLUETUN_CONTROL_SERVER_PORT
     Set the port for the Gluetun Control Server.
+  QBITTORRENT_WEBUI_USER
+    Set the qBittorrent WebUI username used to authenticate with the API.
+    Only used when APP_NAME is 'qbittorrent'. Defaults to 'admin'.
+  QBITTORRENT_WEBUI_PASSWORD
+    Set the qBittorrent WebUI password used to authenticate with the API.
+    Only used when APP_NAME is 'qbittorrent'. If empty, auto-generated.
   GLUETUN_INCOMING_PORT
     Set to 'yes' to enable VPN port monitoring and application configuration.
   POLL_DELAY
@@ -1039,6 +1251,14 @@ do
     ;;
   -gip|--gluetun-incoming-port)
     GLUETUN_INCOMING_PORT="${2}"
+    shift
+    ;;
+  -qbu|--qbittorrent-webui-user)
+    QBITTORRENT_WEBUI_USER="${2}"
+    shift
+    ;;
+  -qbp|--qbittorrent-webui-password)
+    QBITTORRENT_WEBUI_PASSWORD="${2}"
     shift
     ;;
   -pd|--poll-delay)

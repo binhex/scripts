@@ -91,9 +91,6 @@ function lock_chattr() {
 			# rename chattr to make it harder for ransomware to run
 			mv '/usr/bin/chattr' "/usr/bin/${secure_chattr}"
 
-			# ensure only root can run chattr
-			chmod 700 "/usr/bin/${secure_chattr}"
-
 		else
 
 			echo "[warn] User ID '${user_id}' is not 'root', skipping locking of chattr"

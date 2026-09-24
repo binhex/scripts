@@ -30,8 +30,11 @@ function check_https() {
 
 	echo "[info] Health checking HTTPS..."
 
-	# check if HTTPS is working by making a request to a known URL
-	if ! curl -s --head "https://${hostname_check}" > /dev/null; then
+	# check if HTTPS is working by making a request to a known URL, the timeouts
+	# bound the probe so an unresponsive host cannot stall the healthcheck until
+	# Docker's HEALTHCHECK timeout kills the script (which would also report the
+	# container as unhealthy)
+	if ! curl -s --head --connect-timeout 5 --max-time 15 "https://${hostname_check}" > /dev/null; then
 		echo "[warn] HTTPS request failed"
 		return 1
 	else
@@ -40,13 +43,84 @@ function check_https() {
 	fi
 }
 
+# Probes a list of independent external hosts and reports whether this container
+# still has internet connectivity.
+#
+# A host only counts as reachable when both DNS resolution and an HTTPS request
+# succeed. The container is reported as offline only when fewer than
+# HEALTHCHECK_MIN_REACHABLE_HOSTS hosts are reachable, so a blip on a single
+# upstream host (or a single host being unreachable) does not mark it unhealthy.
+#
+# Env: HEALTHCHECK_HOSTNAMES           - space or comma separated target list
+#      HEALTHCHECK_HOSTNAME            - single target, legacy, used when
+#                                        HEALTHCHECK_HOSTNAMES is not set
+#      HEALTHCHECK_MIN_REACHABLE_HOSTS - reachable hosts required (default: 1)
+#
+# Returns 0 when connectivity is confirmed, 1 when it is not.
+# CONNECTIVITY_PROBE_RESULT caches the outcome for the current healthcheck attempt
+# so that check_app_specific does not probe a second time. Callers clear it before
+# each retry so that every attempt re-verifies connectivity.
+function check_internet_connectivity() {
+
+	if [[ -n "${CONNECTIVITY_PROBE_RESULT}" ]]; then
+		echo "[info] Reusing connectivity probe result from this healthcheck attempt (exit code '${CONNECTIVITY_PROBE_RESULT}')."
+		return "${CONNECTIVITY_PROBE_RESULT}"
+	fi
+
+	echo "[info] Health checking internet connectivity..."
+
+	local hosts=()
+	if [[ -n "${HEALTHCHECK_HOSTNAMES}" ]]; then
+		# split on spaces and commas so both 'a b' and 'a,b' lists work
+		local host_list="${HEALTHCHECK_HOSTNAMES//,/ }"
+		read -r -a hosts <<< "${host_list}"
+	elif [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
+		hosts=("${HEALTHCHECK_HOSTNAME}")
+	fi
+
+	# fall back to the defaults when nothing usable was configured, an empty or
+	# malformed HEALTHCHECK_HOSTNAMES must not leave every container unhealthy
+	if [[ "${#hosts[@]}" -eq 0 ]]; then
+		hosts=('cloudflare.com' 'google.com' 'github.com')
+	fi
+
+	local min_reachable="${HEALTHCHECK_MIN_REACHABLE_HOSTS:-1}"
+	local reachable=0
+	local host
+
+	for host in "${hosts[@]}"; do
+
+		# a host is only reachable when its name resolves and it answers over HTTPS
+		if check_dns "${host}" && check_https "${host}"; then
+			echo "[info] Host '${host}' is reachable."
+			reachable=$((reachable + 1))
+		else
+			echo "[warn] Host '${host}' is not reachable."
+		fi
+	done
+
+	echo "[info] Reachable connectivity hosts: ${reachable}/${#hosts[@]} (minimum required: ${min_reachable})."
+
+	if [[ "${reachable}" -ge "${min_reachable}" ]]; then
+		CONNECTIVITY_PROBE_RESULT=0
+	else
+		echo "[warn] Internet connectivity check failed"
+		CONNECTIVITY_PROBE_RESULT=1
+	fi
+
+	return "${CONNECTIVITY_PROBE_RESULT}"
+}
+
 function check_process() {
 
 	echo "[info] Health checking processes..."
 
 	# get env vars from buildx arguments stored in /etc/image-build-info
-	# shellcheck disable=SC1091
-	source /etc/image-build-info
+	local build_info_file="${IMAGE_BUILD_INFO_FILE:-/etc/image-build-info}"
+	if [[ -f "${build_info_file}" ]]; then
+		# shellcheck source=/dev/null
+		source "${build_info_file}"
+	fi
 
 	if [[ -z "${APPNAME}" ]]; then
 		echo "[warn] APPNAME is not defined, cannot check process."
@@ -184,18 +258,40 @@ function check_process() {
 	return 0
 }
 
-# Checks a log file for error patterns within a recent time window.
+# Scans a log file for network-level error patterns within a recent time window and
+# reports the distinct remote hosts that failed.
+#
 # Continuation lines (e.g. .NET stack frames) are included when they follow a
 # timestamped line that falls within the window, so multi-line exceptions are caught.
 #
+# Errors that do not indicate a loss of connectivity are filtered out first.
+# 'Connection refused' in particular proves the network path works and the remote
+# service is simply down (for example prowlarr still referencing a removed Readarr),
+# so it must never be reported as a connectivity failure.
+#
+# Finding errors here is evidence, not a verdict: callers must confirm with a live
+# connectivity probe before marking the container unhealthy, because a single host
+# being down, a dropped DNS query and an unreachable IPv6 address all look alike.
+#
 # Args: log_file [pattern ...]
 # Env:  APP_LOG_CHECK_MINUTES  - window size in minutes (default: 5)
+# Sets: APP_LOG_NET_ERROR_HOSTS - space separated distinct hosts that failed
+#       APP_LOG_NET_ERROR_COUNT - number of distinct hosts that failed
+# Returns: 0 when no network-level errors were found, 1 when they were found.
 function check_app_logs() {
 
 	local log_file="${1}"
 	shift
 	local error_patterns=("${@}")
 	local window_minutes="${APP_LOG_CHECK_MINUTES:-5}"
+
+	APP_LOG_NET_ERROR_HOSTS=""
+	APP_LOG_NET_ERROR_COUNT=0
+
+	if [[ "${#error_patterns[@]}" -eq 0 ]]; then
+		echo "[info] No log error patterns configured, skipping log check."
+		return 0
+	fi
 
 	if [[ ! -f "${log_file}" ]]; then
 		echo "[info] Log file '${log_file}' not found, skipping log check."
@@ -223,53 +319,91 @@ function check_app_logs() {
 		return 0
 	fi
 
-	for pattern in "${error_patterns[@]}"; do
-		if echo "${recent_logs}" | grep -qi -- "${pattern}"; then
-			echo "[warn] Error pattern '${pattern}' detected in recent application logs."
-			return 1
-		fi
-	done
+	# Errors that are never evidence of lost internet connectivity:
+	#   - Connection refused (111) the remote service is down, the network is fine
+	#   - Operation canceled (125) request cancellation artefact
+	#   - SSL / HTTP2           protocol level, not reachability
+	#   - short reads           connection dropped mid response
+	#   - request timeouts      one slow indexer, not a connectivity loss
+	local error_exclusions=(
+		'Connection refused'
+		'Operation canceled'
+		'SSL connection could not be established'
+		'HTTP/2'
+		'Failed to read complete'
+		'Http request timed out'
+	)
 
-	echo "[info] No critical errors found in recent application logs."
-	return 0
+	local pattern_regex exclusion_regex
+	pattern_regex=$(printf '%s|' "${error_patterns[@]}")
+	pattern_regex="${pattern_regex%|}"
+	exclusion_regex=$(printf '%s|' "${error_exclusions[@]}")
+	exclusion_regex="${exclusion_regex%|}"
+
+	local matched_lines
+	matched_lines=$(printf '%s\n' "${recent_logs}" | grep -iE -- "${pattern_regex}" | grep -ivE -- "${exclusion_regex}")
+
+	if [[ -z "${matched_lines}" ]]; then
+		echo "[info] No network connectivity errors found in recent application logs."
+		return 0
+	fi
+
+	# Remote hosts are reported by .NET as the trailing '(host:port)' of the exception
+	# header, for example '...(Network is unreachable) (1337x.to:443)'.
+	local failed_hosts
+	failed_hosts=$(printf '%s\n' "${matched_lines}" | grep -oE '\([a-zA-Z0-9._-]+:[0-9]+\)' | tr -d '()' | sort -u)
+
+	if [[ -z "${failed_hosts}" ]]; then
+		APP_LOG_NET_ERROR_HOSTS='unknown'
+		APP_LOG_NET_ERROR_COUNT=1
+	else
+		APP_LOG_NET_ERROR_HOSTS=$(printf '%s\n' "${failed_hosts}" | tr '\n' ' ')
+		APP_LOG_NET_ERROR_HOSTS="${APP_LOG_NET_ERROR_HOSTS% }"
+		APP_LOG_NET_ERROR_COUNT=$(printf '%s\n' "${failed_hosts}" | grep -c .)
+	fi
+
+	echo "[warn] Network connectivity errors found in recent application logs (${APP_LOG_NET_ERROR_COUNT} host(s): ${APP_LOG_NET_ERROR_HOSTS})."
+	return 1
 }
 
 # Runs app-specific health checks based on APPNAME.
-# Currently checks supervisord.log for network-related exceptions in apps that use
-# supervisord. A network exception in the recent window means the app has lost
-# connectivity and is silently failing, even though the process is still running.
+#
+# Supervised *arr apps keep running when they lose internet connectivity, so their
+# logs are scanned for network-level errors. A logged error on its own is not proof
+# of a connectivity loss — a single unreachable host, a dropped DNS query and an
+# unreachable IPv6 address all produce the same exceptions while the app is fine —
+# so the container is only marked unhealthy when a live connectivity probe fails too.
 function check_app_specific() {
 
 	echo "[info] Health checking application-specific state..."
 
-	# shellcheck disable=SC1091
-	source /etc/image-build-info
+	local build_info_file="${IMAGE_BUILD_INFO_FILE:-/etc/image-build-info}"
+	if [[ -f "${build_info_file}" ]]; then
+		# shellcheck source=/dev/null
+		source "${build_info_file}"
+	fi
 
 	if [[ -z "${APPNAME}" ]]; then
 		echo "[info] APPNAME is not defined, skipping app-specific checks."
 		return 0
 	fi
 
-	local supervisord_log="/config/supervisord.log"
+	local supervisord_log="${APP_LOG_FILE:-/config/supervisord.log}"
 
-	# Network-specific exception class name and OS-level error messages.
-	# Uses SocketException (the root .NET transport exception, low false-positive risk)
-	# plus OS error strings unique to connectivity failures. Bare HttpRequestException
-	# and WebException are intentionally excluded — they also fire on protocol-level
-	# errors (4xx/5xx responses, auth rejections) that do not indicate a network outage.
-	# TaskCanceledException is covered via 'HttpClient.Timeout' rather than the bare
-	# exception name, which would also match routine request cancellations.
+	# OS-level error messages that mean the app could not reach a remote host at all.
+	# Bare SocketException/HttpRequestException/WebException are intentionally excluded:
+	# they also fire on protocol-level errors (4xx/5xx responses, auth rejections,
+	# connection refused) that do not indicate a network outage. TaskCanceledException is
+	# covered via 'HttpClient.Timeout' rather than the bare exception name, which would
+	# also match routine request cancellations.
 	local net_error_patterns=(
-		# Root .NET exception for socket-level failures (DNS, connect, unreachable, EAGAIN)
-		'SocketException'
-		# OS error messages that accompany socket failures — unique to network failures
-		'Resource temporarily unavailable'  # EAGAIN  (errno 11) — user's reported case
 		'Network is unreachable'            # ENETUNREACH (errno 101)
 		'No route to host'                  # EHOSTUNREACH (errno 113)
-		'Name or service not known'         # DNS resolution failure
 		'Connection timed out'              # ETIMEDOUT (errno 110)
-		# HTTP client timeout: TaskCanceledException message specific to network timeouts
-		'HttpClient.Timeout'
+		'Name or service not known'         # DNS resolution failure
+		'Resource temporarily unavailable'  # EAGAIN (errno 11) - DNS resolver blip
+		'No data available'                 # ENODATA (errno 61) - DNS NODATA response
+		'HttpClient.Timeout'                # HTTP client timeout
 	)
 
 	# Apps that write .NET exceptions to supervisord.log.
@@ -278,8 +412,19 @@ function check_app_specific() {
 	local app
 	for app in "${supervised_apps[@]}"; do
 		if [[ "${APPNAME}" == "${app}" ]]; then
-			check_app_logs "${supervisord_log}" "${net_error_patterns[@]}"
-			return "${?}"
+
+			if check_app_logs "${supervisord_log}" "${net_error_patterns[@]}"; then
+				return 0
+			fi
+
+			# confirm the logged errors against live connectivity before failing
+			if check_internet_connectivity; then
+				echo "[info] Live connectivity check passed, treating the logged errors as transient or host specific."
+				return 0
+			fi
+
+			echo "[warn] Live connectivity check failed, application has lost internet connectivity."
+			return 1
 		fi
 	done
 
@@ -315,6 +460,7 @@ function healthcheck_command() {
 	local exit_code=0
 
 	# source in curl_with_retry function and vpn ip and adapter name functions
+	# shellcheck source=/dev/null
 	source utils.sh
 
 	if [[ "${ENABLE_HEALTHCHECK,,}" != "yes" ]]; then
@@ -333,12 +479,6 @@ function healthcheck_command() {
 		local retry_delay=5
 		echo "[info] No custom healthcheck command defined via env var 'HEALTHCHECK_COMMAND', running default healthchecks..."
 
-		if [[ -n "${HEALTHCHECK_HOSTNAME}" ]]; then
-			local hostname_check="${HEALTHCHECK_HOSTNAME}"
-		else
-			local hostname_check="cloudflare.com"
-		fi
-
 		while [[ "${retry_count}" -lt "${max_retries}" ]]; do
 
 			if [[ "${retry_count}" -gt 0 ]]; then
@@ -347,11 +487,13 @@ function healthcheck_command() {
 			fi
 
 			exit_code=0
-			if ! check_dns "${hostname_check}"; then
-				exit_code=1
-			fi
 
-			if ! check_https "${hostname_check}"; then
+			# clear the cached probe so that every attempt re-verifies connectivity,
+			# a transient failure that has since recovered must not keep the container
+			# unhealthy for the remainder of the run
+			CONNECTIVITY_PROBE_RESULT=""
+
+			if ! check_internet_connectivity; then
 				exit_code=1
 			fi
 
@@ -455,4 +597,7 @@ function healthcheck_action() {
 	fi
 }
 
-healthcheck_command
+# Allow sourcing for testing without running the healthcheck.
+if [[ -z "${HEALTHCHECK_TEST_MODE}" ]]; then
+	healthcheck_command
+fi

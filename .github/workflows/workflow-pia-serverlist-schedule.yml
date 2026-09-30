@@ -23,7 +23,7 @@ jobs:
           attempt_limit: 3
           attempt_delay: 600000
           command: |
-            echo "${{ secrets.TDB_PAT }}" | gh auth login --with-token
+            echo "${{ secrets.CR_PAT }}" | gh auth login --with-token
       - name: Generate PIA port forward enabled endpoints markdown file
         uses: Wandalen/wretry.action@v3
         with:

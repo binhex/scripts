@@ -49,8 +49,9 @@ function init() {
 	# strip out restriction to not allow make as user root (docker build uses root)
 	sed -i -e 's~exit $E_ROOT~~g' '/usr/bin/makepkg'
 
-	# disable building of debug packages
-	sed -i '/^OPTIONS=/s/\bdebug\b/!debug/g' '/etc/makepkg.conf'
+	# disable building of debug packages, note '!\?debug' keeps this idempotent as
+	# some distributions already ship '!debug', which would otherwise become '!!debug'
+	sed -i '/^OPTIONS=/s/!\?debug\b/!debug/g' '/etc/makepkg.conf'
 
 	# perform database refresh and update (require for arm as this is not pinned to archive)
 	pacman -Syu --noconfirm

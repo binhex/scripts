@@ -469,26 +469,29 @@ Where:
 		Default is not defined.
 
 Examples:
-	GitHub release source download:
-		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'release'
+	GitHub release source download for branch to specific extraction path (manual install):
+		github.sh --extract-path '/tmp/deluge/extract/' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'branch' --download-branch 'main'
 
-	GitHub release source download and compile:
-		github.sh --install-path '/tmp/compile' --github-owner 'rofl0r' --github-repo 'microsocks' --query-type 'release' --compile-src 'make install'
+	GitHub release source download and unpack for branch:
+		github.sh --install-path '/opt/binhex/deluge/' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'branch' --download-branch 'master'
 
-	GitHub tags source download:
-		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'tags'
+	GitHub release source download and unpack for release:
+		github.sh --install-path '/opt/binhex/deluge/' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'release'
 
-	GitHub master branch source download:
-		github.sh --install-path '/opt/binhex/deluge' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'branch' --download-branch 'master'
+	GitHub release source download and unpack for release and compile:
+		github.sh --install-path '/tmp/microsocks/src/' --github-owner 'rofl0r' --github-repo 'microsocks' --query-type 'release' --compile-src 'make install'
 
-	GitHub release binary asset download:
-		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --query-type 'release'
+	GitHub tags source download and unpack for tag:
+		github.sh --install-path '/opt/binhex/deluge/' --github-owner 'binhex' --github-repo 'arch-deluge' --query-type 'tags'
+
+	GitHub release binary asset download using regex to match asset name:
+		github.sh --install-path '/usr/bin/' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --query-type 'release'
 
 	GitHub release binary asset download and strip first folder from downloaded archive:
-		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --strip-components '1' --query-type 'release'
+		github.sh --install-path '/usr/bin/' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*tar.gz' --strip-components '1' --query-type 'release'
 
 	GitHub pre-release binary asset download:
-		github.sh --install-path '/usr/bin' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*linux_amd64.tar.gz' --query-type 'pre-release'
+		github.sh --install-path '/usr/bin/' --github-owner 'yudai' --github-repo 'gotty' --download-assets 'gotty.*linux_amd64.tar.gz' --query-type 'pre-release'
 
 ENDHELP
 }

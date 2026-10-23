@@ -667,6 +667,22 @@ function curl_with_retry() {
 
   local curl_args=("$@")  # Remaining arguments are curl options
   local retry_count=0
+
+  # Bound every request unless the caller already set a timeout: a server that
+  # accepts the connection but never answers would otherwise hang the caller
+  # indefinitely (portset's supervision loop is a caller).
+  local has_timeout="no"
+  local curl_arg
+  for curl_arg in "${curl_args[@]}"; do
+    case "${curl_arg}" in
+      --max-time|--max-time=*|-m|--connect-timeout|--connect-timeout=*)
+        has_timeout="yes"
+        ;;
+    esac
+  done
+  if [[ "${has_timeout}" == "no" ]]; then
+    curl_args+=(--connect-timeout 5 --max-time 30)
+  fi
   local result
   local exit_code
 

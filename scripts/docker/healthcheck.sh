@@ -444,15 +444,24 @@ function check_incoming_port() {
 	echo "[info] Verifying incoming port '${incoming_port}' reachability via external service..."
 
 	local result
-	result=$(curl_with_retry "https://ifconfig.co/port/${incoming_port}" 3 2 -s | jq -r '.reachable' 2>/dev/null)
+	result=$(curl_with_retry "https://ifconfig.co/port/${incoming_port}" 3 2 -s --connect-timeout 5 --max-time 15 | jq -r '.reachable' 2>/dev/null)
 
-	if [[ "${result}" == "true" ]]; then
-		echo "[info] Incoming port '${incoming_port}' is reachable."
-		return 0
-	else
-		echo "[warn] Incoming port '${incoming_port}' is NOT reachable."
-		return 1
-	fi
+	case "${result}" in
+		true)
+			echo "[info] Incoming port '${incoming_port}' is reachable."
+			return 0
+			;;
+		false)
+			echo "[warn] Incoming port '${incoming_port}' is NOT reachable."
+			return 1
+			;;
+		*)
+			# An unusable response means the probe service is unavailable, not that
+			# the port is broken: do not mark the container unhealthy for it.
+			echo "[warn] Unable to verify incoming port '${incoming_port}' (probe service returned '${result}'), skipping this check."
+			return 0
+			;;
+	esac
 }
 
 function healthcheck_command() {
@@ -539,6 +548,11 @@ function healthcheck_command() {
 						# Check emptiness first before arithmetic to avoid brittle
 						# arithmetic-on-empty behaviour in $(( )).
 						local escalation_cooldown_secs="${GLUETUN_ESCALATION_COOLDOWN:-300}"
+						# portset.sh normalises this knob the same way; a non-numeric or zero
+						# value must not collapse the suppression window to nothing
+						if [[ ! "${escalation_cooldown_secs}" =~ ^[0-9]+$ ]] || [[ ${escalation_cooldown_secs} -le 0 ]]; then
+							escalation_cooldown_secs=300
+						fi
 						local suppression_window=$((escalation_cooldown_secs * 2))
 						if [[ ${elapsed} -lt ${suppression_window} ]]; then
 							echo "[info] Incoming port unavailable but escalation attempted ${elapsed}s ago — deferring to gluetun restart"

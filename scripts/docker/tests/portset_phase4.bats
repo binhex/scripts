@@ -99,11 +99,6 @@ teardown() {
     rm -f "${CALL_TRACKER}" /tmp/gluetun_escalation_cooldown /tmp/gluetun_escalation_attempted
 }
 
-@test "Phase 4: set_vpn_status function exists" {
-    run type set_vpn_status
-    [ "$status" -eq 0 ]
-}
-
 @test "Phase 4: ensure_incoming_port writes cooldown and flag files on escalation" {
     rm -f /tmp/gluetun_escalation_cooldown /tmp/gluetun_escalation_attempted
 

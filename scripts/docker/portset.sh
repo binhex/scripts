@@ -21,12 +21,52 @@ readonly defaultPollDelay="60"
 readonly defaultDebug="no"
 readonly defaultMaxStartupRetries="10"
 readonly defaultMaxPortVerifyRetries="3"
+readonly defaultMaxAppRestartAttempts="3"
 readonly defaultGluetunEscalationCooldown="300"
 readonly defaultQbittorrentWebuiUser="admin"
 readonly defaultQbittorrentCookieJar="/tmp/qbittorrent_sid.txt"
+readonly defaultQbittorrentAutoPasswordFilepath="/config/qBittorrent/config/.webui_auto_password"
+readonly defaultQbittorrentAutoPasswordHashFilepath="/config/qBittorrent/config/.webui_auto_password_hash"
 
 # auto-generated qBittorrent password (populated by qbittorrent_edit_config if no existing password in config)
 QBITTORRENT_AUTO_PASSWORD=""
+
+# consecutive application restart attempts for the current outage, reset once the
+# application is observed running again
+APPLICATION_RESTART_ATTEMPTS=0
+
+# marker written around restart_vpn_connection()'s stop->start window. Its presence
+# records that this script may have left the VPN stopped, so the startup repair can
+# distinguish that from an operator-requested stop.
+VPN_STOP_INTENT_FILE="${VPN_STOP_INTENT_FILE:-/tmp/portset_vpn_stop_intent}"
+
+# timestamp of the last VPN escalation (cycle). Rate-limits recovery so a broken
+# port forward is retried periodically instead of cycling the VPN every pass, and
+# so the port-verification budget cannot latch off for the process lifetime.
+VPN_ESCALATION_LAST_FILE="${VPN_ESCALATION_LAST_FILE:-/tmp/portset_vpn_escalation_last}"
+
+# Phase 4 escalation cooldown file, shared with healthcheck.sh. Injectable so a
+# test never touches the live escalation state.
+GLUETUN_ESCALATION_COOLDOWN_FILE="${GLUETUN_ESCALATION_COOLDOWN_FILE:-/tmp/gluetun_escalation_cooldown}"
+
+# number of VPN restarts performed in this process, used to avoid cycling the
+# tunnel twice for the same fault
+VPN_RESTART_COUNT=0
+
+# in-process fallback for the escalation timestamp: if the state file cannot be
+# written (read-only /tmp, full disk) the limiter must still work in memory
+VPN_ESCALATION_LAST_TS=""
+
+# consecutive port verification failures. Deliberately module scope: the counter
+# must survive outer loop iterations or MAX_PORT_VERIFY_RETRIES can never fire.
+# It is reset only after a successful verification, so reaching the cap cannot
+# re-arm into another burst of VPN restarts on every pass.
+PORT_VERIFY_RETRY_COUNT=0
+
+# consecutive inconclusive reachability probes (third-party service unusable).
+# An inconclusive probe must never consume the port recovery budget, but must not
+# park the supervision loop forever either, so it is separately bounded.
+INCONCLUSIVE_VERIFY_COUNT=0
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -38,15 +78,20 @@ POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
 MAX_PORT_VERIFY_RETRIES="${MAX_PORT_VERIFY_RETRIES:-${defaultMaxPortVerifyRetries}}"
+MAX_APP_RESTART_ATTEMPTS="${MAX_APP_RESTART_ATTEMPTS:-${defaultMaxAppRestartAttempts}}"
 GLUETUN_ESCALATION_COOLDOWN="${GLUETUN_ESCALATION_COOLDOWN:-${defaultGluetunEscalationCooldown}}"
 QBITTORRENT_WEBUI_USER="${QBITTORRENT_WEBUI_USER:-${defaultQbittorrentWebuiUser}}"
 QBITTORRENT_WEBUI_PASSWORD="${QBITTORRENT_WEBUI_PASSWORD:-}"
+QBITTORRENT_AUTO_PASSWORD_FILEPATH="${QBITTORRENT_AUTO_PASSWORD_FILEPATH:-${defaultQbittorrentAutoPasswordFilepath}}"
+QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH="${QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH:-${defaultQbittorrentAutoPasswordHashFilepath}}"
 
 # source in image build info, includes tag name and app name
 if [[ -f "${defaultImageBuildFilepath}" ]]; then
   echo "[INFO] Sourcing image build info from '${defaultImageBuildFilepath}'"
+  # shellcheck disable=SC1090 # path is only known at runtime
   source "${defaultImageBuildFilepath}"
   # note that this will set env var APPNAME from source file, but we want APP_NAME for readability in this script
+  # shellcheck disable=SC2153 # APPNAME is assigned by the sourced build info file
   APP_NAME="${APPNAME}"
 else
   echo "[WARN] Unable to find '${defaultImageBuildFilepath}', no default 'APP_NAME' will be set"
@@ -67,7 +112,9 @@ function check_gluetun_cs_api() {
 	fi
 
 	local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1/vpn/status"
-  if ! curl_with_retry "${control_server_url}" 10 1 -s ${auth}; then
+  # unquoted: auth can be empty or multi-word ('-u user:pass')
+  # shellcheck disable=SC2086
+  if ! curl_with_retry "${control_server_url}" 3 1 -s ${auth}; then
     echo "[WARN] Failed to connect to gluetun Control Server API 'http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1/vpn/status'"
 		return 1
 	else
@@ -103,10 +150,22 @@ function check_process() {
       echo "[DEBUG] Application with PID '${APPLICATION_PID}' is running"
     fi
     return 0
-  else
-    echo "[WARN] Application with PID '${APPLICATION_PID}' is not running"
-    return 1
   fi
+
+  # The main PID may have exited while the application is still running (apps that
+  # daemonize), so fall back to matching the configured command, mirroring the
+  # process check the container healthcheck already trusts.
+  local app_command="${APP_PARAMETERS[0]:-}"
+  local app_command_name="${app_command##*/}"
+  if [[ -n "${app_command_name}" ]] && pgrep -x "${app_command_name}" >/dev/null 2>&1; then
+    if [[ "${DEBUG}" == "yes" ]]; then
+      echo "[DEBUG] Application matched by process name '${app_command_name}' (PID '${APPLICATION_PID}' has exited)"
+    fi
+    return 0
+  fi
+
+  echo "[WARN] Application with PID '${APPLICATION_PID}' is not running"
+  return 1
 
 }
 
@@ -154,6 +213,7 @@ function wait_for_port_to_be_listening() {
 function get_incoming_port() {
 
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
+  local public_ip
   local vpn_public_ip
   local vpn_country_ip
   local vpn_city_ip
@@ -166,10 +226,18 @@ function get_incoming_port() {
   fi
 
   # Get port forward information from gluetun Control Server (shared function)
-  if ! get_gluetun_forwarded_port 10 1; then
+  if ! get_gluetun_forwarded_port 3 1; then
     return 1
   fi
   INCOMING_PORT="${GLUETUN_FORWARDED_PORT}"
+
+  # a port outside 1-65535 (including the "0" gluetun reports when nothing is
+  # forwarded) is not usable and must not be pushed into the application
+  if [[ ! "${INCOMING_PORT}" =~ ^[0-9]+$ ]] || [[ ${INCOMING_PORT} -lt 1 ]] || [[ ${INCOMING_PORT} -gt 65535 ]]; then
+    echo "[WARN] gluetun reported an unusable forwarded port '${INCOMING_PORT}'" >&2
+    INCOMING_PORT=""
+    return 1
+  fi
   if [[ "${DEBUG}" == "yes" ]]; then
     echo "[DEBUG] Current incoming port for VPN tunnel is '${INCOMING_PORT}'"
   fi
@@ -177,10 +245,13 @@ function get_incoming_port() {
   # Get public ip and location information from gluetun Control Server
   # unquoted: auth can be empty or multi-word
   # shellcheck disable=SC2086
-  public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 10 1 -s ${auth})
+  public_ip=$(curl_with_retry "${control_server_url}/publicip/ip" 3 1 -s ${auth})
 
+  # The public IP is informational only: the forwarded port above is what matters,
+  # so a metadata blip must not be reported as a port or VPN fault.
   if [[ -z "${public_ip}" ]]; then
-    return 1
+    echo "[WARN] Unable to retrieve public IP information from gluetun Control Server API" >&2
+    return 0
   else
     vpn_public_ip="$(echo "${public_ip}" | jq -r '.public_ip')"
     vpn_country_ip="$(echo "${public_ip}" | jq -r '.country')"
@@ -202,15 +273,25 @@ function external_verify_incoming_port() {
     return 1
   fi
 
-  result="$(curl_with_retry "https://ifconfig.co/port/${INCOMING_PORT}" 10 1 -s | jq -r '.reachable')"
+  # Bounded: a degraded tunnel must never freeze the supervision loop.
+  result="$(curl_with_retry "https://ifconfig.co/port/${INCOMING_PORT}" 2 1 -s --connect-timeout 5 --max-time 15 | jq -r '.reachable' 2>/dev/null)"
 
-  if [[ "${result}" == "true" ]]; then
-    echo "[INFO] External verification: Incoming port '${INCOMING_PORT}' is reachable."
-    return 0
-  else
-    echo "[WARN] External verification: Incoming port '${INCOMING_PORT}' is NOT reachable."
-    return 1
-  fi
+  case "${result}" in
+    true)
+      echo "[INFO] External verification: Incoming port '${INCOMING_PORT}' is reachable."
+      return 0
+      ;;
+    false)
+      echo "[WARN] External verification: Incoming port '${INCOMING_PORT}' is NOT reachable."
+      return 1
+      ;;
+    *)
+      # Return 2 (unverifiable), not 1 (unreachable): a third party outage must
+      # not be counted as a port failure and must not drive VPN recovery.
+      echo "[WARN] External verification: service returned an unusable response ('${result}') for port '${INCOMING_PORT}', skipping recovery for this pass."
+      return 2
+      ;;
+  esac
 
 }
 
@@ -226,6 +307,8 @@ function get_vpn_status() {
   fi
 
   local status_response
+  # unquoted: auth can be empty or multi-word ('-u user:pass')
+  # shellcheck disable=SC2086
   status_response=$(curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth})
   if [[ -z "${status_response}" ]]; then
     echo "[WARN] Unable to retrieve VPN status from gluetun Control Server API" >&2
@@ -263,28 +346,58 @@ function restart_vpn_connection() {
   # transitions that are actually needed, making the restart idempotent.
   local current_vpn_status
   if ! current_vpn_status=$(get_vpn_status); then
-    echo "[ERROR] Unable to determine current VPN status, cannot safely restart"
-    return 1
+    # A control server blip must not silently skip the restart: fall back to the
+    # unconditional stop->start sequence rather than failing closed.
+    echo "[WARN] Unable to determine current VPN status, falling back to stop then start"
+    current_vpn_status="running"
   fi
   echo "[INFO] Current VPN status is '${current_vpn_status}'"
 
   local vpn_desired_states=()
   if [[ "${current_vpn_status}" == "stopped" ]]; then
-    echo "[INFO] VPN is already stopped, skipping stop step and proceeding directly to start..."
+    # A stopped VPN is only ours to restart when the stop-intent marker says this
+    # script stopped it (interrupted restart or a Phase 4 escalation). Without the
+    # marker the stop was requested by the operator, the gluetun API or its UI and
+    # must be respected at runtime, not just at startup.
+    if [[ ! -f "${VPN_STOP_INTENT_FILE}" ]]; then
+      echo "[WARN] VPN is stopped and no stop intent was recorded by this script, leaving the operator-requested stop in place"
+      return 1
+    fi
+    echo "[INFO] VPN is already stopped after our own stop intent, proceeding directly to start..."
     vpn_desired_states=("running")
   else
     vpn_desired_states=("stopped" "running")
   fi
 
+  local json
+
+  VPN_RESTART_COUNT=$((VPN_RESTART_COUNT + 1))
+
   for vpn_desired_state in "${vpn_desired_states[@]}"; do
+
+    # Record the stop intent immediately before it happens, so the marker exists
+    # whenever this script may have stopped the VPN (a failed PUT deliberately
+    # keeps it). If the process dies inside the stop->start window gluetun keeps
+    # the requested 'stopped' state, and the next start repairs it without
+    # overriding an operator-requested stop.
+    if [[ "${vpn_desired_state}" == "stopped" ]]; then
+      if ! echo "$$" > "${VPN_STOP_INTENT_FILE}" 2>/dev/null; then
+        echo "[ERROR] Unable to record the VPN stop intent in '${VPN_STOP_INTENT_FILE}', not stopping the VPN"
+        return 1
+      fi
+    fi
 
     echo "[INFO] Setting VPN status to '${vpn_desired_state}' via gluetun Control Server API..."
     json="{
       \"status\": \"${vpn_desired_state}\"
     }"
 
+    # unquoted: auth can be empty or multi-word ('-u user:pass')
+    # shellcheck disable=SC2086
     if ! curl_with_retry "${control_server_url}/vpn/status" 3 2 -k -s ${auth} -X PUT -H "Content-Type: application/json" -d "${json}"; then
       echo "[ERROR] Failed to set VPN status to '${vpn_desired_state}'"
+      # keep the stop-intent marker: the stop may have been applied even though the
+      # response was lost, and ensure_vpn_running() clears it once the VPN is running
       return 1
     fi
 
@@ -296,6 +409,9 @@ function restart_vpn_connection() {
 
   done
   echo "[INFO] VPN connection successfully restarted."
+
+  # the VPN is running again, so any pending stop-intent marker is satisfied
+  rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
 }
 
 function check(){
@@ -323,7 +439,32 @@ function main {
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
 
 	# source in curl_with_retry function and vpn ip address and vpn adapter name
+  # shellcheck source=utils.sh disable=SC1091
 	source utils.sh
+
+  # A non-numeric or zero cap silently disables the recovery it controls
+  # (bash compares such values as 0), so normalise the knobs before use.
+  MAX_STARTUP_RETRIES=$(validate_positive_integer MAX_STARTUP_RETRIES "${MAX_STARTUP_RETRIES}" "${defaultMaxStartupRetries}")
+  MAX_PORT_VERIFY_RETRIES=$(validate_positive_integer MAX_PORT_VERIFY_RETRIES "${MAX_PORT_VERIFY_RETRIES}" "${defaultMaxPortVerifyRetries}")
+  MAX_APP_RESTART_ATTEMPTS=$(validate_positive_integer MAX_APP_RESTART_ATTEMPTS "${MAX_APP_RESTART_ATTEMPTS}" "${defaultMaxAppRestartAttempts}")
+  POLL_DELAY=$(validate_positive_integer POLL_DELAY "${POLL_DELAY}" "${defaultPollDelay}")
+  GLUETUN_ESCALATION_COOLDOWN=$(validate_positive_integer GLUETUN_ESCALATION_COOLDOWN "${GLUETUN_ESCALATION_COOLDOWN}" "${defaultGluetunEscalationCooldown}")
+
+  # An in-flight Phase 4 escalation wants gluetun left stopped until the watchdog
+  # restarts it: wait that window out before repairing anything.
+  local escalation_wait=0
+  local escalation_wait_max=$(( (GLUETUN_ESCALATION_COOLDOWN * 2) / POLL_DELAY + 1 ))
+  while gluetun_escalation_pending && [[ ${escalation_wait} -lt ${escalation_wait_max} ]]; do
+    escalation_wait=$((escalation_wait + 1))
+    echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
+    sleep "${POLL_DELAY}"
+  done
+
+  # repair a VPN left in the 'stopped' state by an interrupted restart before
+  # waiting for a forwarded port that can never appear while the VPN is down
+  if ! ensure_vpn_running; then
+    echo "[WARN] VPN is not running, continuing with startup checks..."
+  fi
 
   local startup_retry_count=0
 
@@ -331,6 +472,15 @@ function main {
 
     # run function to check all required conditions exist
     if ! check; then
+      # An in-flight Phase 4 escalation deliberately leaves the VPN stopped until
+      # the gluetun watchdog restarts it: wait it out instead of burning the
+      # startup retry budget and then running the application unconfigured.
+      if gluetun_escalation_pending; then
+        echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+
       startup_retry_count=$((startup_retry_count + 1))
       echo "[WARN] Required conditions not met (attempt ${startup_retry_count}/${MAX_STARTUP_RETRIES}), checking again in ${POLL_DELAY} seconds..."
 
@@ -353,13 +503,43 @@ function main {
 
     # run function to check all required conditions exist
     if ! check; then
+      # Application supervision must not depend on the VPN conditions: with both
+      # the VPN and the app broken, the app would otherwise stay dead for the
+      # whole outage (healthcheck suppression included).
+      if ! check_process; then
+        recover_unreachable_port
+        local recover_conditions_status=$?
+        if [[ ${recover_conditions_status} -eq 2 ]]; then
+          echo "[ERROR] Application could not be restarted after ${MAX_APP_RESTART_ATTEMPTS} attempts"
+        fi
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+
       # When check() fails (e.g. port=0 from gluetun, unreachable API,
       # missing VPN adapter), attempt recovery via the escalation handler.
       # The handler will retry the port query, and if still failing,
       # restart the VPN connection via gluetun Control Server API.
+      # Respect an in-flight Phase 4 escalation: it deliberately stops the VPN so
+      # gluetun's healthcheck fails and the watchdog restarts it. Restarting the
+      # VPN here would undo that while healthcheck suppression stays armed.
+      if gluetun_escalation_pending; then
+        echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+
+      if ! vpn_escalation_due; then
+        echo "[WARN] Required conditions not met, next recovery attempt in $(vpn_escalation_remaining) seconds..."
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+
       echo "[WARN] Required conditions not met, attempting recovery..."
+      mark_vpn_escalation
       if ensure_incoming_port; then
-        echo "[INFO] Incoming port recovered after escalation, re-validating all conditions..."
+        echo "[INFO] Incoming port available after recovery, re-validating all conditions..."
+        APPLICATION_RESTART_ATTEMPTS=0
       else
         echo "[WARN] Recovery failed, checking again in ${POLL_DELAY} seconds..."
       fi
@@ -372,36 +552,108 @@ function main {
       continue
     fi
 
-    local port_verify_retry_count=0
+    while true; do
 
-    while ! external_verify_incoming_port; do
-
-      port_verify_retry_count=$((port_verify_retry_count + 1))
-
-      if [[ ${port_verify_retry_count} -ge ${MAX_PORT_VERIFY_RETRIES} ]]; then
-        echo "[WARN] Maximum port verification retries (${MAX_PORT_VERIFY_RETRIES}) reached, VPN port not verified - executing application without VPN port configuration: '${APP_PARAMETERS[*]}'..."
-        exec "${APP_PARAMETERS[@]}"
-      fi
-
-      if ! restart_vpn_connection; then
+      # Application supervision comes first and never depends on the reachability
+      # probe: a third-party outage must not stop a crashed application from being
+      # restarted.
+      if ! check_process; then
+        recover_unreachable_port
+        local recover_dead_status=$?
+        if [[ ${recover_dead_status} -eq 2 ]]; then
+          echo "[ERROR] Application could not be restarted after ${MAX_APP_RESTART_ATTEMPTS} attempts"
+          echo "[ERROR] Continuing to poll; the container healthcheck will mark this container unhealthy"
+          sleep "${POLL_DELAY}"
+        elif [[ ${recover_dead_status} -ne 0 ]]; then
+          sleep "${POLL_DELAY}"
+        fi
         continue
       fi
 
-      # wait for VPN to stabilize and get new port
-      echo "[INFO] Waiting 10 seconds for VPN to stabilize before getting new incoming port..."
-      sleep 10
+      # The application is alive, so the crash-recovery budget for this outage is over.
+      APPLICATION_RESTART_ATTEMPTS=0
 
-      # get potentially new incoming port after VPN restart
-      get_incoming_port
-
-      if [[ -n "${INCOMING_PORT}" ]]; then
-        echo "[INFO] Retrieved incoming port '${INCOMING_PORT}' after VPN restart"
+      # A port rotated by the VPN provider cannot verify until it has been pushed
+      # to the application, so hand control back to the configure step instead of
+      # looping on an unreachable verdict forever.
+      if [[ -n "${INCOMING_PORT}" ]] && [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]]; then
+        echo "[INFO] Forwarded port changed from '${PREVIOUS_INCOMING_PORT}' to '${INCOMING_PORT}', configuring application..."
+        INCONCLUSIVE_VERIFY_COUNT=0
         break
       fi
 
+      external_verify_incoming_port
+      local verify_status=$?
+      if [[ ${verify_status} -eq 0 ]]; then
+        # the app is alive and the port verified: full budget available again
+        APPLICATION_RESTART_ATTEMPTS=0
+        INCONCLUSIVE_VERIFY_COUNT=0
+        break
+      fi
+
+      # An unverifiable probe is not evidence of a port fault: it must not consume
+      # the recovery budget or cycle the VPN, but it must also not park the loop
+      # forever, so bail out to the outer loop after a bounded number of passes.
+      if [[ ${verify_status} -eq 2 ]]; then
+        INCONCLUSIVE_VERIFY_COUNT=$((INCONCLUSIVE_VERIFY_COUNT + 1))
+        if [[ ${INCONCLUSIVE_VERIFY_COUNT} -gt ${MAX_PORT_VERIFY_RETRIES} ]]; then
+          echo "[WARN] Port reachability could not be verified for ${INCONCLUSIVE_VERIFY_COUNT} passes, re-checking all conditions"
+          INCONCLUSIVE_VERIFY_COUNT=0
+          break
+        fi
+        sleep "${POLL_DELAY}"
+        continue
+      fi
+      INCONCLUSIVE_VERIFY_COUNT=0
+
+      if record_port_verify_failure; then
+        if vpn_escalation_due; then
+          local port_before_escalation="${INCOMING_PORT}"
+          local vpn_restarts_before="${VPN_RESTART_COUNT}"
+          local escalation_ok=1
+          echo "[WARN] Port still unverified after ${MAX_PORT_VERIFY_RETRIES} attempts, escalating via ensure_incoming_port..."
+          if ! ensure_incoming_port; then
+            escalation_ok=0
+            echo "[WARN] Port recovery failed, re-checking after ${POLL_DELAY} seconds..."
+          fi
+          # ensure_incoming_port only cycles the VPN when gluetun cannot report a
+          # port at all. When it keeps reporting the SAME port while the forward is
+          # dead, the tunnel itself has to be cycled - but only if the escalation
+          # above neither cycled it (VPN_RESTART_COUNT) nor deliberately stopped it
+          # for a gluetun restart (Phase 4 pending).
+          if [[ ${escalation_ok} -eq 1 ]] && should_cycle_forward "${port_before_escalation}" "${vpn_restarts_before}"; then
+            echo "[WARN] Forwarded port '${INCOMING_PORT}' unchanged and still unverified, cycling the VPN connection..."
+            cycle_vpn_for_broken_forward || echo "[WARN] Failed to cycle the VPN connection, re-checking after ${POLL_DELAY} seconds..."
+          fi
+          mark_vpn_escalation
+        else
+          echo "[WARN] Port still unverified, next recovery attempt in $(vpn_escalation_remaining) seconds..."
+        fi
+        # Hand control back to the outer loop: it re-runs check() (refreshing
+        # INCOMING_PORT from gluetun) and then reaches the configure gate, which
+        # is the only code that can re-apply the port to the application. Looping
+        # here instead would spin forever whenever the mismatch is app-side.
+        reset_port_verify_failures
+        INCONCLUSIVE_VERIFY_COUNT=0
+        break
+      fi
+
+      # Below the cap: keep observing. Escalation happens only once the failure
+      # budget is spent, so a single transient verdict cannot disturb the tunnel.
+      echo "[INFO] Port forward verified unreachable (${PORT_VERIFY_RETRY_COUNT}/${MAX_PORT_VERIFY_RETRIES}), re-checking in ${POLL_DELAY} seconds..."
+      sleep "${POLL_DELAY}"
     done
 
-    if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
+    # reached when the port verified, when a rotated port or a spent escalation
+    # budget handed control back for reconfiguration, or when the probe stayed
+    # inconclusive: in all cases start the counters fresh. Note the outer loop
+    # re-runs check() (refreshing INCOMING_PORT) before the next configure attempt.
+    reset_port_verify_failures
+
+    # An empty INCOMING_PORT means gluetun reported nothing usable: configuring the
+    # application with it would push an invalid listen port (or kill and restart a
+    # healthy app with no port at all), so wait for the next outer pass instead.
+    if [[ -n "${INCOMING_PORT}" ]] && { [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; }; then
 
       if [[ "${DEBUG}" == 'yes' ]]; then
         if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
@@ -411,16 +663,26 @@ function main {
         fi
       fi
 
-      # ensure process with PID is running
+      # skip configuration when the process is not running - supervise it first,
+      # and back off when it cannot be restarted instead of spinning
       if ! check_process; then
+        if ensure_application_running; then
+          # give the restarted application time to bind before it is probed
+          echo "[INFO] Waiting 10 seconds for the restarted application to settle..."
+          sleep 10
+        else
+          sleep "${POLL_DELAY}"
+        fi
         continue
       fi
 
       # configure applications incoming port
-      application_configure_incoming_port
-
-      # set previous incoming port to current
-      PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
+      if application_configure_incoming_port; then
+        # only record success: a failed configure must be retried on the next pass
+        PREVIOUS_INCOMING_PORT="${INCOMING_PORT}"
+      else
+        echo "[WARN] Failed to configure '${APP_NAME}' with incoming port '${INCOMING_PORT}', will retry"
+      fi
     else
       echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same"
     fi
@@ -487,26 +749,37 @@ function ensure_incoming_port() {
   #
   # A cooldown file prevents this from firing more than once per 5 minutes,
   # avoiding repeated gluetun restarts in a tight loop.
-  local cooldown_file="/tmp/gluetun_escalation_cooldown"
+  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
   local cooldown_seconds="${GLUETUN_ESCALATION_COOLDOWN}"  # resolves to module-level default (300s)
 
   if [[ -f "${cooldown_file}" ]]; then
     local last_escalation
-    last_escalation=$(cat "${cooldown_file}")
-    local now
-    now=$(date +%s)
-    local elapsed=$((now - last_escalation))
-    if [[ ${elapsed} -lt ${cooldown_seconds} ]]; then
-      echo "[WARN] Skipping Phase 4 escalation — cooldown active ($((cooldown_seconds - elapsed))s remaining)"
-      echo "[ERROR] Incoming port not available after all escalation phases exhausted"
-      return 1
+    last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
+    if [[ "${last_escalation}" =~ ^[0-9]+$ ]]; then
+      local now
+      now=$(date +%s)
+      local elapsed=$((now - last_escalation))
+      if [[ ${elapsed} -lt ${cooldown_seconds} ]]; then
+        echo "[WARN] Skipping Phase 4 escalation — cooldown active ($((cooldown_seconds - elapsed))s remaining)"
+        echo "[ERROR] Incoming port not available after all escalation phases exhausted"
+        return 1
+      fi
     fi
   fi
 
   echo "[WARN] Phase 4: Stopping VPN to trigger gluetun container restart (final escalation)..."
 
-  # Only write flag files AFTER the API call succeeds — otherwise we'd suppress
-  # the healthcheck while no actual escalation action was taken.
+  # Record our own stop BEFORE it happens (mirrors restart_vpn_connection), so an
+  # interrupted escalation is still repairable at the next start. If the marker
+  # cannot be written, do not stop the VPN: an unattributable stop is unrecoverable.
+  if ! echo "$$" > "${VPN_STOP_INTENT_FILE}" 2>/dev/null; then
+    echo "[ERROR] Unable to record the VPN stop intent in '${VPN_STOP_INTENT_FILE}', skipping Phase 4 escalation"
+    echo "[ERROR] Incoming port not available after all escalation phases exhausted"
+    return 1
+  fi
+
+  # Only write the suppression flag files AFTER the API call succeeds — otherwise
+  # we'd suppress the healthcheck while no actual escalation action was taken.
   if ! set_vpn_status "stopped"; then
     echo "[ERROR] Phase 4 escalation failed — could not stop VPN via gluetun API"
     echo "[ERROR] Incoming port not available after all escalation phases exhausted"
@@ -526,6 +799,346 @@ function ensure_incoming_port() {
   echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."
   echo "[ERROR] Incoming port not available after all escalation phases exhausted"
   return 1
+}
+
+function ensure_vpn_running() {
+
+  # A VPN left in the 'stopped' state by an interrupted restart is not repaired
+  # by the startup path: the gluetun Control Server keeps the requested state
+  # until it is told otherwise. This happens when a restart is interrupted
+  # between the stop and start calls (for example the container is restarted
+  # during the 5 second stop wait), and it leaves no tunnel interface and no
+  # forwarded port, so every later port query fails and the application never
+  # starts.
+  #
+  # Only an interrupted restart of OUR making is repaired: the stop-intent marker
+  # written by restart_vpn_connection() records that the stop came from this script,
+  # so a deliberate operator stop (or an in-flight Phase 4 escalation) is respected.
+  local max_attempts="${1:-3}"
+  local attempt=0
+  local vpn_status
+
+  if [[ ! -f "${VPN_STOP_INTENT_FILE}" ]]; then
+    echo "[INFO] No interrupted VPN restart recorded, leaving VPN state untouched"
+    return 0
+  fi
+
+  # A marker older than twice the escalation cooldown is stale: the escalation it
+  # belonged to (Phase 4) has long since been resolved by the gluetun watchdog, so
+  # it must not override a later operator-requested stop.
+  local marker_mtime=""
+  if ! marker_mtime=$(stat -c %Y "${VPN_STOP_INTENT_FILE}" 2>/dev/null); then
+    # unknown age must not be treated as ancient, or a repairable stop is lost
+    echo "[WARN] Unable to read the stop-intent marker timestamp, treating it as current"
+  elif [[ "${marker_mtime}" =~ ^[0-9]+$ ]]; then
+    local marker_age=$(( $(date +%s) - marker_mtime ))
+    if [[ ${marker_age} -gt $((GLUETUN_ESCALATION_COOLDOWN * 2)) ]]; then
+      echo "[INFO] Discarding stale stop-intent marker (age ${marker_age}s)"
+      rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+      return 0
+    fi
+  fi
+
+  while [[ ${attempt} -lt ${max_attempts} ]]; do
+    attempt=$((attempt + 1))
+
+    if ! vpn_status=$(get_vpn_status); then
+      # a transient control server blip must not abandon the repair
+      echo "[WARN] Unable to determine VPN status via gluetun Control Server API (attempt ${attempt}/${max_attempts})"
+      sleep 5
+      continue
+    fi
+
+    if [[ "${vpn_status}" == "running" ]]; then
+      echo "[INFO] VPN status is 'running'"
+      rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+      return 0
+    fi
+
+    echo "[WARN] VPN status is '${vpn_status}' after an interrupted restart, setting VPN status to 'running' via gluetun Control Server API (attempt ${attempt}/${max_attempts})..."
+    if ! set_vpn_status "running"; then
+      echo "[ERROR] Failed to set VPN status to 'running'"
+      return 1
+    fi
+
+    # give the tunnel time to establish before re-checking (not after the last attempt)
+    if [[ ${attempt} -lt ${max_attempts} ]]; then
+      sleep 5
+    fi
+  done
+
+  # the last attempt may have succeeded after its own status check: re-verify
+  if vpn_status=$(get_vpn_status) && [[ "${vpn_status}" == "running" ]]; then
+    echo "[INFO] VPN status is 'running'"
+    rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+    return 0
+  fi
+
+  echo "[ERROR] VPN status is not 'running' after ${max_attempts} attempts"
+  return 1
+
+}
+
+function ensure_application_running() {
+
+  # The application is started once and then supervised here. Without this a
+  # crashed application is never restarted: nothing else in the container owns
+  # the process (supervisord only supervises the start script), so the container
+  # stays up with no application and no Web UI until the healthcheck fails.
+  if check_process; then
+    APPLICATION_RESTART_ATTEMPTS=0
+    return 0
+  fi
+
+  APPLICATION_RESTART_ATTEMPTS=$((APPLICATION_RESTART_ATTEMPTS + 1))
+
+  if [[ ${APPLICATION_RESTART_ATTEMPTS} -gt ${MAX_APP_RESTART_ATTEMPTS} ]]; then
+    echo "[ERROR] Application is not running and ${MAX_APP_RESTART_ATTEMPTS} restart attempts were unsuccessful"
+    echo "[ERROR] Leaving further recovery to the container healthcheck and watchdog"
+    return 1
+  fi
+
+  echo "[WARN] Application is not running, restarting (attempt ${APPLICATION_RESTART_ATTEMPTS}/${MAX_APP_RESTART_ATTEMPTS})..."
+
+  if ! application_start; then
+    # For qbittorrent/deluge this status is the WebUI port wait, so a slow-binding
+    # but alive application must not be counted as a failed restart.
+    echo "[WARN] Start command for '${APP_NAME}' did not confirm readiness, checking the process"
+  fi
+
+  # a start command that returns successfully can still leave the process dead
+  if ! check_process; then
+    echo "[WARN] Application is still not running after restart attempt ${APPLICATION_RESTART_ATTEMPTS}/${MAX_APP_RESTART_ATTEMPTS}"
+    return 1
+  fi
+
+  return 0
+
+}
+
+function should_cycle_forward() {
+
+  # The application is alive and the port could not be verified. Cycling the VPN is
+  # only justified when nothing else already acted: no VPN restart during the
+  # escalation, no Phase 4 escalation in flight, and the forwarded port unchanged
+  # (a changed or empty port means gluetun is reporting something new).
+  local port_before="${1:-}"
+  local restarts_before="${2:-0}"
+
+  if [[ "${VPN_RESTART_COUNT}" -ne "${restarts_before}" ]]; then
+    return 1
+  fi
+
+  if gluetun_escalation_pending; then
+    return 1
+  fi
+
+  [[ -n "${INCOMING_PORT}" ]] || return 1
+  [[ "${INCOMING_PORT}" == "${port_before}" ]]
+
+}
+
+function cycle_vpn_for_broken_forward() {
+
+  # Single implementation of "the application is alive but the forwarded port is
+  # not": gate on the Phase 4 window, rate-limit, cycle, then re-read the port.
+  if gluetun_escalation_pending; then
+    echo "[INFO] Phase 4 escalation pending, leaving the VPN alone"
+    return 1
+  fi
+
+  if ! vpn_escalation_due; then
+    echo "[INFO] Port recovery is cooling down, next attempt in $(vpn_escalation_remaining) seconds..."
+    return 1
+  fi
+
+  mark_vpn_escalation
+
+  if ! restart_vpn_connection; then
+    echo "[WARN] Failed to restart VPN connection"
+    return 1
+  fi
+
+  echo "[INFO] Waiting 10 seconds for VPN to stabilize before getting new incoming port..."
+  sleep 10
+  if get_incoming_port; then
+    echo "[INFO] Retrieved incoming port '${INCOMING_PORT}' after VPN restart"
+  else
+    echo "[WARN] Unable to retrieve a new incoming port after VPN restart, previous port '${INCOMING_PORT}' may be stale"
+  fi
+  return 0
+
+}
+
+function recover_unreachable_port() {
+
+  # An unreachable forwarded port has two distinct causes and they must not be
+  # conflated:
+  #   1. the application is dead - nothing is listening, so cycling the VPN can
+  #      never make the port reachable; restart the application instead.
+  #   2. the application is alive but the port forward is broken - cycle the VPN.
+  # Returns 0 when recovery was attempted, 1 when the VPN restart failed,
+  # 2 when the application could not be restarted.
+  if ! check_process; then
+    echo "[WARN] Application is not running, restarting application instead of restarting VPN..."
+    if ensure_application_running; then
+      # a fresh app is a fresh episode: pre-crash port failures must not count
+      reset_port_verify_failures
+      # give the restarted application time to bind before the port is re-probed
+      echo "[INFO] Waiting 10 seconds for the restarted application to settle..."
+      sleep 10
+      return 0
+    fi
+
+    # The attempt failed. Only report an unrecoverable state once the budget for
+    # this outage is spent; otherwise the caller retries after its poll delay.
+    if [[ ${APPLICATION_RESTART_ATTEMPTS} -gt ${MAX_APP_RESTART_ATTEMPTS} ]]; then
+      return 2
+    fi
+
+    echo "[WARN] Application restart attempt ${APPLICATION_RESTART_ATTEMPTS}/${MAX_APP_RESTART_ATTEMPTS} failed, retrying later"
+    return 1
+  fi
+
+  # The application is alive, so any previous crash outage is over: the restart
+  # budget must be restored or the cap would act as a lifetime limit.
+  APPLICATION_RESTART_ATTEMPTS=0
+
+  cycle_vpn_for_broken_forward
+
+}
+
+function record_port_verify_failure() {
+
+  PORT_VERIFY_RETRY_COUNT=$((PORT_VERIFY_RETRY_COUNT + 1))
+
+  if [[ ${PORT_VERIFY_RETRY_COUNT} -ge ${MAX_PORT_VERIFY_RETRIES} ]]; then
+    return 0
+  fi
+  return 1
+
+}
+
+function reset_port_verify_failures() {
+
+  PORT_VERIFY_RETRY_COUNT=0
+
+}
+
+function validate_positive_integer() {
+
+  # Returns the value when it is a positive integer, otherwise the fallback, so a
+  # typo'd or zero cap cannot silently disable the recovery it controls.
+  local name="${1}"
+  local value="${2}"
+  local fallback="${3}"
+
+  if [[ "${value}" =~ ^[0-9]+$ ]] && [[ ${value} -gt 0 ]]; then
+    echo "${value}"
+    return 0
+  fi
+
+  echo "[WARN] '${name}' value '${value}' is not a positive integer, using default '${fallback}'" >&2
+  echo "${fallback}"
+  return 0
+
+}
+
+function vpn_escalation_due() {
+
+  local last_escalation=""
+
+  if [[ -f "${VPN_ESCALATION_LAST_FILE}" ]]; then
+    last_escalation=$(cat "${VPN_ESCALATION_LAST_FILE}" 2>/dev/null)
+  fi
+  if [[ ! "${last_escalation}" =~ ^[0-9]+$ ]]; then
+    last_escalation="${VPN_ESCALATION_LAST_TS}"
+  fi
+
+  # No previous escalation means the first one is always allowed.
+  if [[ ! "${last_escalation}" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+
+
+  local now elapsed
+  now=$(date +%s)
+  elapsed=$((now - last_escalation))
+  [[ ${elapsed} -ge ${GLUETUN_ESCALATION_COOLDOWN} ]]
+
+}
+
+function vpn_escalation_remaining() {
+
+  local remaining=0
+  local last_escalation=""
+
+  if [[ -f "${VPN_ESCALATION_LAST_FILE}" ]]; then
+    last_escalation=$(cat "${VPN_ESCALATION_LAST_FILE}" 2>/dev/null)
+  fi
+  if [[ ! "${last_escalation}" =~ ^[0-9]+$ ]]; then
+    last_escalation="${VPN_ESCALATION_LAST_TS}"
+  fi
+
+  if [[ "${last_escalation}" =~ ^[0-9]+$ ]]; then
+    local now
+    now=$(date +%s)
+    remaining=$((GLUETUN_ESCALATION_COOLDOWN - (now - last_escalation)))
+    [[ ${remaining} -gt 0 ]] || remaining=0
+  fi
+
+  echo "${remaining}"
+
+}
+
+function mark_vpn_escalation() {
+
+  VPN_ESCALATION_LAST_TS=$(date +%s)
+  echo "${VPN_ESCALATION_LAST_TS}" > "${VPN_ESCALATION_LAST_FILE}" 2>/dev/null || true
+
+}
+
+function gluetun_escalation_pending() {
+
+  # Phase 4 (ensure_incoming_port) stops the VPN and relies on the gluetun
+  # healthcheck and watchdog to restart it, suppressing this container's own
+  # unhealthy verdict for twice the cooldown. While that window is open, portset
+  # must not restart the VPN itself or the escalation is silently undone.
+  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
+
+  [[ -f "${cooldown_file}" ]] || return 1
+
+  local last_escalation
+  last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
+  [[ "${last_escalation}" =~ ^[0-9]+$ ]] || return 1
+
+  # Must match healthcheck.sh's suppression window, which is twice the cooldown:
+  # while that window is open the escalation is still in flight (gluetun is meant
+  # to be restarted by the watchdog) and portset must not restart the VPN itself.
+  local now
+  now=$(date +%s)
+  [[ $((now - last_escalation)) -lt $((GLUETUN_ESCALATION_COOLDOWN * 2)) ]]
+
+}
+
+function gluetun_escalation_remaining() {
+
+  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
+  local remaining=0
+
+  if [[ -f "${cooldown_file}" ]]; then
+    local last_escalation
+    last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
+    if [[ "${last_escalation}" =~ ^[0-9]+$ ]]; then
+      local now
+      now=$(date +%s)
+      remaining=$(((GLUETUN_ESCALATION_COOLDOWN * 2) - (now - last_escalation)))
+      [[ ${remaining} -gt 0 ]] || remaining=0
+    fi
+  fi
+
+  echo "${remaining}"
+
 }
 
 function application_start() {
@@ -705,7 +1318,8 @@ function deluge_verify_incoming_port() {
 
   echo "[INFO] Verifying '${APP_NAME}' incoming port matches VPN port '${INCOMING_PORT}'"
 
-  # identify protocol, used by curl to connect to api
+  # identify the configured protocol from the Deluge web config (the port itself
+  # is read from the Deluge console, not from the API)
   if grep -q '"https": true,' "${DELUGE_WEB_CONFIG_FILEPATH}"; then
       web_protocol="https"
   else
@@ -767,15 +1381,42 @@ function qbittorrent_api_login() {
     echo "[DEBUG] Authenticating with qBittorrent WebUI API at ${web_protocol}://localhost:${WEBUI_PORT}..."
   fi
 
-  # login and capture SID cookie
+  # login and capture SID cookie; pre-created 0600 so the session id is never
+  # readable by other users in the container, even briefly
   rm -f "${cookie_jar}"
+  ( umask 077; : > "${cookie_jar}" ) 2>/dev/null
+
+  # The credentials go through a private curl config file rather than argv, so the
+  # password never appears in /proc/<pid>/cmdline. A file (not stdin) is required
+  # because curl_with_retry re-invokes curl on retry, and stdin is consumed by the
+  # first attempt.
+  if [[ "${QBITTORRENT_WEBUI_USER}" == *$'\n'* ]] || [[ "${login_password}" == *$'\n'* ]]; then
+    echo "[WARN] WebUI credentials contain a newline, refusing to build a curl config"
+    return 1
+  fi
+
+  local login_config
+  login_config=$(mktemp -t qbittorrent_login.XXXXXX) || return 1
+  chmod 600 "${login_config}" 2>/dev/null
+  {
+    # escape backslashes first, then double quotes: curl's config parser honours
+    # both inside a quoted value
+    local safe_user="${QBITTORRENT_WEBUI_USER//\\/\\\\}"
+    local safe_password="${login_password//\\/\\\\}"
+    printf 'data-urlencode = "username=%s"\n' "${safe_user//\"/\\\"}"
+    printf 'data-urlencode = "password=%s"\n' "${safe_password//\"/\\\"}"
+  } > "${login_config}" 2>/dev/null
 
   local login_response
   login_response=$(curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/auth/login" 3 2 -k -s \
     -c "${cookie_jar}" \
     --header "Referer: ${web_protocol}://localhost:${WEBUI_PORT}" \
-    --data-urlencode "username=${QBITTORRENT_WEBUI_USER}" \
-    --data-urlencode "password=${login_password}")
+    -K "${login_config}")
+
+  rm -f "${login_config}" 2>/dev/null
+
+  # the session id is a credential: keep it owner-readable only
+  [[ -f "${cookie_jar}" ]] && chmod 600 "${cookie_jar}" 2>/dev/null
 
   if [[ ! -f "${cookie_jar}" ]] || ! grep -q "SID" "${cookie_jar}" 2>/dev/null; then
     echo "[WARN] Failed to authenticate with qBittorrent API (response: '${login_response}')"
@@ -825,11 +1466,15 @@ function qbittorrent_edit_config() {
   # Remove obsolete LocalHostAuth setting (removed in qBittorrent 5)
   sed -i '/^WebUI\\LocalHostAuth/d' "${QBITTORRENT_CONFIG_FILEPATH}"
 
-  # Always update the username (harmless — this is the login name, not a secret)
+  # Always update the username (harmless — this is the login name, not a secret).
+  # Escape sed metacharacters once and use the result in both branches.
+  local safe_username="${QBITTORRENT_WEBUI_USER//\\/\\\\}"
+  safe_username="${safe_username//&/\\&}"
+  safe_username="${safe_username//~/\\~}"
   if grep -q '^WebUI\\Username' "${QBITTORRENT_CONFIG_FILEPATH}"; then
-    sed -i "s~^WebUI\\Username.*~WebUI\\\\Username=${QBITTORRENT_WEBUI_USER}~" "${QBITTORRENT_CONFIG_FILEPATH}"
+    sed -i "s~^WebUI\\\\Username.*~WebUI\\\\Username=${safe_username}~" "${QBITTORRENT_CONFIG_FILEPATH}"
   else
-    sed -i "/^\\[Preferences\\]/a\\WebUI\\\\Username=${QBITTORRENT_WEBUI_USER}" "${QBITTORRENT_CONFIG_FILEPATH}"
+    sed -i "/^\\[Preferences\\]/a\\WebUI\\\\Username=${safe_username}" "${QBITTORRENT_CONFIG_FILEPATH}"
   fi
 
   # ── Password handling ─────────────────────────────────────────────────
@@ -849,6 +1494,7 @@ function qbittorrent_edit_config() {
   #      API auth regardless, but we still don't overwrite an existing hash in the
   #      config (the user would change it via the WebUI preferences if they wanted to).
 
+  local password_generated="no"
   local existing_password_hash
   existing_password_hash=$(grep '^WebUI\\Password_PBKDF2' "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null | cut -d= -f2-)
 
@@ -859,6 +1505,21 @@ function qbittorrent_edit_config() {
     fi
     if [[ -n "${QBITTORRENT_WEBUI_PASSWORD}" ]]; then
       echo "[info] Using QBITTORRENT_WEBUI_PASSWORD from env var for API authentication"
+    elif [[ -r "${QBITTORRENT_AUTO_PASSWORD_FILEPATH}" ]] && [[ -r "${QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH}" ]]; then
+      # A password generated by an earlier run: reuse it only when the stored hash
+      # still matches the config, otherwise the user changed it and we must not
+      # keep retrying a password that cannot work.
+      local persisted_hash
+      persisted_hash=$(cat "${QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH}" 2>/dev/null)
+      if [[ -n "${persisted_hash}" ]] && [[ "${persisted_hash}" == "${existing_password_hash}" ]]; then
+        QBITTORRENT_AUTO_PASSWORD="$(cat "${QBITTORRENT_AUTO_PASSWORD_FILEPATH}" 2>/dev/null)"
+      fi
+      if [[ -n "${QBITTORRENT_AUTO_PASSWORD}" ]]; then
+        echo "[info] Reusing the previously generated qBittorrent WebUI password for API authentication"
+      else
+        echo "[info] WebUI password already configured. To enable API-based port configuration,"
+        echo "[info] set QBITTORRENT_WEBUI_PASSWORD env var to match your qBittorrent WebUI password."
+      fi
     else
       echo "[info] WebUI password already configured. To enable API-based port configuration,"
       echo "[info] set QBITTORRENT_WEBUI_PASSWORD env var to match your qBittorrent WebUI password."
@@ -881,8 +1542,7 @@ print(''.join(secrets.choice(alphabet) for _ in range(9)))
       # fallback: use openssl rand
       qbittorrent_password="$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 9)"
     fi
-    echo "[info] QBITTORRENT_WEBUI_PASSWORD not set, auto-generated password: ${qbittorrent_password}"
-    echo "[info] Set QBITTORRENT_WEBUI_PASSWORD env var to use a custom password"
+    password_generated="yes"
   fi
 
   # Store plaintext for later API login
@@ -916,9 +1576,32 @@ print(result)
 
   # Write Password_PBKDF2 to config
   if grep -q '^WebUI\\Password_PBKDF2' "${QBITTORRENT_CONFIG_FILEPATH}"; then
-    sed -i "s~^WebUI\\Password_PBKDF2.*~WebUI\\\\Password_PBKDF2=${pbkdf2_hash}~" "${QBITTORRENT_CONFIG_FILEPATH}"
+    sed -i "s~^WebUI\\\\Password_PBKDF2.*~WebUI\\\\Password_PBKDF2=${pbkdf2_hash}~" "${QBITTORRENT_CONFIG_FILEPATH}"
   else
     sed -i "/^\\[Preferences\\]/a\\WebUI\\\\Password_PBKDF2=${pbkdf2_hash}" "${QBITTORRENT_CONFIG_FILEPATH}"
+  fi
+
+  # Persist the generated password for later runs: the config only receives the
+  # one-way hash, so without this the plaintext would be lost on the next start and
+  # API-based port configuration would silently stop working. The sidecar hash
+  # records which config hash the plaintext belongs to, so a user-changed password
+  # is never overridden by a stale secret. Owner-readable only.
+  if [[ -z "${QBITTORRENT_WEBUI_PASSWORD}" ]] && [[ -n "${QBITTORRENT_AUTO_PASSWORD_FILEPATH}" ]]; then
+    if ( umask 077; echo "${QBITTORRENT_AUTO_PASSWORD}" > "${QBITTORRENT_AUTO_PASSWORD_FILEPATH}" ) 2>/dev/null; then
+      chmod 600 "${QBITTORRENT_AUTO_PASSWORD_FILEPATH}" 2>/dev/null
+      if ( umask 077; echo "${pbkdf2_hash}" > "${QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH}" ) 2>/dev/null; then
+        chmod 600 "${QBITTORRENT_AUTO_PASSWORD_HASH_FILEPATH}" 2>/dev/null
+      else
+        echo "[WARN] Unable to persist the WebUI password hash marker, the generated password will not be reusable after a restart"
+      fi
+    else
+      echo "[WARN] Unable to persist the generated WebUI password to '${QBITTORRENT_AUTO_PASSWORD_FILEPATH}', API port configuration will stop working after a restart"
+    fi
+  fi
+
+  if [[ "${password_generated}" == "yes" ]] && grep -qF "${pbkdf2_hash}" "${QBITTORRENT_CONFIG_FILEPATH}" 2>/dev/null; then
+    echo "[info] QBITTORRENT_WEBUI_PASSWORD not set, a random WebUI password was generated and written to the config"
+    echo "[info] Set QBITTORRENT_WEBUI_PASSWORD env var to control the WebUI password (the value is never logged)"
   fi
 
   if [[ "${DEBUG}" == "yes" ]]; then
@@ -962,7 +1645,7 @@ function qbittorrent_api_config() {
     echo "[DEBUG] Setting network interface binding: ${interface_json}"
   fi
 
-  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s \
+  curl_with_retry "${web_protocol}://localhost:${WEBUI_PORT}/api/v2/app/setPreferences" 3 2 -k -s -f \
     -b "${cookie_jar}" \
     --header "Referer: ${web_protocol}://localhost:${WEBUI_PORT}" \
     -X POST -d "json=${interface_json}"
@@ -1098,7 +1781,7 @@ Syntax:
   ./${ourScriptName} [options] [command and arguments]
 
 Where:
-  -an or --app-name <deluge|qbittorrent|nicotineplus>
+  -an or --app-name <deluge|qbittorrent|nicotineplus|slskd>
     Define the name of the application to configure for incoming port.
     Defaults to source contents of file '/etc/image-build-info'.
 
@@ -1119,7 +1802,7 @@ Where:
     Defaults to '${defaultDelugeWebConfigFilepath}'.
 
   -ncf or --nicotineplus-config-filepath <path>
-    Define the file path to the Nicotine+ configuration file (nicotine.conf).
+    Define the file path to the Nicotine+ configuration file (config).
     Defaults to '${defaultNicotineplusConfigFilepath}'.
 
   -gcsp or --gluetun-control-server-port <port>
@@ -1145,8 +1828,9 @@ Where:
 
   -qbp or --qbittorrent-webui-password <password>
     Define the qBittorrent WebUI password for API authentication.
-    Only used when APP_NAME is 'qbittorrent'. If left empty, a random password
-    will be auto-generated and written to the config before qBittorrent starts.
+    Only used when APP_NAME is 'qbittorrent'. If left empty the existing stored
+    password is reused; a random password is generated and written to the config
+    only when no password is stored there yet.
 
   -pd or --poll-delay <seconds>
     Define the polling delay in seconds between incoming port checks.
@@ -1177,21 +1861,32 @@ Environment Variables:
   DELUGE_WEB_CONFIG_FILEPATH
     Set the file path to the Deluge web configuration file (web.conf).
   NICOTINEPLUS_CONFIG_FILEPATH
-    Set the file path to the Nicotine+ configuration file (nicotine.conf).
+    Set the file path to the Nicotine+ configuration file (config).
   GLUETUN_CONTROL_SERVER_PORT
     Set the port for the Gluetun Control Server.
+  GLUETUN_CONTROL_SERVER_USERNAME
+    Set the username for Gluetun Control Server authentication.
+  GLUETUN_CONTROL_SERVER_PASSWORD
+    Set the password for Gluetun Control Server authentication.
   QBITTORRENT_WEBUI_USER
     Set the qBittorrent WebUI username used to authenticate with the API.
     Only used when APP_NAME is 'qbittorrent'. Defaults to 'admin'.
   QBITTORRENT_WEBUI_PASSWORD
     Set the qBittorrent WebUI password used to authenticate with the API.
-    Only used when APP_NAME is 'qbittorrent'. If empty, auto-generated.
+    Only used when APP_NAME is 'qbittorrent'. If empty the existing stored
+    password is reused; a random password is generated only when none is stored.
   GLUETUN_INCOMING_PORT
     Set to 'yes' to enable VPN port monitoring and application configuration.
   POLL_DELAY
     Set the polling delay in seconds between incoming port checks.
   MAX_STARTUP_RETRIES
     Set the maximum number of startup retries before executing application without VPN configuration.
+  MAX_PORT_VERIFY_RETRIES
+    Set the maximum number of consecutive port verification failures before escalating
+    via the incoming port recovery handler (default: 3).
+  MAX_APP_RESTART_ATTEMPTS
+    Set the maximum number of consecutive application restart attempts before leaving
+    recovery to the container healthcheck and watchdog (default: 3).
   GLUETUN_ESCALATION_COOLDOWN
     Set the cooldown period in seconds between Phase 4 escalation attempts (default: 300).
   DEBUG

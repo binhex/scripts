@@ -148,11 +148,6 @@ teardown() {
 # ensure_incoming_port() behavior tests
 # ======================================================================
 
-@test "ensure_incoming_port exists" {
-    run type ensure_incoming_port
-    [ "$status" -eq 0 ]
-}
-
 @test "ensure_incoming_port calls restart_vpn_connection when port=0 persists" {
     run ensure_incoming_port
     local vpn

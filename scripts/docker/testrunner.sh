@@ -116,7 +116,7 @@ function trust_self_signed_cert() {
 
 function webui_test() {
 
-	echo "[debug] Running Web UI test for application '${app_name}' with parameters '$*'..."
+	echo "[debug] Running Web UI test for application '${app_name}'..."
 
 	while [ "$#" != "0" ]
 	do
@@ -170,11 +170,11 @@ function webui_test() {
 
 	mkdir -p '/tmp/curl'
 
-	echo "[debug] Creating Docker container 'docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}'"
+	echo "[debug] Creating Docker container '${container_name}' from image '${image_name}'..."
 	docker run -d --name ${container_name} --hostname ${container_name} --net ${network_type} ${env_vars} ${additional_args} -v '/tmp/config':'/config' -v '/tmp/data':'/data' -v '/tmp/media':'/media' ${container_ports} ${image_name}
 
 	echo "[debug] Showing running containers..."
-	docker ps
+	docker ps --format 'table {{.ID}}\t{{.Image}}\t{{.RunningFor}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}'
 
 	# get host ports to check
 	host_ports=$(echo "${container_ports}" | grep -P -o -m 1 '(?<=-p\s)[0-9]+' | xargs)
@@ -194,7 +194,7 @@ function webui_test() {
 	# loop over list of host ports
 	for host_port in "${host_ports_array[@]}"; do
 
-		echo "[debug] Waiting for port '${host_port}' to be in listening state using command 'curl -s -v --insecure -k -4 -L ${protocol}://${container_name}:${host_port}${url}'..."
+		echo "[debug] Waiting for port '${host_port}' to be in listening state..."
 		while ! curl -s -v --insecure -k -4 -L "${protocol}://${container_name}:${host_port}${url}" >> /tmp/curl/curl.log 2>&1; do
 			retry_count=$((retry_count-1))
 			if [ "${retry_count}" -eq "0" ]; then
@@ -403,8 +403,7 @@ function run_test() {
 		slsk_username=$(generate_random_string 8 false)
 		slsk_password=$(generate_random_string 8 true)
 
-		echo "[debug] Generated randomized SLSK_USERNAME: ${slsk_username}"
-		echo "[debug] Generated randomized SLSK_PASSWORD: ${slsk_password}"
+		echo "[debug] Generated randomized Soulseek credentials"
 
 		# run tests
 		webui_test ${common_options} --container-ports '-p 9999:8980' --env-vars "-e SLSK_USERNAME=${slsk_username} -e SLSK_PASSWORD=${slsk_password}"

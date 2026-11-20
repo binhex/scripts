@@ -100,6 +100,40 @@ fi
 # utility functions
 ####
 
+function redact_app_parameters() {
+
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+
+  # Inspect argv before joining it so values containing spaces are masked in full.
+  local redacted=("$1")
+  local argument flag
+  shift
+
+  while [[ $# -gt 0 ]]; do
+    argument="$1"
+    flag="${argument%%=*}"
+    shift
+
+    case "${flag,,}" in
+      --*pass*|--*key*|--*token*|--*secret*)
+        if [[ "${argument}" == *=* ]]; then
+          redacted+=("${flag}=***MASKED***")
+        else
+          redacted+=("${flag}")
+          if [[ $# -gt 0 ]]; then
+            redacted+=('***MASKED***')
+            shift
+          fi
+        fi
+        ;;
+      *) redacted+=("${argument}") ;;
+    esac
+  done
+  printf '%s\n' "${redacted[*]}"
+}
+
 function check_gluetun_cs_api() {
 
 	echo "[INFO] Health checking gluetun Control Server API connectivity..."
@@ -128,7 +162,7 @@ function check_gluetun_cs_api() {
 
 function start_process_background() {
 
-  echo "[INFO] Starting single process: ${APP_PARAMETERS[*]}"
+  echo "[INFO] Starting single process: $(redact_app_parameters "${APP_PARAMETERS[@]}")"
   nohup "${APP_PARAMETERS[@]}" &
   APPLICATION_PID=$!
 
@@ -504,7 +538,7 @@ function main {
       echo "[WARN] Required conditions not met (attempt ${startup_retry_count}/${MAX_STARTUP_RETRIES}), checking again in ${POLL_DELAY} seconds..."
 
       if [[ ${startup_retry_count} -ge ${MAX_STARTUP_RETRIES} ]]; then
-        echo "[WARN] Maximum startup retries (${MAX_STARTUP_RETRIES}) reached, VPN conditions not met - executing application without VPN port configuration: '${APP_PARAMETERS[*]}'..."
+        echo "[WARN] Maximum startup retries (${MAX_STARTUP_RETRIES}) reached, VPN conditions not met - executing application without VPN port configuration: '$(redact_app_parameters "${APP_PARAMETERS[@]}")'..."
         exec "${APP_PARAMETERS[@]}"
       fi
 
@@ -1177,7 +1211,7 @@ function application_start() {
     slskd_edit_parameters
     slskd_start
   else
-    echo "[WARN] Application name '${APP_NAME}' unknown, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    echo "[WARN] Application name '${APP_NAME}' unknown, executing remaining arguments '$(redact_app_parameters "${APP_PARAMETERS[@]}")'..."
     exec "${APP_PARAMETERS[@]}"
   fi
 
@@ -1262,7 +1296,7 @@ function edit_app_parameters() {
   APP_PARAMETERS=("${new_parameters[@]}")
 
   if [[ "${DEBUG}" == "yes" ]]; then
-    echo "[DEBUG] Modified APP_PARAMETERS: ${APP_PARAMETERS[*]}"
+    echo "[DEBUG] Modified APP_PARAMETERS: $(redact_app_parameters "${APP_PARAMETERS[@]}")"
   fi
 
 }
@@ -1998,7 +2032,7 @@ do
     exit 0
     ;;
   *)
-    echo "[ERROR] Unknown option: $1"
+    echo "[ERROR] Unknown option, showing help before exit..."
     show_help
     exit 1
     ;;
@@ -2013,16 +2047,16 @@ if [[ -z "${APP_PARAMETERS[*]}" ]]; then
 fi
 
 if [[ "${GLUETUN_INCOMING_PORT}" != 'yes' ]]; then
-  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '${APP_PARAMETERS[*]}'..."
+  echo "[INFO] Configuration of incoming port is disabled via argument '-gip|--gluetun-incoming-port' or environment variable 'GLUETUN_INCOMING_PORT', executing remaining arguments '$(redact_app_parameters "${APP_PARAMETERS[@]}")'..."
   exec "${APP_PARAMETERS[@]}"
 else
   if [[ -z "${APP_NAME}" ]]; then
-    echo "[WARN] No application name specified via argument '-an|--app-name' or environment variable 'APP_NAME', cannot configure incoming port, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    echo "[WARN] No application name specified via argument '-an|--app-name' or environment variable 'APP_NAME', cannot configure incoming port, executing remaining arguments '$(redact_app_parameters "${APP_PARAMETERS[@]}")'..."
     exec "${APP_PARAMETERS[@]}"
   fi
 
   if [[ -z "${WEBUI_PORT}" && "${APP_NAME}" != 'nicotineplus' && "${APP_NAME}" != 'slskd' ]]; then
-    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '${APP_PARAMETERS[*]}'..."
+    echo "[WARN] No web UI port specified via argument '-wp|--webui-port' or environment variable 'WEBUI_PORT', cannot configure incoming port, executing remaining arguments '$(redact_app_parameters "${APP_PARAMETERS[@]}")'..."
     exec "${APP_PARAMETERS[@]}"
   fi
 fi

@@ -478,7 +478,7 @@ function healthcheck_command() {
 	fi
 
 	if [[ -n "${HEALTHCHECK_COMMAND}" ]]; then
-		echo "[info] Running custom healthcheck command: ${HEALTHCHECK_COMMAND}"
+		echo "[info] Running custom healthcheck command..."
 		eval "${HEALTHCHECK_COMMAND}"
 		exit_code="${?}"
 	else
@@ -601,7 +601,7 @@ function healthcheck_action() {
 	shift
 
 	if [[ -n "${HEALTHCHECK_ACTION}" ]]; then
-		echo "[info] Healthcheck action specified, running '${HEALTHCHECK_ACTION}'..."
+		echo "[info] Running custom healthcheck action..."
 		eval "${HEALTHCHECK_ACTION}"
 		echo "[info] Healthcheck action completed, exiting with code '${exit_code}'"
 		exit "${exit_code}"

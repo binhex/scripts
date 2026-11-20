@@ -434,6 +434,25 @@ function check(){
 
 }
 
+function should_configure_incoming_port() {
+
+  # An empty INCOMING_PORT means gluetun reported nothing usable: configuring the
+  # application with it would push an invalid listen port (or kill and restart a
+  # healthy app with no port at all), so wait for the next outer pass instead.
+  if [[ -z "${INCOMING_PORT}" ]]; then
+    echo "[INFO] No usable VPN port forward reported yet, deferring configuration until the next check"
+    return 1
+  fi
+
+  if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
+    return 0
+  fi
+
+  echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same"
+  return 1
+
+}
+
 function main {
 
   echo "[INFO] Running ${ourScriptName} ${ourScriptVersion} - created by binhex."
@@ -650,10 +669,7 @@ function main {
     # re-runs check() (refreshing INCOMING_PORT) before the next configure attempt.
     reset_port_verify_failures
 
-    # An empty INCOMING_PORT means gluetun reported nothing usable: configuring the
-    # application with it would push an invalid listen port (or kill and restart a
-    # healthy app with no port at all), so wait for the next outer pass instead.
-    if [[ -n "${INCOMING_PORT}" ]] && { [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; }; then
+    if should_configure_incoming_port; then
 
       if [[ "${DEBUG}" == 'yes' ]]; then
         if [[ -z "${PREVIOUS_INCOMING_PORT}" ]]; then
@@ -683,8 +699,6 @@ function main {
       else
         echo "[WARN] Failed to configure '${APP_NAME}' with incoming port '${INCOMING_PORT}', will retry"
       fi
-    else
-      echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same"
     fi
 
     echo "[INFO] Sleeping for ${POLL_DELAY} seconds before re-checking port assignment..."
@@ -979,6 +993,12 @@ function recover_unreachable_port() {
   #   2. the application is alive but the port forward is broken - cycle the VPN.
   # Returns 0 when recovery was attempted, 1 when the VPN restart failed,
   # 2 when the application could not be restarted.
+  #
+  # Both production call sites (:529 in the outer loop, :580 in the inner
+  # verification loop) only reach this after seeing the application dead, so the
+  # app-dead branch is the normal entry. The re-check stays as a race guard: if
+  # liveness flips to alive between their check and this one, the app-alive branch
+  # below is correct - the application is up, so the broken forward gets cycled.
   if ! check_process; then
     echo "[WARN] Application is not running, restarting application instead of restarting VPN..."
     if ensure_application_running; then

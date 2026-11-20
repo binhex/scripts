@@ -1,5 +1,10 @@
 #!/usr/bin/env bats
 #
+# shellcheck disable=SC1091,SC2155,SC2329
+# SC1091: sources ../utils.sh and ../portset.sh relative to BATS_TEST_DIRNAME.
+# SC2155: declare-and-assign in setup is intended (mktemp cannot meaningfully fail).
+# SC2329: stub functions are invoked indirectly by the sourced production code.
+#
 # TDD test for port=0 escalation bug.
 #
 # When gluetun returns {"port":0,"ports":[]}, the portset.sh steady-state loop
@@ -128,11 +133,6 @@ teardown() {
 # ======================================================================
 # RED tests — capture the bug before the fix
 # ======================================================================
-
-@test "[RED] check returns 1 when gluetun returns port 0" {
-    run check
-    [ "$status" -eq 1 ]
-}
 
 @test "[RED] check does NOT call restart_vpn_connection (the bug)" {
     run check

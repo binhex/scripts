@@ -3,19 +3,94 @@
 # A simple bash script to build/install Arch AUR packages using makepkg or an AUR helper.
 
 # script name and version
-readonly ourScriptName=$(basename -- "$0")
+ourScriptName=$(basename -- "$0")
+readonly ourScriptName
 readonly ourScriptVersion="v1.0.0"
 
 # setup default values
-readonly defaultDebug='info'
 readonly defaultPackagePath='/tmp/makepkg'
 readonly defaultUseMakepkg='false'
 readonly defaultInstallPackage='false'
 
-DEBUG="${defaultDebug}"
 PACKAGE_PATH="${defaultPackagePath}"
 USE_MAKEPKG="${defaultUseMakepkg}"
 INSTALL_PACKAGE="${defaultInstallPackage}"
+
+# path to the sudoers rule that lets user 'nobody' install packages without a password,
+# overridable so tests do not write to the real /etc
+SUDOERS_FILE="${SUDOERS_FILE:-/etc/sudoers.d/yay}"
+
+# pacman/phases that mean the transaction can never succeed on a retry
+readonly unresolvable_dependency_pattern='unable to satisfy dependency|target not found|failed to prepare transaction \((could not satisfy|conflicting) dependencies\)'
+
+# escape sed replacement metacharacters so a package path containing ~ or & is written literally
+function escape_sed_replacement() {
+
+	printf '%s' "${1}" | sed 's/[\\&~]/\\&/g'
+
+}
+
+# fail loudly when a value-taking flag has no value, instead of silently leaving its
+# variable empty (an empty AUR package list exits 0, so a build would carry on having
+# installed nothing); a following flag is not a value either
+function require_operand() {
+
+	if [[ "$#" -lt 2 ]]; then
+		echo "[warn] Parameter '${1}' requires a value, displaying help..." >&2
+		echo ""
+		show_help
+		exit 1
+	fi
+
+	# a following flag is a missing value, but a dash-leading value (e.g. a sed
+	# expression) is legitimate, so only the known flags are rejected
+	case "${2}" in
+		-aop|--aor-package|-ap|--aur-package|-uh|--use-makepkg|-pp|--package-path|-ip|--install-package|-pe|--pkgbuild-edit|-h|--help)
+			echo "[warn] Parameter '${1}' requires a value, displaying help..." >&2
+			echo ""
+			show_help
+			exit 1
+			;;
+	esac
+
+}
+
+# rewrite the makepkg output directories in the given makepkg.conf
+function configure_makepkg_conf() {
+
+	local conf="${1}"
+
+	local key
+	local suffix
+	local value
+	local sed_value
+	for key in BUILDDIR PKGDEST SRCDEST SRCPKGDEST; do
+		case "${key}" in
+			BUILDDIR) suffix="build" ;;
+			PKGDEST) suffix="pkgdest" ;;
+			SRCDEST) suffix="srcdest" ;;
+			SRCPKGDEST) suffix="srcpkgdest" ;;
+		esac
+
+		# the conf is sourced as shell by makepkg, so shell-quote the value; sed then
+		# needs that quoted value escaped for its own metacharacters (\ & ~)
+		value=$(printf '%q' "${PACKAGE_PATH}/${suffix}")
+		sed_value=$(escape_sed_replacement "${value}")
+
+		# match the key whether it is commented out or already set, so a change to the
+		# shipped default cannot silently no-op; append it when the key is absent entirely
+		if grep -qE "^#?${key}=" "${conf}"; then
+			sed -i -e "s~^#\?${key}=.*~${key}=${sed_value}~" "${conf}"
+		else
+			# a conf whose last line has no trailing newline would glue the key onto it
+			if [[ -n "$(tail -c1 -- "${conf}")" ]]; then
+				printf '\n' >> "${conf}"
+			fi
+			printf '%s=%s\n' "${key}" "${value}" >> "${conf}"
+		fi
+	done
+
+}
 
 function init() {
 
@@ -34,19 +109,11 @@ function init() {
 		"${PACKAGE_PATH}/srcpkgdest" \
 		"${PACKAGE_PATH}/snapshots"
 
-	# set build directory for makepkg
-	sed -i -e "s~#BUILDDIR=/tmp/makepkg~BUILDDIR=${PACKAGE_PATH}/build~g" "/etc/makepkg.conf"
-
-	# set pkgdest directory for makepkg
-	sed -i -e "s~#PKGDEST=/tmp/makepkg~PKGDEST=${PACKAGE_PATH}/pkgdest~g" "/etc/makepkg.conf"
-
-	# set srcdest directory for makepkg
-	sed -i -e "s~#SRCDEST=/tmp/makepkg~SRCDEST=${PACKAGE_PATH}/srcdest~g" "/etc/makepkg.conf"
-
-	# set srcpkgdest directory for makepkg
-	sed -i -e "s~#SRCPKGDEST=/tmp/makepkg~SRCPKGDEST=${PACKAGE_PATH}/srcpkgdest~g" "/etc/makepkg.conf"
+	# set the makepkg output directories
+	configure_makepkg_conf "/etc/makepkg.conf"
 
 	# strip out restriction to not allow make as user root (docker build uses root)
+	# shellcheck disable=SC2016 # $E_ROOT is makepkg's own variable, not ours to expand
 	sed -i -e 's~exit $E_ROOT~~g' '/usr/bin/makepkg'
 
 	# disable building of debug packages, note '!\?debug' keeps this idempotent as
@@ -93,6 +160,10 @@ function compile_using_makepkg() {
 	while [[ ${retries_remaining} -gt 0 ]]; do
 		echo "[info] Attempting to compile package '${package}' using makepkg, (attempt ${attempt})..."
 
+		# a failed attempt leaves the shell inside the extracted PKGBUILD directory,
+		# which the next attempt deletes, so return to a stable directory first
+		cd / || return 1
+
 		# clean up any previous attempt
 		local snapshots_path="${PACKAGE_PATH}/${package}/snapshots"
 		rm -rf "${snapshots_path}"
@@ -130,16 +201,32 @@ function compile_using_makepkg() {
 					echo "[info] Applying PKGBUILD edit command for package '${package}': ${PKGBUILD_EDIT}"
 					if ! eval "${PKGBUILD_EDIT}"; then
 						echo "[warn] Failed to apply PKGBUILD edit command '${PKGBUILD_EDIT}' for package '${package}'" >&2
-						exit 1
+						cd / || true
+						return 1
 					else
 						echo "[info] Successfully applied PKGBUILD edit for package '${package}'"
 					fi
 				fi
 
-				# compile package if download and PKGBUILD edit were successful
-				if makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag}; then
+				# compile package if download and PKGBUILD edit were successful, the output
+				# is teed to a log so a deterministic failure can be recognised and not retried
+				local makepkg_status
+				local makepkg_log="${PACKAGE_PATH}/${package}/makepkg.log"
+				# shellcheck disable=SC2086
+				makepkg --ignorearch --clean --syncdeps --rmdeps --noconfirm --skippgpcheck ${install_flag} 2>&1 | tee "${makepkg_log}"
+				makepkg_status="${PIPESTATUS[0]}"
+
+				if [[ "${makepkg_status}" -eq 0 ]]; then
 					echo "[info] Successfully compiled package '${package}' on attempt ${attempt}"
+					cd / || return 1
 					return 0
+				elif grep -Eq "${unresolvable_dependency_pattern}" "${makepkg_log}"; then
+					# a dependency the pinned repositories cannot satisfy will not appear on a
+					# retry, so report it and hand control back so the caller can try the next option
+					echo "[error] Package '${package}' has unresolvable dependencies, retrying cannot help:" >&2
+					grep -E "${unresolvable_dependency_pattern}" "${makepkg_log}" | sed 's/^/  /' >&2
+					cd / || true
+					return 1
 				else
 					echo "[warn] makepkg failed for package '${package}' on attempt ${attempt}"
 				fi
@@ -156,7 +243,8 @@ function compile_using_makepkg() {
 			sleep ${retry_delay}
 		else
 			echo "[error] Failed to compile package '${package}' after all retry attempts"
-			exit 1
+			cd / || true
+			return 1
 		fi
 	done
 
@@ -168,7 +256,7 @@ function compile_using_helper() {
 	shift
 
 	# prevent sudo prompt for password when installing compiled package via pacman
-	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > /etc/sudoers.d/yay
+	echo 'nobody ALL = NOPASSWD: /usr/sbin/pacman' > "${SUDOERS_FILE}"
 
 	# set ownership to user 'nobody' for makepkg build path - required as we are 'su'ing to user nobody (cannot run helper as root)
 	chown -R nobody:users \
@@ -190,9 +278,22 @@ function compile_using_helper() {
 	while [[ ${retries_remaining} -gt 0 ]]; do
 		echo "[info] Attempting to compile package '${package_list}' using helper, (attempt ${attempt})..."
 
-		if su nobody -c "paru --sync --norebuild --needed --builddir=${PACKAGE_PATH}/snapshots --mflags '--config /etc/makepkg.conf --skippgpcheck' --noconfirm ${package_list}"; then
+		# the output is teed to a log so a deterministic failure can be recognised and not retried
+		local helper_status
+		local helper_log="${PACKAGE_PATH}/helper.log"
+		# %q keeps a package path with spaces or quotes intact inside the su command string
+		local quoted_builddir
+		quoted_builddir=$(printf '%q' "${PACKAGE_PATH}/snapshots")
+		su nobody -c "paru --sync --norebuild --needed --builddir=${quoted_builddir} --mflags '--config /etc/makepkg.conf --skippgpcheck' --noconfirm ${package_list}" 2>&1 | tee "${helper_log}"
+		helper_status="${PIPESTATUS[0]}"
+
+		if [[ "${helper_status}" -eq 0 ]]; then
 			echo "[info] Successfully compiled and installed package(s) '${package_list}' on attempt ${attempt}"
 			return 0
+		elif grep -Eq "${unresolvable_dependency_pattern}" "${helper_log}"; then
+			echo "[error] Package(s) '${package_list}' have unresolvable dependencies, retrying cannot help:" >&2
+			grep -E "${unresolvable_dependency_pattern}" "${helper_log}" | sed 's/^/  /' >&2
+			return 1
 		else
 			retries_remaining=$((retries_remaining - 1))
 			attempt=$((attempt + 1))
@@ -243,6 +344,7 @@ function install_helper_and_compile() {
 				return 1
 			fi
 		else
+			# shellcheck disable=SC2046 # the package list must split into separate arguments
 			pacman -Rns $(pacman -Qq | grep -E '^paru') --noconfirm 2>/dev/null || true
 		fi
 	fi
@@ -266,6 +368,7 @@ function install_helper_and_compile() {
 				fi
 			else
 				echo "[warn] Failed to install AUR helper package '${helper_package}', trying next helper if available..."
+				# shellcheck disable=SC2046 # the package list must split into separate arguments
 				pacman -Rns $(pacman -Qq | grep -E '^paru') --noconfirm 2>/dev/null || true
 			fi
 		fi
@@ -314,10 +417,6 @@ Where:
 		Example: "sed -r -i -e 's~-march=native\s?~~g' 'PKGBUILD'"
 		No default.
 
-	--debug <yes|no>
-		Define whether debug is turned on or not.
-		Defaults to '${defaultDebug}'.
-
 Examples:
 	Build a single AOR package using makepkg and multiple AUR packages using helper and output packages to /cache:
 		./${ourScriptName} --aor-package 'qbittorrent' --aur-package 'boost1.86,libtorrent-rasterbar-1_2-git' --package-path '/cache'
@@ -341,49 +440,51 @@ Notes:
 ENDHELP
 }
 
-while [ "$#" != "0" ]
-do
-    case "$1"
-    in
-        -aop|--aor-package)
-            AOR_PACKAGE=$2
-            shift
-            ;;
-        -ap|--aur-package)
-            AUR_PACKAGE=$2
-            shift
-            ;;
-        -uh|--use-makepkg)
-            USE_MAKEPKG=true
-            ;;
-        -pp|--package-path)
-            PACKAGE_PATH=$2
-            shift
-            ;;
-        -ip|--install-package)
-            INSTALL_PACKAGE=true
-            ;;
-        -pe|--pkgbuild-edit)
-            PKGBUILD_EDIT=$2
-            shift
-            ;;
-        --debug)
-            DEBUG=$2
-            shift
-            ;;
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        *)
-            echo "[warn] Unrecognised argument '$1', displaying help..." >&2
-            echo ""
-            show_help
-            exit 1
-            ;;
-    esac
-    shift
-done
+function parse_args() {
+	while [ "$#" != "0" ]
+	do
+		case "$1"
+		in
+			-aop|--aor-package)
+				require_operand "$@"
+				AOR_PACKAGE=$2
+				shift
+				;;
+			-ap|--aur-package)
+				require_operand "$@"
+				AUR_PACKAGE=$2
+				shift
+				;;
+			-uh|--use-makepkg)
+				USE_MAKEPKG=true
+				;;
+			-pp|--package-path)
+				require_operand "$@"
+				PACKAGE_PATH=$2
+				shift
+				;;
+			-ip|--install-package)
+				INSTALL_PACKAGE=true
+				;;
+			-pe|--pkgbuild-edit)
+				require_operand "$@"
+				PKGBUILD_EDIT=$2
+				shift
+				;;
+			-h|--help)
+				show_help
+				exit 0
+				;;
+			*)
+				echo "[warn] Unrecognised argument '$1', displaying help..." >&2
+				echo ""
+				show_help
+				exit 1
+				;;
+		esac
+		shift
+	done
+}
 
 function main() {
 
@@ -404,6 +505,20 @@ function main() {
 	if [[ "${AUR_PACKAGE}" == ''  && "${AOR_PACKAGE}" == '' ]]; then
 		echo "[info] Package name(s) is an empty string defined via parameter --aur-package and/or via parameter --aor-package, exiting script"
 		exit 0
+	fi
+
+	# an empty package path, or one that resolves to / (e.g. '/tmp/..'), would make
+	# init() remove /build and friends and chown -R the whole filesystem
+	if [[ -z "${PACKAGE_PATH}" ]] || [[ "$(realpath -m -- "${PACKAGE_PATH}" 2>/dev/null)" == "/" ]]; then
+		echo "[warn] Package path defined via parameter --package-path is empty or resolves to the filesystem root, exiting script..." >&2
+		exit 1
+	fi
+
+	# make a relative package path absolute, otherwise the cd to / inside the compile
+	# loop would reinterpret it against the filesystem root
+	if ! PACKAGE_PATH=$(realpath -m -- "${PACKAGE_PATH}"); then
+		echo "[warn] Package path defined via parameter --package-path cannot be resolved, exiting script..." >&2
+		exit 1
 	fi
 
 	# display packages to be processed
@@ -434,7 +549,10 @@ function main() {
 
 			# loop through each AUR package
 			for package in "${AUR_PACKAGE_ARRAY[@]}"; do
-				compile_using_makepkg "${package}" "AUR" "${install_flag}"
+				if ! compile_using_makepkg "${package}" "AUR" "${install_flag}"; then
+					echo "[error] Failed to compile AUR package '${package}', exiting script..."
+					exit 1
+				fi
 			done
 		else
 			echo "[info] '--use-makepkg' is not defined, compiling AUR packages using helper..."
@@ -463,10 +581,17 @@ function main() {
 
 		# loop through each AOR package
 		for package in "${AOR_PACKAGE_ARRAY[@]}"; do
-			compile_using_makepkg "${package}" "AOR" "${install_flag}"
+			if ! compile_using_makepkg "${package}" "AOR" "${install_flag}"; then
+				echo "[error] Failed to compile AOR package '${package}', exiting script..."
+				exit 1
+			fi
 		done
 	fi
 
 }
 
-main
+# allow sourcing for testing without running the script
+if [[ -z "${AUR_TEST_MODE}" ]]; then
+	parse_args "$@"
+	main
+fi

@@ -774,3 +774,80 @@ tracker() {
     [ "$(cat "${VPN_STATE}")" = "stopped" ]
     rm -f "${VPN_STATE_REQUESTS}"
 }
+
+# ======================================================================
+# 7. Configure gate and slow-binding application starts (ledger items 1, 6)
+# ======================================================================
+
+@test "a non-zero start status does not fail the restart when the process comes up" {
+    echo "0" > "${APP_STATE}"
+    APPLICATION_RESTART_ATTEMPTS=0
+
+    # qbittorrent/deluge report the WebUI port wait as the start status, so it can
+    # time out while the process is in fact alive: that must not cost an attempt
+    eval '
+    application_start() {
+        local c; c=$(grep "^app_start=" "$CALL_TRACKER" 2>/dev/null | cut -d= -f2 || echo "0")
+        c=$((c + 1))
+        sed -i "s/^app_start=.*/app_start=${c}/" "$CALL_TRACKER" 2>/dev/null
+        echo "1" > "${APP_STATE}"
+        return 1
+    }
+    '
+    export -f application_start
+
+    s=0; ensure_application_running || s=$?
+    echo "status=${s} attempts=${APPLICATION_RESTART_ATTEMPTS} app_start=$(tracker app_start)"
+
+    [ "${s}" -eq 0 ]
+    [ "${APPLICATION_RESTART_ATTEMPTS}" -eq 1 ]
+}
+
+@test "should_configure_incoming_port defers configuration when the port is empty" {
+    INCOMING_PORT=""
+    PREVIOUS_INCOMING_PORT="5914"
+
+    run should_configure_incoming_port
+
+    echo "Output: $output"
+
+    [ "${status}" -eq 1 ]
+    [[ "${output}" == *"No usable VPN port forward reported"* ]]
+    [[ "${output}" != *"are the same"* ]]
+}
+
+@test "should_configure_incoming_port skips an unchanged, verified port" {
+    INCOMING_PORT="5914"
+    PREVIOUS_INCOMING_PORT="5914"
+    eval 'application_verify_incoming_port() { return 0; }'
+    export -f application_verify_incoming_port
+
+    run should_configure_incoming_port
+
+    [ "${status}" -eq 1 ]
+    [[ "${output}" == *"are the same"* ]]
+}
+
+@test "should_configure_incoming_port configures a changed port" {
+    INCOMING_PORT="5914"
+    PREVIOUS_INCOMING_PORT="5900"
+    # verification succeeds, so the changed port is the only trigger that can fire
+    eval 'application_verify_incoming_port() { return 0; }'
+    export -f application_verify_incoming_port
+
+    run should_configure_incoming_port
+
+    [ "${status}" -eq 0 ]
+}
+
+@test "should_configure_incoming_port configures when an unchanged port fails verification" {
+    INCOMING_PORT="5914"
+    # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
+    PREVIOUS_INCOMING_PORT="5914"
+    eval 'application_verify_incoming_port() { return 1; }'
+    export -f application_verify_incoming_port
+
+    run should_configure_incoming_port
+
+    [ "${status}" -eq 0 ]
+}

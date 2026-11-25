@@ -17,10 +17,10 @@ readonly defaultQbittorrentConfigFilepath="/config/qBittorrent/config/qBittorren
 readonly defaultNicotineplusConfigFilepath="/home/nobody/.config/nicotine/config"
 readonly defaultGluetunControlServerPort="8000"
 readonly defaultGluetunIncomingPort="no"
-readonly defaultPollDelay="60"
+readonly defaultPollDelay="20"
 readonly defaultDebug="no"
-readonly defaultMaxStartupRetries="10"
-readonly defaultMaxPortVerifyRetries="3"
+readonly defaultMaxStartupRetries="30"
+readonly defaultAppVerifyIntervalPasses="3"
 readonly defaultMaxAppRestartAttempts="3"
 readonly defaultGluetunEscalationCooldown="300"
 readonly defaultQbittorrentWebuiUser="admin"
@@ -40,33 +40,17 @@ APPLICATION_RESTART_ATTEMPTS=0
 # distinguish that from an operator-requested stop.
 VPN_STOP_INTENT_FILE="${VPN_STOP_INTENT_FILE:-/tmp/portset_vpn_stop_intent}"
 
-# timestamp of the last VPN escalation (cycle). Rate-limits recovery so a broken
-# port forward is retried periodically instead of cycling the VPN every pass, and
-# so the port-verification budget cannot latch off for the process lifetime.
+# timestamp of the last VPN escalation (cycle). Rate-limits the ensure_incoming_port
+# escalation so a failing port read is retried periodically, not on every pass.
 VPN_ESCALATION_LAST_FILE="${VPN_ESCALATION_LAST_FILE:-/tmp/portset_vpn_escalation_last}"
 
 # Phase 4 escalation cooldown file, shared with healthcheck.sh. Injectable so a
 # test never touches the live escalation state.
 GLUETUN_ESCALATION_COOLDOWN_FILE="${GLUETUN_ESCALATION_COOLDOWN_FILE:-/tmp/gluetun_escalation_cooldown}"
 
-# number of VPN restarts performed in this process, used to avoid cycling the
-# tunnel twice for the same fault
-VPN_RESTART_COUNT=0
-
 # in-process fallback for the escalation timestamp: if the state file cannot be
 # written (read-only /tmp, full disk) the limiter must still work in memory
 VPN_ESCALATION_LAST_TS=""
-
-# consecutive port verification failures. Deliberately module scope: the counter
-# must survive outer loop iterations or MAX_PORT_VERIFY_RETRIES can never fire.
-# It is reset only after a successful verification, so reaching the cap cannot
-# re-arm into another burst of VPN restarts on every pass.
-PORT_VERIFY_RETRY_COUNT=0
-
-# consecutive inconclusive reachability probes (third-party service unusable).
-# An inconclusive probe must never consume the port recovery budget, but must not
-# park the supervision loop forever either, so it is separately bounded.
-INCONCLUSIVE_VERIFY_COUNT=0
 
 # read env var values if not empty, else use defaults
 DELUGE_WEB_CONFIG_FILEPATH="${DELUGE_WEB_CONFIG_FILEPATH:-${defaultDelugeWebConfigFilepath}}"
@@ -77,7 +61,6 @@ GLUETUN_INCOMING_PORT="${GLUETUN_INCOMING_PORT:-${defaultGluetunIncomingPort}}"
 POLL_DELAY="${POLL_DELAY:-${defaultPollDelay}}"
 DEBUG="${DEBUG:-${defaultDebug}}"
 MAX_STARTUP_RETRIES="${MAX_STARTUP_RETRIES:-${defaultMaxStartupRetries}}"
-MAX_PORT_VERIFY_RETRIES="${MAX_PORT_VERIFY_RETRIES:-${defaultMaxPortVerifyRetries}}"
 MAX_APP_RESTART_ATTEMPTS="${MAX_APP_RESTART_ATTEMPTS:-${defaultMaxAppRestartAttempts}}"
 GLUETUN_ESCALATION_COOLDOWN="${GLUETUN_ESCALATION_COOLDOWN:-${defaultGluetunEscalationCooldown}}"
 QBITTORRENT_WEBUI_USER="${QBITTORRENT_WEBUI_USER:-${defaultQbittorrentWebuiUser}}"
@@ -265,36 +248,6 @@ function get_incoming_port() {
 
 }
 
-function external_verify_incoming_port() {
-
-  local result
-
-  if [[ -z "${INCOMING_PORT}" ]]; then
-    return 1
-  fi
-
-  # Bounded: a degraded tunnel must never freeze the supervision loop.
-  result="$(curl_with_retry "https://ifconfig.co/port/${INCOMING_PORT}" 2 1 -s --connect-timeout 5 --max-time 15 | jq -r '.reachable' 2>/dev/null)"
-
-  case "${result}" in
-    true)
-      echo "[INFO] External verification: Incoming port '${INCOMING_PORT}' is reachable."
-      return 0
-      ;;
-    false)
-      echo "[WARN] External verification: Incoming port '${INCOMING_PORT}' is NOT reachable."
-      return 1
-      ;;
-    *)
-      # Return 2 (unverifiable), not 1 (unreachable): a third party outage must
-      # not be counted as a port failure and must not drive VPN recovery.
-      echo "[WARN] External verification: service returned an unusable response ('${result}') for port '${INCOMING_PORT}', skipping recovery for this pass."
-      return 2
-      ;;
-  esac
-
-}
-
 function get_vpn_status() {
 
   local control_server_url="http://127.0.0.1:${GLUETUN_CONTROL_SERVER_PORT}/v1"
@@ -371,8 +324,6 @@ function restart_vpn_connection() {
 
   local json
 
-  VPN_RESTART_COUNT=$((VPN_RESTART_COUNT + 1))
-
   for vpn_desired_state in "${vpn_desired_states[@]}"; do
 
     # Record the stop intent immediately before it happens, so the marker exists
@@ -434,6 +385,12 @@ function check(){
 
 }
 
+# application verification costs an API login to the application per pass, so with a
+# short poll delay it is throttled to one pass in APP_VERIFY_INTERVAL_PASSES. A changed
+# port always bypasses the throttle, so rotation handling stays at POLL_DELAY.
+APP_VERIFY_INTERVAL_PASSES="${APP_VERIFY_INTERVAL_PASSES:-${defaultAppVerifyIntervalPasses}}"
+APP_VERIFY_PASS_COUNT=0
+
 function should_configure_incoming_port() {
 
   # An empty INCOMING_PORT means gluetun reported nothing usable: configuring the
@@ -444,7 +401,25 @@ function should_configure_incoming_port() {
     return 1
   fi
 
-  if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]] || ! application_verify_incoming_port; then
+  if [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]]; then
+    # a first run has no previous port: that is a configuration, not a change
+    if [[ -n "${PREVIOUS_INCOMING_PORT}" ]]; then
+      echo "[INFO] Forwarded port changed from '${PREVIOUS_INCOMING_PORT}' to '${INCOMING_PORT}', configuring application..."
+    fi
+    return 0
+  fi
+
+  # normalised here rather than only in main(): a zero or non-numeric value would
+  # otherwise turn the modulo into a division by zero and abort the supervision loop
+  APP_VERIFY_INTERVAL_PASSES=$(validate_positive_integer APP_VERIFY_INTERVAL_PASSES "${APP_VERIFY_INTERVAL_PASSES}" "${defaultAppVerifyIntervalPasses}")
+
+  APP_VERIFY_PASS_COUNT=$((APP_VERIFY_PASS_COUNT + 1))
+  if [[ $(( APP_VERIFY_PASS_COUNT % APP_VERIFY_INTERVAL_PASSES )) -ne 0 ]]; then
+    echo "[INFO] Previous VPN port forward '${PREVIOUS_INCOMING_PORT}' and current VPN port forward '${INCOMING_PORT}' are the same (verification skipped this pass)"
+    return 1
+  fi
+
+  if ! application_verify_incoming_port; then
     return 0
   fi
 
@@ -464,7 +439,6 @@ function main {
   # A non-numeric or zero cap silently disables the recovery it controls
   # (bash compares such values as 0), so normalise the knobs before use.
   MAX_STARTUP_RETRIES=$(validate_positive_integer MAX_STARTUP_RETRIES "${MAX_STARTUP_RETRIES}" "${defaultMaxStartupRetries}")
-  MAX_PORT_VERIFY_RETRIES=$(validate_positive_integer MAX_PORT_VERIFY_RETRIES "${MAX_PORT_VERIFY_RETRIES}" "${defaultMaxPortVerifyRetries}")
   MAX_APP_RESTART_ATTEMPTS=$(validate_positive_integer MAX_APP_RESTART_ATTEMPTS "${MAX_APP_RESTART_ATTEMPTS}" "${defaultMaxAppRestartAttempts}")
   POLL_DELAY=$(validate_positive_integer POLL_DELAY "${POLL_DELAY}" "${defaultPollDelay}")
   GLUETUN_ESCALATION_COOLDOWN=$(validate_positive_integer GLUETUN_ESCALATION_COOLDOWN "${GLUETUN_ESCALATION_COOLDOWN}" "${defaultGluetunEscalationCooldown}")
@@ -571,103 +545,23 @@ function main {
       continue
     fi
 
-    while true; do
-
-      # Application supervision comes first and never depends on the reachability
-      # probe: a third-party outage must not stop a crashed application from being
-      # restarted.
-      if ! check_process; then
-        recover_unreachable_port
-        local recover_dead_status=$?
-        if [[ ${recover_dead_status} -eq 2 ]]; then
-          echo "[ERROR] Application could not be restarted after ${MAX_APP_RESTART_ATTEMPTS} attempts"
-          echo "[ERROR] Continuing to poll; the container healthcheck will mark this container unhealthy"
-          sleep "${POLL_DELAY}"
-        elif [[ ${recover_dead_status} -ne 0 ]]; then
-          sleep "${POLL_DELAY}"
-        fi
-        continue
-      fi
-
-      # The application is alive, so the crash-recovery budget for this outage is over.
-      APPLICATION_RESTART_ATTEMPTS=0
-
-      # A port rotated by the VPN provider cannot verify until it has been pushed
-      # to the application, so hand control back to the configure step instead of
-      # looping on an unreachable verdict forever.
-      if [[ -n "${INCOMING_PORT}" ]] && [[ "${INCOMING_PORT}" != "${PREVIOUS_INCOMING_PORT}" ]]; then
-        echo "[INFO] Forwarded port changed from '${PREVIOUS_INCOMING_PORT}' to '${INCOMING_PORT}', configuring application..."
-        INCONCLUSIVE_VERIFY_COUNT=0
-        break
-      fi
-
-      external_verify_incoming_port
-      local verify_status=$?
-      if [[ ${verify_status} -eq 0 ]]; then
-        # the app is alive and the port verified: full budget available again
-        APPLICATION_RESTART_ATTEMPTS=0
-        INCONCLUSIVE_VERIFY_COUNT=0
-        break
-      fi
-
-      # An unverifiable probe is not evidence of a port fault: it must not consume
-      # the recovery budget or cycle the VPN, but it must also not park the loop
-      # forever, so bail out to the outer loop after a bounded number of passes.
-      if [[ ${verify_status} -eq 2 ]]; then
-        INCONCLUSIVE_VERIFY_COUNT=$((INCONCLUSIVE_VERIFY_COUNT + 1))
-        if [[ ${INCONCLUSIVE_VERIFY_COUNT} -gt ${MAX_PORT_VERIFY_RETRIES} ]]; then
-          echo "[WARN] Port reachability could not be verified for ${INCONCLUSIVE_VERIFY_COUNT} passes, re-checking all conditions"
-          INCONCLUSIVE_VERIFY_COUNT=0
-          break
-        fi
+    # Application supervision comes first and never depends on the VPN port:
+    # a dead application must always be restarted whichever way the port behaves.
+    if ! check_process; then
+      recover_unreachable_port
+      local recover_dead_status=$?
+      if [[ ${recover_dead_status} -eq 2 ]]; then
+        echo "[ERROR] Application could not be restarted after ${MAX_APP_RESTART_ATTEMPTS} attempts"
+        echo "[ERROR] Continuing to poll; the container healthcheck will mark this container unhealthy"
         sleep "${POLL_DELAY}"
-        continue
+      elif [[ ${recover_dead_status} -ne 0 ]]; then
+        sleep "${POLL_DELAY}"
       fi
-      INCONCLUSIVE_VERIFY_COUNT=0
+      continue
+    fi
 
-      if record_port_verify_failure; then
-        if vpn_escalation_due; then
-          local port_before_escalation="${INCOMING_PORT}"
-          local vpn_restarts_before="${VPN_RESTART_COUNT}"
-          local escalation_ok=1
-          echo "[WARN] Port still unverified after ${MAX_PORT_VERIFY_RETRIES} attempts, escalating via ensure_incoming_port..."
-          if ! ensure_incoming_port; then
-            escalation_ok=0
-            echo "[WARN] Port recovery failed, re-checking after ${POLL_DELAY} seconds..."
-          fi
-          # ensure_incoming_port only cycles the VPN when gluetun cannot report a
-          # port at all. When it keeps reporting the SAME port while the forward is
-          # dead, the tunnel itself has to be cycled - but only if the escalation
-          # above neither cycled it (VPN_RESTART_COUNT) nor deliberately stopped it
-          # for a gluetun restart (Phase 4 pending).
-          if [[ ${escalation_ok} -eq 1 ]] && should_cycle_forward "${port_before_escalation}" "${vpn_restarts_before}"; then
-            echo "[WARN] Forwarded port '${INCOMING_PORT}' unchanged and still unverified, cycling the VPN connection..."
-            cycle_vpn_for_broken_forward || echo "[WARN] Failed to cycle the VPN connection, re-checking after ${POLL_DELAY} seconds..."
-          fi
-          mark_vpn_escalation
-        else
-          echo "[WARN] Port still unverified, next recovery attempt in $(vpn_escalation_remaining) seconds..."
-        fi
-        # Hand control back to the outer loop: it re-runs check() (refreshing
-        # INCOMING_PORT from gluetun) and then reaches the configure gate, which
-        # is the only code that can re-apply the port to the application. Looping
-        # here instead would spin forever whenever the mismatch is app-side.
-        reset_port_verify_failures
-        INCONCLUSIVE_VERIFY_COUNT=0
-        break
-      fi
-
-      # Below the cap: keep observing. Escalation happens only once the failure
-      # budget is spent, so a single transient verdict cannot disturb the tunnel.
-      echo "[INFO] Port forward verified unreachable (${PORT_VERIFY_RETRY_COUNT}/${MAX_PORT_VERIFY_RETRIES}), re-checking in ${POLL_DELAY} seconds..."
-      sleep "${POLL_DELAY}"
-    done
-
-    # reached when the port verified, when a rotated port or a spent escalation
-    # budget handed control back for reconfiguration, or when the probe stayed
-    # inconclusive: in all cases start the counters fresh. Note the outer loop
-    # re-runs check() (refreshing INCOMING_PORT) before the next configure attempt.
-    reset_port_verify_failures
+    # The application is alive, so the crash-recovery budget for this outage is over.
+    APPLICATION_RESTART_ATTEMPTS=0
 
     if should_configure_incoming_port; then
 
@@ -930,81 +824,22 @@ function ensure_application_running() {
 
 }
 
-function should_cycle_forward() {
-
-  # The application is alive and the port could not be verified. Cycling the VPN is
-  # only justified when nothing else already acted: no VPN restart during the
-  # escalation, no Phase 4 escalation in flight, and the forwarded port unchanged
-  # (a changed or empty port means gluetun is reporting something new).
-  local port_before="${1:-}"
-  local restarts_before="${2:-0}"
-
-  if [[ "${VPN_RESTART_COUNT}" -ne "${restarts_before}" ]]; then
-    return 1
-  fi
-
-  if gluetun_escalation_pending; then
-    return 1
-  fi
-
-  [[ -n "${INCOMING_PORT}" ]] || return 1
-  [[ "${INCOMING_PORT}" == "${port_before}" ]]
-
-}
-
-function cycle_vpn_for_broken_forward() {
-
-  # Single implementation of "the application is alive but the forwarded port is
-  # not": gate on the Phase 4 window, rate-limit, cycle, then re-read the port.
-  if gluetun_escalation_pending; then
-    echo "[INFO] Phase 4 escalation pending, leaving the VPN alone"
-    return 1
-  fi
-
-  if ! vpn_escalation_due; then
-    echo "[INFO] Port recovery is cooling down, next attempt in $(vpn_escalation_remaining) seconds..."
-    return 1
-  fi
-
-  mark_vpn_escalation
-
-  if ! restart_vpn_connection; then
-    echo "[WARN] Failed to restart VPN connection"
-    return 1
-  fi
-
-  echo "[INFO] Waiting 10 seconds for VPN to stabilize before getting new incoming port..."
-  sleep 10
-  if get_incoming_port; then
-    echo "[INFO] Retrieved incoming port '${INCOMING_PORT}' after VPN restart"
-  else
-    echo "[WARN] Unable to retrieve a new incoming port after VPN restart, previous port '${INCOMING_PORT}' may be stale"
-  fi
-  return 0
-
-}
-
 function recover_unreachable_port() {
 
-  # An unreachable forwarded port has two distinct causes and they must not be
-  # conflated:
-  #   1. the application is dead - nothing is listening, so cycling the VPN can
-  #      never make the port reachable; restart the application instead.
-  #   2. the application is alive but the port forward is broken - cycle the VPN.
-  # Returns 0 when recovery was attempted, 1 when the VPN restart failed,
-  # 2 when the application could not be restarted.
+  # A dead application is the only thing this recovers: nothing is listening, so
+  # cycling the VPN can never help. A live application is not a fault - with the
+  # external reachability probe gone there is no signal that its port forward is
+  # broken, so it must never cost the tunnel a restart.
+  # Returns 0 when the application is running (restart succeeded or it was
+  # already alive), 1 when the restart attempt failed, 2 when the restart budget
+  # for this outage is spent.
   #
-  # Both production call sites (:529 in the outer loop, :580 in the inner
-  # verification loop) only reach this after seeing the application dead, so the
-  # app-dead branch is the normal entry. The re-check stays as a race guard: if
-  # liveness flips to alive between their check and this one, the app-alive branch
-  # below is correct - the application is up, so the broken forward gets cycled.
+  # Callers only reach this after seeing the application dead; the re-check stays
+  # as a race guard for liveness flipping in between.
   if ! check_process; then
-    echo "[WARN] Application is not running, restarting application instead of restarting VPN..."
+    echo "[WARN] Application is not running, restarting application..."
     if ensure_application_running; then
-      # a fresh app is a fresh episode: pre-crash port failures must not count
-      reset_port_verify_failures
-      # give the restarted application time to bind before the port is re-probed
+      # give the restarted application time to bind before it is supervised again
       echo "[INFO] Waiting 10 seconds for the restarted application to settle..."
       sleep 10
       return 0
@@ -1024,24 +859,7 @@ function recover_unreachable_port() {
   # budget must be restored or the cap would act as a lifetime limit.
   APPLICATION_RESTART_ATTEMPTS=0
 
-  cycle_vpn_for_broken_forward
-
-}
-
-function record_port_verify_failure() {
-
-  PORT_VERIFY_RETRY_COUNT=$((PORT_VERIFY_RETRY_COUNT + 1))
-
-  if [[ ${PORT_VERIFY_RETRY_COUNT} -ge ${MAX_PORT_VERIFY_RETRIES} ]]; then
-    return 0
-  fi
-  return 1
-
-}
-
-function reset_port_verify_failures() {
-
-  PORT_VERIFY_RETRY_COUNT=0
+  return 0
 
 }
 
@@ -1899,11 +1717,16 @@ Environment Variables:
     Set to 'yes' to enable VPN port monitoring and application configuration.
   POLL_DELAY
     Set the polling delay in seconds between incoming port checks.
+  APP_VERIFY_INTERVAL_PASSES
+    Set the pass interval for application port verification: every Nth unchanged-port pass
+    verifies the application, the passes in between are skipped. Verification costs an API
+    login per pass, so a short POLL_DELAY throttles it. A changed port is always evaluated
+    immediately. Must be a positive integer (default: 3).
   MAX_STARTUP_RETRIES
     Set the maximum number of startup retries before executing application without VPN configuration.
-  MAX_PORT_VERIFY_RETRIES
-    Set the maximum number of consecutive port verification failures before escalating
-    via the incoming port recovery handler (default: 3).
+    The fallback fires after roughly MAX_STARTUP_RETRIES x POLL_DELAY seconds (one poll interval
+    less, plus the time each check takes), so lowering POLL_DELAY requires a proportionally
+    higher MAX_STARTUP_RETRIES to keep the same grace period.
   MAX_APP_RESTART_ATTEMPTS
     Set the maximum number of consecutive application restart attempts before leaving
     recovery to the container healthcheck and watchdog (default: 3).

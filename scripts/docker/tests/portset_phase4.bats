@@ -17,7 +17,8 @@ setup() {
     export GLUETUN_ESCALATION_COOLDOWN=1  # Fast for tests (1 second)
 
     # Temp files for tracking
-    export CALL_TRACKER=$(mktemp -t portset_cnt.XXXXXX)
+    CALL_TRACKER=$(mktemp -t portset_cnt.XXXXXX)
+    export CALL_TRACKER
     echo "vpn_restart=0"  > "${CALL_TRACKER}"
     echo "get_port=0"    >> "${CALL_TRACKER}"
     echo "vpn_stopped=0" >> "${CALL_TRACKER}"
@@ -26,6 +27,7 @@ setup() {
     rm -f /tmp/gluetun_escalation_cooldown /tmp/gluetun_escalation_attempted
 
     # ---- mock external commands ----
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     curl() {
         if [[ "$*" == *"v1/portforward"* || "$*" == *"v1/openvpn/portforwarded"* ]]; then
             echo '{"port":0,"ports":[]}'
@@ -43,32 +45,37 @@ setup() {
             echo '{"status":"running"}'
             return 0
         fi
-        if [[ "$*" == *"ifconfig.co/port"* ]]; then
-            echo '{"reachable":false}'
-            return 0
-        fi
         return 0
     }
     export -f curl
 
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     jq() {
         if [[ "$*" == *".port"* ]]; then echo "0"; return 0; fi
-        if [[ "$*" == *".reachable"* ]]; then echo "false"; return 0; fi
         echo "test-value"; return 0
     }
     export -f jq
 
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     ifconfig() { echo "tun0: flags=... mtu 1500"; echo "        inet 10.0.0.2"; }
     export -f ifconfig
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     nslookup() { return 0; }; export -f nslookup
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     pgrep()    { echo "1234"; return 0; }; export -f pgrep
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     command()  { [[ "$*" == *"-v"* && "$*" == *"jq"* ]] && return 0; return 1; }; export -f command
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     nc()       { return 0; }; export -f nc
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     sleep()    { return 0; }; export -f sleep
+    # shellcheck disable=SC2329 # exported, invoked by the sourced production code
     date()     { echo "1000"; return 0; }; export -f date  # Fixed timestamp for deterministic tests
 
     # Source production code
+    # shellcheck source=../utils.sh disable=SC1091
     source "${BATS_TEST_DIRNAME}/../utils.sh"
+    # shellcheck source=../portset.sh disable=SC1091
     source "${BATS_TEST_DIRNAME}/../portset.sh"
 
     # Override get_incoming_port to always fail (port=0)
@@ -148,25 +155,4 @@ teardown() {
 
     run ensure_incoming_port
     [ "$status" -eq 1 ]
-}
-
-@test "Phase 4: escalation flag file prevents healthcheck marking unhealthy" {
-    # Simulate healthcheck.sh's logic: write flag, then check if within 10min window
-    echo "1000" > /tmp/gluetun_escalation_attempted
-
-    local escalation_time
-    escalation_time=$(cat /tmp/gluetun_escalation_attempted)
-    local now
-    now=$(date +%s)
-    local elapsed=$((now - escalation_time))
-
-    # Within 10 minutes (600s), should suppress unhealthy
-    if [[ ${elapsed} -lt 600 ]]; then
-        echo "Escalation ${elapsed}s ago — suppressing unhealthy (PASS)"
-    else
-        echo "Escalation ${elapsed}s ago — would mark unhealthy"
-    fi
-
-    # Since date returns 1000, elapsed = 0, which is < 600
-    [ "${elapsed}" -lt 600 ]
 }

@@ -5,17 +5,12 @@
 # SC2155: declare-and-assign in setup is intended (mktemp cannot meaningfully fail).
 # SC2329: stub functions are invoked indirectly by the sourced production code.
 #
-# TDD test for port=0 escalation bug.
+# Regression tests for the port=0 escalation path.
 #
-# When gluetun returns {"port":0,"ports":[]}, the portset.sh steady-state loop
-# hits `check()` → fails → sleep 60 → continue. The VPN restart recovery code
-# in the inner loop is structurally unreachable.
-#
-# The fix:
-#   1. Add `ensure_incoming_port()` that escalates to restart_vpn_connection()
-#      when get_incoming_port() fails with port=0.
-#   2. Restructure the steady-state loop to call ensure_incoming_port()
-#      instead of just sleep+continue.
+# When gluetun returns {"port":0,"ports":[]}, check() fails and the steady-state
+# loop escalates through ensure_incoming_port(): retry the port read, restart the
+# VPN connection, then retry again before handing control back to the loop.
+# check() itself stays pure - it must never restart the VPN.
 
 setup() {
     # Prevent portset.sh top-level code from running
@@ -52,17 +47,12 @@ setup() {
             echo '{"status":"running"}'
             return 0
         fi
-        if [[ "$*" == *"ifconfig.co/port"* ]]; then
-            echo '{"reachable":false}'
-            return 0
-        fi
         return 0
     }
     export -f curl
 
     jq() {
         if [[ "$*" == *".port"* ]]; then echo "0"; return 0; fi
-        if [[ "$*" == *".reachable"* ]]; then echo "false"; return 0; fi
         echo "test-value"; return 0
     }
     export -f jq
@@ -131,17 +121,16 @@ teardown() {
 }
 
 # ======================================================================
-# RED tests — capture the bug before the fix
+# check() must stay pure: it reports, it never restarts the tunnel
 # ======================================================================
 
-@test "[RED] check does NOT call restart_vpn_connection (the bug)" {
+@test "check does not restart the VPN connection itself" {
     run check
     [ "$status" -eq 1 ]
     local vpn
     vpn=$(grep "^vpn_restart=" "$CALL_TRACKER" | cut -d= -f2)
-    echo "vpn_restart=$vpn"
+    echo "check() returned $status, vpn_restart=$vpn"
     [ "$vpn" = "0" ]
-    echo "BUG CONFIRMED: check() returned $status, vpn_restart=$vpn"
 }
 
 # ======================================================================
@@ -186,28 +175,5 @@ teardown() {
     local vpn; vpn=$(grep "^vpn_restart=" "$CALL_TRACKER" | cut -d= -f2)
     echo "Status=$status vpn_restart=$vpn"
     [ "$status" -eq 0 ]
-    [ "$vpn" -ge 1 ]
-}
-
-@test "ensure_incoming_port calls get_incoming_port at least once" {
-    run ensure_incoming_port
-    local g; g=$(grep "^get_port=" "$CALL_TRACKER" | cut -d= -f2)
-    echo "get_port=$g"
-    [ "$g" -ge 1 ]
-}
-
-# ======================================================================
-# Integration: steady-state loop recovery
-# ======================================================================
-
-@test "steady-state loop recovery path works via ensure_incoming_port" {
-    # check() still returns 1 when port=0
-    run check
-    [ "$status" -eq 1 ]
-
-    # But the loop now calls ensure_incoming_port instead of sleep+continue
-    run ensure_incoming_port
-    local vpn; vpn=$(grep "^vpn_restart=" "$CALL_TRACKER" | cut -d= -f2)
-    echo "vpn_restart=$vpn"
     [ "$vpn" -ge 1 ]
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 #
-# Tests for application supervision, VPN state recovery on startup, and the
-# bounded port-verification retry counter in portset.sh.
+# Tests for application supervision and VPN state recovery on startup in
+# portset.sh.
 #
 # Observed production failure (2026-10-23):
 #   qBittorrent v5.3.0 segfaulted in serialize(BitTorrent::Torrent const&)
@@ -16,11 +16,8 @@
 #   1. ensure_vpn_running() repairs a stuck 'stopped' VPN at startup.
 #   2. ensure_application_running() restarts a dead application, bounded by
 #      MAX_APP_RESTART_ATTEMPTS.
-#   3. recover_unreachable_port() prefers restarting the application over
-#      cycling the VPN, and only cycles the VPN when the app is alive.
-#   4. Port-verification failures accumulate across loop iterations until a
-#      successful verification resets them (the old counter was re-initialised
-#      every iteration, so MAX_PORT_VERIFY_RETRIES could never fire).
+#   3. recover_unreachable_port() restarts a dead application and never cycles
+#      the VPN: there is no external reachability probe left to justify a cycle.
 
 setup() {
     # Prevent portset.sh top-level code from running
@@ -33,7 +30,6 @@ setup() {
     export WEBUI_PORT=8080
     export POLL_DELAY=1
     export MAX_APP_RESTART_ATTEMPTS=3
-    export MAX_PORT_VERIFY_RETRIES=3
     # the stale-marker threshold is 2x this value; a zero default would make every
     # fresh marker look stale
     export GLUETUN_ESCALATION_COOLDOWN=300
@@ -315,17 +311,6 @@ tracker() {
     [ "$(tracker vpn_restart)" -eq 0 ]
 }
 
-@test "recover_unreachable_port cycles the VPN when the app is alive" {
-    echo "1" > "${APP_STATE}"
-
-    run recover_unreachable_port
-    echo "Output: $output"
-    echo "vpn_restart=$(tracker vpn_restart)"
-
-    [ "$status" -eq 0 ]
-    [ "$(tracker vpn_restart)" -ge 1 ]
-}
-
 @test "recover_unreachable_port returns 2 when the app cannot be restarted" {
     echo "0" > "${APP_STATE}"
     # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
@@ -352,36 +337,7 @@ tracker() {
 }
 
 # ======================================================================
-# 4. Port verification retry counter must persist across iterations
-# ======================================================================
-
-@test "port verification failures accumulate until the retry cap is reached" {
-    s1=0; record_port_verify_failure || s1=$?
-    s2=0; record_port_verify_failure || s2=$?
-    s3=0; record_port_verify_failure || s3=$?
-
-    echo "s1=$s1 s2=$s2 s3=$s3 count=${PORT_VERIFY_RETRY_COUNT}"
-    [ "$s1" -eq 1 ]
-    [ "$s2" -eq 1 ]
-    [ "$s3" -eq 0 ]
-    [ "${PORT_VERIFY_RETRY_COUNT}" -eq 3 ]
-}
-
-@test "a successful verification resets the retry counter" {
-    record_port_verify_failure || true
-    record_port_verify_failure || true
-
-    reset_port_verify_failures
-    echo "count=${PORT_VERIFY_RETRY_COUNT}"
-    [ "${PORT_VERIFY_RETRY_COUNT}" -eq 0 ]
-
-    s1=0; record_port_verify_failure || s1=$?
-    echo "s1=$s1 count=${PORT_VERIFY_RETRY_COUNT}"
-    [ "$s1" -eq 1 ]
-}
-
-# ======================================================================
-# 5. Review round 1 regressions
+# 4. Review round 1 regressions
 # ======================================================================
 
 @test "restart budget is restored once the application is seen running again" {
@@ -410,8 +366,8 @@ tracker() {
     [ "$s3" -eq 2 ]
     [ "$(tracker app_start)" -eq 2 ]
 
-    # the app comes back on its own: the next recovery takes the VPN branch and
-    # must restore the restart budget for the following outage
+    # the app comes back on its own: the next recovery takes the app-alive branch
+    # and must restore the restart budget for the following outage
     echo "1" > "${APP_STATE}"
     s4=0; recover_unreachable_port || s4=$?
     echo "s4=$s4 attempts=${APPLICATION_RESTART_ATTEMPTS}"
@@ -440,21 +396,6 @@ tracker() {
     [ "$status" -eq 1 ]
 }
 
-@test "recover_unreachable_port returns 1 when the VPN restart fails" {
-    echo "1" > "${APP_STATE}"
-
-    eval '
-    restart_vpn_connection() { return 1; }
-    '
-    export -f restart_vpn_connection
-
-    run recover_unreachable_port
-    echo "Status=$status Output: $output"
-
-    [ "$status" -eq 1 ]
-    [ "$(tracker get_port)" -eq 0 ]
-}
-
 @test "validate_positive_integer keeps valid values and replaces invalid ones" {
     run --separate-stderr validate_positive_integer MAX_APP_RESTART_ATTEMPTS 5 3
     [ "$status" -eq 0 ]
@@ -471,10 +412,6 @@ tracker() {
     run --separate-stderr validate_positive_integer MAX_APP_RESTART_ATTEMPTS "abc" 3
     [ "$output" = "3" ]
 }
-
-# ======================================================================
-# 6. Review round 2 regressions
-# ======================================================================
 
 @test "vpn escalation is rate limited by the cooldown" {
     # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
@@ -525,27 +462,6 @@ tracker() {
     [ "$status" -eq 1 ]
 }
 
-@test "external_verify_incoming_port distinguishes unreachable from unverifiable" {
-    # shellcheck disable=SC2034 # read by the sourced production function
-    INCOMING_PORT=5000
-
-    eval 'curl_with_retry() { echo "<html>rate limited</html>"; }'
-    eval 'jq() { echo "null"; }'
-    s=0; external_verify_incoming_port || s=$?
-    echo "unusable s=$s"
-    [ "$s" -eq 2 ]
-
-    eval 'jq() { echo "false"; }'
-    s=0; external_verify_incoming_port || s=$?
-    echo "unreachable s=$s"
-    [ "$s" -eq 1 ]
-
-    eval 'jq() { echo "true"; }'
-    s=0; external_verify_incoming_port || s=$?
-    echo "reachable s=$s"
-    [ "$s" -eq 0 ]
-}
-
 @test "escalation limiter still works when its state file is unwritable" {
     # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
     export GLUETUN_ESCALATION_COOLDOWN=300 VPN_ESCALATION_LAST_FILE="/nonexistent-dir/portset_escalation_state"
@@ -571,19 +487,6 @@ tracker() {
 
     [ "${rstatus}" -ne 0 ]
     [ -f "${VPN_STOP_INTENT_FILE}" ]
-}
-
-@test "recover_unreachable_port respects the escalation cooldown" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=300
-    echo "1" > "${APP_STATE}"
-    mark_vpn_escalation
-
-    run recover_unreachable_port
-    echo "Status=$status vpn_restart=$(tracker vpn_restart)"
-
-    [ "$status" -eq 1 ]
-    [ "$(tracker vpn_restart)" -eq 0 ]
 }
 
 @test "a stale stop-intent marker is discarded and never overrides an operator stop" {
@@ -649,65 +552,6 @@ tracker() {
 
     rm -f /tmp/gluetun_escalation_attempted
 }
-
-@test "should_cycle_forward only allows a cycle when nothing else acted" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=300
-    rm -f "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-    # shellcheck disable=SC2034 # read by the sourced production helper
-    VPN_RESTART_COUNT=2
-    INCOMING_PORT="44921"
-
-    # unchanged port, no restart during the escalation, no pending escalation
-    run should_cycle_forward "44921" "2"
-    [ "$status" -eq 0 ]
-
-    # the escalation already cycled the VPN
-    run should_cycle_forward "44921" "1"
-    [ "$status" -eq 1 ]
-
-    # a different port arrived
-    run should_cycle_forward "40000" "2"
-    [ "$status" -eq 1 ]
-
-    # no usable port at all
-    INCOMING_PORT=""
-    run should_cycle_forward "" "2"
-    [ "$status" -eq 1 ]
-
-    # an escalation is in flight
-    INCOMING_PORT="44921"
-    date +%s > "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-    run should_cycle_forward "44921" "2"
-    [ "$status" -eq 1 ]
-}
-
-@test "cycle_vpn_for_broken_forward refuses while an escalation is pending" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=300
-    date +%s > "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-
-    run cycle_vpn_for_broken_forward
-    echo "Status=$status vpn_restart=$(tracker vpn_restart)"
-
-    [ "$status" -eq 1 ]
-    [ "$(tracker vpn_restart)" -eq 0 ]
-}
-
-@test "cycle_vpn_for_broken_forward cycles the VPN when it is due" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=300
-    # shellcheck disable=SC2030,SC2031 # subshell-local by design in this test
-    rm -f "${GLUETUN_ESCALATION_COOLDOWN_FILE}" "${VPN_ESCALATION_LAST_FILE}"
-
-    run cycle_vpn_for_broken_forward
-    echo "Status=$status vpn_restart=$(tracker vpn_restart) get_port=$(tracker get_port)"
-
-    [ "$status" -eq 0 ]
-    [ "$(tracker vpn_restart)" -ge 1 ]
-    [ "$(tracker get_port)" -ge 1 ]
-}
-
 @test "ensure_vpn_running reports success when the VPN starts on the last attempt" {
     echo "stopped" > "${VPN_STATE}"
     echo "12345" > "${VPN_STOP_INTENT_FILE}"
@@ -776,7 +620,7 @@ tracker() {
 }
 
 # ======================================================================
-# 7. Configure gate and slow-binding application starts (ledger items 1, 6)
+# 5. Configure gate and slow-binding application starts (ledger items 1, 6)
 # ======================================================================
 
 @test "a non-zero start status does not fail the restart when the process comes up" {
@@ -819,6 +663,8 @@ tracker() {
 @test "should_configure_incoming_port skips an unchanged, verified port" {
     INCOMING_PORT="5914"
     PREVIOUS_INCOMING_PORT="5914"
+    # land on a due verification pass: the throttle skips the others by design
+    APP_VERIFY_PASS_COUNT=$(( APP_VERIFY_INTERVAL_PASSES - 1 ))
     eval 'application_verify_incoming_port() { return 0; }'
     export -f application_verify_incoming_port
 
@@ -838,16 +684,183 @@ tracker() {
     run should_configure_incoming_port
 
     [ "${status}" -eq 0 ]
+    # a rotated port is the one event worth logging at INFO: it explains every
+    # reconfiguration the application does
+    [[ "${output}" == *"Forwarded port changed from '5900' to '5914'"* ]]
 }
 
 @test "should_configure_incoming_port configures when an unchanged port fails verification" {
     INCOMING_PORT="5914"
     # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
     PREVIOUS_INCOMING_PORT="5914"
+    # land on a due verification pass: the throttle skips the others by design
+    APP_VERIFY_PASS_COUNT=$(( APP_VERIFY_INTERVAL_PASSES - 1 ))
     eval 'application_verify_incoming_port() { return 1; }'
     export -f application_verify_incoming_port
 
     run should_configure_incoming_port
 
     [ "${status}" -eq 0 ]
+}
+
+# ======================================================================
+# 6. No external port verification
+# ======================================================================
+
+@test "portset.sh performs no external port verification" {
+    # A third-party reachability probe is unreliable (measured 2026-11-25:
+    # 40 s timeouts and empty bodies from ifconfig.co) and a false negative
+    # must never be able to drive VPN recovery, so the probe is gone entirely.
+    local defined=1
+    if eval 'declare -f external_verify_incoming_port' >/dev/null 2>&1; then
+        defined=0
+    fi
+    local probe_refs
+    probe_refs=$(grep -qi "ifconfig" "${BATS_TEST_DIRNAME}/../portset.sh"; echo $?)
+    echo "defined=${defined} ifconfig_grep_status=${probe_refs}"
+
+    [ "${defined}" -ne 0 ]
+    [ "${probe_refs}" -eq 1 ]
+}
+
+@test "recover_unreachable_port leaves a live application and the VPN alone" {
+    # Without an external probe there is no evidence that the port is unreachable,
+    # so a live application is not a fault: nothing to restart, nothing to cycle.
+    echo "1" > "${APP_STATE}"
+
+    run recover_unreachable_port
+    echo "Output: $output vpn_restart=$(tracker vpn_restart) app_start=$(tracker app_start)"
+
+    [ "${status}" -eq 0 ]
+    [ "$(tracker vpn_restart)" -eq 0 ]
+    [ "$(tracker app_start)" -eq 0 ]
+}
+
+@test "the default poll interval is shorter than the provider port rotation window" {
+    # Proton re-leases the forwarded port every ~40-80 s. Polling at the old 60 s
+    # left the application permanently on the previous port, so the advertised
+    # port was never the one being listened on. A clean subshell is required:
+    # portset.sh declares its defaults `readonly`, so it cannot be re-sourced.
+    local poll
+    poll=$(env -u POLL_DELAY PORTSET_TEST_MODE=true bash -c "
+        source '${BATS_TEST_DIRNAME}/../portset.sh' >/dev/null 2>&1
+        printf '%s' \"\${POLL_DELAY}\"
+    ")
+    echo "POLL_DELAY=${poll}"
+
+    [ "${poll}" -ge 1 ]
+    [ "${poll}" -lt 40 ]
+}
+
+# ======================================================================
+# 7. Poll delay must not silently shrink the startup grace window
+# ======================================================================
+
+@test "the default startup grace window stays at least nine minutes" {
+    # MAX_STARTUP_RETRIES is a retry COUNT, so the pre-start wait for a forwarded
+    # port is roughly MAX_STARTUP_RETRIES * POLL_DELAY (one poll interval less, plus
+    # the time each check takes). Lowering POLL_DELAY without compensating execs the
+    # application without VPN port configuration far too early, so the product is
+    # pinned here.
+    local window
+    window=$(env -u POLL_DELAY -u MAX_STARTUP_RETRIES PORTSET_TEST_MODE=true bash -c "
+        source '${BATS_TEST_DIRNAME}/../portset.sh' >/dev/null 2>&1
+        printf '%s' \"\$((MAX_STARTUP_RETRIES * POLL_DELAY))\"
+    ")
+    echo "startup grace window=${window}s"
+    [ "${window}" -ge 540 ]
+}
+
+@test "should_configure_incoming_port stays silent on the first run" {
+    # PREVIOUS_INCOMING_PORT is empty before the first successful configure, so
+    # "changed from '' to 'X'" is not a port change and must not be logged as one
+    INCOMING_PORT="5914"
+    # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
+    PREVIOUS_INCOMING_PORT=""
+    eval 'application_verify_incoming_port() { return 0; }'
+    export -f application_verify_incoming_port
+
+    run should_configure_incoming_port
+
+    echo "Output: $output"
+    [ "${status}" -eq 0 ]
+    [[ "${output}" != *"Forwarded port changed"* ]]
+}
+
+@test "application verification is throttled across unchanged-port passes" {
+    # every pass used to re-login to the application API; with a short poll delay
+    # that multiplies failed-login attempts, so it runs once every N passes.
+    # Direct calls only: bats "run" and command substitution are subshells, and the
+    # pass counter has to persist across passes to exercise the throttle.
+    INCOMING_PORT="5914"
+    # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
+    PREVIOUS_INCOMING_PORT="5914"
+    # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
+    APP_VERIFY_PASS_COUNT=0
+    eval '
+    application_verify_incoming_port() {
+        local c; c=$(grep "^app_verify=" "$CALL_TRACKER" 2>/dev/null | cut -d= -f2 || echo "0")
+        c=$((c + 1))
+        sed -i "s/^app_verify=.*/app_verify=${c}/" "$CALL_TRACKER" 2>/dev/null
+        return 1
+    }
+    '
+    export -f application_verify_incoming_port
+    echo "app_verify=0" >> "${CALL_TRACKER}"
+
+    local s1=0 s2=0 s3=0 s4=0 out
+    should_configure_incoming_port >/dev/null || s1=$?
+    should_configure_incoming_port >/dev/null || s2=$?
+    echo "pass1=$s1 pass2=$s2 app_verify=$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)"
+    [ "${s1}" -eq 1 ]
+    [ "${s2}" -eq 1 ]
+    [ "$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)" -eq 0 ]
+
+    # the third pass is the due one: it verifies, verification fails, so the port
+    # is reconfigured
+    should_configure_incoming_port >/dev/null || s3=$?
+    echo "pass3=$s3 app_verify=$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)"
+    [ "${s3}" -eq 0 ]
+    [ "$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)" -eq 1 ]
+
+    # a rotated port bypasses the throttle entirely
+    INCOMING_PORT="5999"
+    out=$(should_configure_incoming_port) || s4=$?
+    echo "rotation=$s4 Output: $out"
+    [ "${s4}" -eq 0 ]
+    [[ "${out}" == *"Forwarded port changed from '5914' to '5999'"* ]]
+}
+
+@test "an invalid verification interval does not abort the configure gate" {
+    # APP_VERIFY_INTERVAL_PASSES is an operator knob; 0 or a non-numeric value would
+    # make the modulo a division by zero and kill the supervision loop, so the value
+    # is normalised at its point of use.
+    INCOMING_PORT="5914"
+    # shellcheck disable=SC2034 # read by the sourced should_configure_incoming_port()
+    PREVIOUS_INCOMING_PORT="5914"
+    APP_VERIFY_INTERVAL_PASSES=0
+    export APP_VERIFY_INTERVAL_PASSES
+    eval '
+    application_verify_incoming_port() {
+        local c; c=$(grep "^app_verify=" "$CALL_TRACKER" 2>/dev/null | cut -d= -f2 || echo "0")
+        c=$((c + 1))
+        sed -i "s/^app_verify=.*/app_verify=${c}/" "$CALL_TRACKER" 2>/dev/null
+        return 1
+    }
+    '
+    export -f application_verify_incoming_port
+    echo "app_verify=0" >> "${CALL_TRACKER}"
+
+    local s1=0 s2=0 s3=0
+    should_configure_incoming_port >/dev/null 2>&1 || s1=$?
+    should_configure_incoming_port >/dev/null 2>&1 || s2=$?
+    should_configure_incoming_port >/dev/null 2>&1 || s3=$?
+    echo "pass1=$s1 pass2=$s2 pass3=$s3 interval=${APP_VERIFY_INTERVAL_PASSES} app_verify=$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)"
+
+    # the interval falls back to the default, so the third pass is the verifying one
+    [ "${APP_VERIFY_INTERVAL_PASSES}" -eq 3 ]
+    [ "${s1}" -eq 1 ]
+    [ "${s2}" -eq 1 ]
+    [ "${s3}" -eq 0 ]
+    [ "$(grep '^app_verify=' "${CALL_TRACKER}" | cut -d= -f2)" -eq 1 ]
 }

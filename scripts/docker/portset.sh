@@ -36,17 +36,16 @@ QBITTORRENT_AUTO_PASSWORD=""
 APPLICATION_RESTART_ATTEMPTS=0
 
 # marker written around restart_vpn_connection()'s stop->start window. Its presence
-# records that this script may have left the VPN stopped, so the startup repair can
-# distinguish that from an operator-requested stop.
-VPN_STOP_INTENT_FILE="${VPN_STOP_INTENT_FILE:-/tmp/portset_vpn_stop_intent}"
+# records that this script may have left the VPN stopped. It lives under /config
+# because the image wipes /tmp on every container start, which is exactly when the
+# marker is needed.
+VPN_STOP_INTENT_FILE="${VPN_STOP_INTENT_FILE:-/config/portset_vpn_stop_intent}"
 
 # timestamp of the last VPN escalation (cycle). Rate-limits the ensure_incoming_port
 # escalation so a failing port read is retried periodically, not on every pass.
+# It is deliberately in /tmp: the limiter resets on every container start, so the
+# first recovery after a restart is never held back by a pre-restart timestamp.
 VPN_ESCALATION_LAST_FILE="${VPN_ESCALATION_LAST_FILE:-/tmp/portset_vpn_escalation_last}"
-
-# Phase 4 escalation cooldown file, shared with healthcheck.sh. Injectable so a
-# test never touches the live escalation state.
-GLUETUN_ESCALATION_COOLDOWN_FILE="${GLUETUN_ESCALATION_COOLDOWN_FILE:-/tmp/gluetun_escalation_cooldown}"
 
 # in-process fallback for the escalation timestamp: if the state file cannot be
 # written (read-only /tmp, full disk) the limiter must still work in memory
@@ -309,13 +308,54 @@ function restart_vpn_connection() {
   local vpn_desired_states=()
   if [[ "${current_vpn_status}" == "stopped" ]]; then
     # A stopped VPN is only ours to restart when the stop-intent marker says this
-    # script stopped it (interrupted restart or a Phase 4 escalation). Without the
-    # marker the stop was requested by the operator, the gluetun API or its UI and
-    # must be respected at runtime, not just at startup.
+    # script stopped it (an interrupted restart). Without the marker the stop was
+    # requested by the operator, the gluetun API or its UI and must be respected
+    # at runtime.
     if [[ ! -f "${VPN_STOP_INTENT_FILE}" ]]; then
       echo "[WARN] VPN is stopped and no stop intent was recorded by this script, leaving the operator-requested stop in place"
       return 1
     fi
+
+    # Never follow a symlink at the marker path: /config is the application's
+    # writable volume, and stat/touch/'>' would otherwise act on the link target.
+    if [[ -L "${VPN_STOP_INTENT_FILE}" ]]; then
+      echo "[WARN] Stop-intent marker is a symlink, discarding it and leaving the current VPN state alone"
+      rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+      return 1
+    fi
+
+    # The marker persists in /config across container restarts, so it can outlive
+    # the stop it describes. One older than the staleness bound cannot be an
+    # interrupted stop->start window of ours, so the current stop came from
+    # somewhere else and must not be reverted.
+    # The bound is floored at 900s: 2x a small GLUETUN_ESCALATION_COOLDOWN would
+    # otherwise be shorter than this script's own retry cadence (one cycle costs
+    # ~40-90s of sleeps plus the cooldown), and our refreshed marker would age out
+    # between our own repair attempts.
+    # A marker naming this process is ours whatever its age: a stalled Control
+    # Server can make one recovery cycle longer than any fixed bound.
+    local stale_after=$(( GLUETUN_ESCALATION_COOLDOWN * 2 ))
+    if [[ ${stale_after} -lt 900 ]]; then
+      stale_after=900
+    fi
+    local marker_owner=""
+    marker_owner=$(cat "${VPN_STOP_INTENT_FILE}" 2>/dev/null)
+    local marker_mtime=""
+    if [[ "${marker_owner}" != "$$" ]] && marker_mtime=$(stat -c %Y "${VPN_STOP_INTENT_FILE}" 2>/dev/null) && [[ "${marker_mtime}" =~ ^[0-9]+$ ]]; then
+      local marker_age=$(( $(date +%s) - marker_mtime ))
+      if [[ ${marker_age} -gt ${stale_after} ]]; then
+        echo "[WARN] Discarding stale stop-intent marker (age ${marker_age}s), leaving the operator-requested stop in place"
+        rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+        return 1
+      fi
+    fi
+
+    # Refresh the marker for this attempt: the staleness bound above must measure
+    # time since the last repair attempt, not since the original stop, or a run of
+    # rejected PUTs would age our own marker into "operator stop" territory and
+    # disable runtime recovery for the rest of the container's life.
+    touch "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+
     echo "[INFO] VPN is already stopped after our own stop intent, proceeding directly to start..."
     vpn_desired_states=("running")
   else
@@ -329,11 +369,18 @@ function restart_vpn_connection() {
     # Record the stop intent immediately before it happens, so the marker exists
     # whenever this script may have stopped the VPN (a failed PUT deliberately
     # keeps it). If the process dies inside the stop->start window gluetun keeps
-    # the requested 'stopped' state, and the next start repairs it without
-    # overriding an operator-requested stop.
+    # the requested 'stopped' state. The marker is what lets a later runtime
+    # restart_vpn_connection() call tell our own interrupted stop from an
+    # operator-requested one; startup repair does not consult it.
     if [[ "${vpn_desired_state}" == "stopped" ]]; then
-      if ! echo "$$" > "${VPN_STOP_INTENT_FILE}" 2>/dev/null; then
-        echo "[ERROR] Unable to record the VPN stop intent in '${VPN_STOP_INTENT_FILE}', not stopping the VPN"
+      # Remove any existing entry, then create with noclobber: a plain '>' would
+      # follow a symlink planted in the app's config volume and overwrite whatever
+      # it points at. noclobber fails instead if the path is recreated concurrently.
+      rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
+      if ! ( set -o noclobber; echo "$$" > "${VPN_STOP_INTENT_FILE}" ) 2>/dev/null; then
+        # Fail closed: an unattributable stop is unrecoverable. The consequence is
+        # that a read-only or full /config disables runtime VPN restarts, so say so.
+        echo "[ERROR] Unable to record the VPN stop intent in '${VPN_STOP_INTENT_FILE}' (needs a writable /config), not stopping the VPN"
         return 1
       fi
     fi
@@ -443,18 +490,8 @@ function main {
   POLL_DELAY=$(validate_positive_integer POLL_DELAY "${POLL_DELAY}" "${defaultPollDelay}")
   GLUETUN_ESCALATION_COOLDOWN=$(validate_positive_integer GLUETUN_ESCALATION_COOLDOWN "${GLUETUN_ESCALATION_COOLDOWN}" "${defaultGluetunEscalationCooldown}")
 
-  # An in-flight Phase 4 escalation wants gluetun left stopped until the watchdog
-  # restarts it: wait that window out before repairing anything.
-  local escalation_wait=0
-  local escalation_wait_max=$(( (GLUETUN_ESCALATION_COOLDOWN * 2) / POLL_DELAY + 1 ))
-  while gluetun_escalation_pending && [[ ${escalation_wait} -lt ${escalation_wait_max} ]]; do
-    escalation_wait=$((escalation_wait + 1))
-    echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
-    sleep "${POLL_DELAY}"
-  done
-
-  # repair a VPN left in the 'stopped' state by an interrupted restart before
-  # waiting for a forwarded port that can never appear while the VPN is down
+  # repair a VPN left in the 'stopped' state before waiting for a forwarded port
+  # that can never appear while the VPN is down
   if ! ensure_vpn_running; then
     echo "[WARN] VPN is not running, continuing with startup checks..."
   fi
@@ -465,21 +502,23 @@ function main {
 
     # run function to check all required conditions exist
     if ! check; then
-      # An in-flight Phase 4 escalation deliberately leaves the VPN stopped until
-      # the gluetun watchdog restarts it: wait it out instead of burning the
-      # startup retry budget and then running the application unconfigured.
-      if gluetun_escalation_pending; then
-        echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
-        sleep "${POLL_DELAY}"
-        continue
-      fi
-
       startup_retry_count=$((startup_retry_count + 1))
       echo "[WARN] Required conditions not met (attempt ${startup_retry_count}/${MAX_STARTUP_RETRIES}), checking again in ${POLL_DELAY} seconds..."
 
+      # The retry budget is spent: another repair would only delay the fallback,
+      # because the application is executed unconfigured on this pass regardless.
       if [[ ${startup_retry_count} -ge ${MAX_STARTUP_RETRIES} ]]; then
         echo "[WARN] Maximum startup retries (${MAX_STARTUP_RETRIES}) reached, VPN conditions not met - executing application without VPN port configuration: '${APP_PARAMETERS[*]}'..."
         exec "${APP_PARAMETERS[@]}"
+      fi
+
+      # The startup repair above runs once. If it failed (a rejected PUT, or a
+      # control server that was still settling after a gluetun restart), nothing
+      # else in this process would ever start the VPN again: the steady-state
+      # recovery deliberately leaves a VPN it did not stop alone. Retry it here
+      # so a transient failure does not cost the whole startup grace window.
+      if ! ensure_vpn_running >/dev/null; then
+        echo "[WARN] VPN is still not running, retrying the repair before the next startup check..."
       fi
 
       sleep "${POLL_DELAY}"
@@ -498,7 +537,7 @@ function main {
     if ! check; then
       # Application supervision must not depend on the VPN conditions: with both
       # the VPN and the app broken, the app would otherwise stay dead for the
-      # whole outage (healthcheck suppression included).
+      # whole outage, because nothing else in the container restarts it.
       if ! check_process; then
         recover_unreachable_port
         local recover_conditions_status=$?
@@ -513,15 +552,6 @@ function main {
       # missing VPN adapter), attempt recovery via the escalation handler.
       # The handler will retry the port query, and if still failing,
       # restart the VPN connection via gluetun Control Server API.
-      # Respect an in-flight Phase 4 escalation: it deliberately stops the VPN so
-      # gluetun's healthcheck fails and the watchdog restarts it. Restarting the
-      # VPN here would undo that while healthcheck suppression stays armed.
-      if gluetun_escalation_pending; then
-        echo "[WARN] Phase 4 escalation pending, waiting $(gluetun_escalation_remaining) seconds for the gluetun restart..."
-        sleep "${POLL_DELAY}"
-        continue
-      fi
-
       if ! vpn_escalation_due; then
         echo "[WARN] Required conditions not met, next recovery attempt in $(vpn_escalation_remaining) seconds..."
         sleep "${POLL_DELAY}"
@@ -601,7 +631,8 @@ function main {
 
 }
 
-# Escalation handler for when get_incoming_port() fails (port=0 or unreachable).
+# Escalation handler for when get_incoming_port() fails (port 0 / out of range, or
+# the gluetun Control Server API unreachable).
 # Retries, then restarts the VPN connection and retries again.
 # Returns 0 if a valid port was obtained, 1 if recovery failed.
 function ensure_incoming_port() {
@@ -648,104 +679,26 @@ function ensure_incoming_port() {
   done
 
   echo "[ERROR] Incoming port not available after VPN restart and multiple retries"
-
-  # Phase 4: Final escalation — stop VPN to trigger gluetun container restart.
-  # Stops the VPN via gluetun Control Server API. This causes gluetun's
-  # Docker healthcheck (queries health server every 5s) to return 500,
-  # marking the container unhealthy. The watchdog restarts gluetun,
-  # giving us a fresh VPN connection and a new port from PIA.
-  #
-  # A cooldown file prevents this from firing more than once per 5 minutes,
-  # avoiding repeated gluetun restarts in a tight loop.
-  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-  local cooldown_seconds="${GLUETUN_ESCALATION_COOLDOWN}"  # resolves to module-level default (300s)
-
-  if [[ -f "${cooldown_file}" ]]; then
-    local last_escalation
-    last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
-    if [[ "${last_escalation}" =~ ^[0-9]+$ ]]; then
-      local now
-      now=$(date +%s)
-      local elapsed=$((now - last_escalation))
-      if [[ ${elapsed} -lt ${cooldown_seconds} ]]; then
-        echo "[WARN] Skipping Phase 4 escalation — cooldown active ($((cooldown_seconds - elapsed))s remaining)"
-        echo "[ERROR] Incoming port not available after all escalation phases exhausted"
-        return 1
-      fi
-    fi
-  fi
-
-  echo "[WARN] Phase 4: Stopping VPN to trigger gluetun container restart (final escalation)..."
-
-  # Record our own stop BEFORE it happens (mirrors restart_vpn_connection), so an
-  # interrupted escalation is still repairable at the next start. If the marker
-  # cannot be written, do not stop the VPN: an unattributable stop is unrecoverable.
-  if ! echo "$$" > "${VPN_STOP_INTENT_FILE}" 2>/dev/null; then
-    echo "[ERROR] Unable to record the VPN stop intent in '${VPN_STOP_INTENT_FILE}', skipping Phase 4 escalation"
-    echo "[ERROR] Incoming port not available after all escalation phases exhausted"
-    return 1
-  fi
-
-  # Only write the suppression flag files AFTER the API call succeeds — otherwise
-  # we'd suppress the healthcheck while no actual escalation action was taken.
-  if ! set_vpn_status "stopped"; then
-    echo "[ERROR] Phase 4 escalation failed — could not stop VPN via gluetun API"
-    echo "[ERROR] Incoming port not available after all escalation phases exhausted"
-    return 1
-  fi
-
-  # Write the escalation_attempted flag FIRST, then the cooldown file.
-  # If a crash occurs between the two writes, the escalation flag exists
-  # (healthcheck suppresses) but the cooldown is missing (Phase 4 can
-  # re-fire). This is safe — the alternative (cooldown exists but flag
-  # missing) would permanently block both escalation AND suppression.
-  local ts; ts=$(date +%s)
-  echo "${ts}" > /tmp/gluetun_escalation_attempted
-  echo "${ts}" > "${cooldown_file}"
-
-  echo "[WARN] VPN stopped via gluetun API. Waiting for Docker healthcheck to detect failure..."
-  echo "[WARN] Watchdog should restart gluetun container with a fresh VPN connection."
-  echo "[ERROR] Incoming port not available after all escalation phases exhausted"
   return 1
 }
 
 function ensure_vpn_running() {
 
-  # A VPN left in the 'stopped' state by an interrupted restart is not repaired
-  # by the startup path: the gluetun Control Server keeps the requested state
-  # until it is told otherwise. This happens when a restart is interrupted
-  # between the stop and start calls (for example the container is restarted
-  # during the 5 second stop wait), and it leaves no tunnel interface and no
-  # forwarded port, so every later port query fails and the application never
-  # starts.
+  # A VPN left 'stopped' has no tunnel interface and no forwarded port, so every
+  # later port query fails and the application never starts. The gluetun Control
+  # Server keeps the requested state until it is told otherwise, so nothing else
+  # starts it on our behalf.
   #
-  # Only an interrupted restart of OUR making is repaired: the stop-intent marker
-  # written by restart_vpn_connection() records that the stop came from this script,
-  # so a deliberate operator stop (or an in-flight Phase 4 escalation) is respected.
+  # The stop-intent marker cannot gate this repair: it survives in /config across
+  # container restarts, so its presence says nothing about whether the *current*
+  # stop came from this script - a marker can outlive the stop it describes. A
+  # stopped VPN is therefore always started here; an operator cannot make that
+  # stop durable while GLUETUN_INCOMING_PORT=yes, because the healthcheck reports a
+  # dead tunnel as unhealthy and the watchdog then restarts this container, whose
+  # startup repair starts the VPN again. Stopping the container is the way out.
   local max_attempts="${1:-3}"
   local attempt=0
   local vpn_status
-
-  if [[ ! -f "${VPN_STOP_INTENT_FILE}" ]]; then
-    echo "[INFO] No interrupted VPN restart recorded, leaving VPN state untouched"
-    return 0
-  fi
-
-  # A marker older than twice the escalation cooldown is stale: the escalation it
-  # belonged to (Phase 4) has long since been resolved by the gluetun watchdog, so
-  # it must not override a later operator-requested stop.
-  local marker_mtime=""
-  if ! marker_mtime=$(stat -c %Y "${VPN_STOP_INTENT_FILE}" 2>/dev/null); then
-    # unknown age must not be treated as ancient, or a repairable stop is lost
-    echo "[WARN] Unable to read the stop-intent marker timestamp, treating it as current"
-  elif [[ "${marker_mtime}" =~ ^[0-9]+$ ]]; then
-    local marker_age=$(( $(date +%s) - marker_mtime ))
-    if [[ ${marker_age} -gt $((GLUETUN_ESCALATION_COOLDOWN * 2)) ]]; then
-      echo "[INFO] Discarding stale stop-intent marker (age ${marker_age}s)"
-      rm -f "${VPN_STOP_INTENT_FILE}" 2>/dev/null
-      return 0
-    fi
-  fi
 
   while [[ ${attempt} -lt ${max_attempts} ]]; do
     attempt=$((attempt + 1))
@@ -763,10 +716,15 @@ function ensure_vpn_running() {
       return 0
     fi
 
-    echo "[WARN] VPN status is '${vpn_status}' after an interrupted restart, setting VPN status to 'running' via gluetun Control Server API (attempt ${attempt}/${max_attempts})..."
+    echo "[WARN] VPN status is '${vpn_status}', setting VPN status to 'running' via gluetun Control Server API (attempt ${attempt}/${max_attempts})..."
     if ! set_vpn_status "running"; then
-      echo "[ERROR] Failed to set VPN status to 'running'"
-      return 1
+      # A single rejected PUT must not abort the repair: the Control Server can
+      # blip while gluetun is still settling, and no other code path retries it.
+      echo "[WARN] Failed to set VPN status to 'running' (attempt ${attempt}/${max_attempts})"
+      if [[ ${attempt} -lt ${max_attempts} ]]; then
+        sleep 5
+      fi
+      continue
     fi
 
     # give the tunnel time to establish before re-checking (not after the last attempt)
@@ -933,49 +891,6 @@ function mark_vpn_escalation() {
 
   VPN_ESCALATION_LAST_TS=$(date +%s)
   echo "${VPN_ESCALATION_LAST_TS}" > "${VPN_ESCALATION_LAST_FILE}" 2>/dev/null || true
-
-}
-
-function gluetun_escalation_pending() {
-
-  # Phase 4 (ensure_incoming_port) stops the VPN and relies on the gluetun
-  # healthcheck and watchdog to restart it, suppressing this container's own
-  # unhealthy verdict for twice the cooldown. While that window is open, portset
-  # must not restart the VPN itself or the escalation is silently undone.
-  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-
-  [[ -f "${cooldown_file}" ]] || return 1
-
-  local last_escalation
-  last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
-  [[ "${last_escalation}" =~ ^[0-9]+$ ]] || return 1
-
-  # Must match healthcheck.sh's suppression window, which is twice the cooldown:
-  # while that window is open the escalation is still in flight (gluetun is meant
-  # to be restarted by the watchdog) and portset must not restart the VPN itself.
-  local now
-  now=$(date +%s)
-  [[ $((now - last_escalation)) -lt $((GLUETUN_ESCALATION_COOLDOWN * 2)) ]]
-
-}
-
-function gluetun_escalation_remaining() {
-
-  local cooldown_file="${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-  local remaining=0
-
-  if [[ -f "${cooldown_file}" ]]; then
-    local last_escalation
-    last_escalation=$(cat "${cooldown_file}" 2>/dev/null)
-    if [[ "${last_escalation}" =~ ^[0-9]+$ ]]; then
-      local now
-      now=$(date +%s)
-      remaining=$(((GLUETUN_ESCALATION_COOLDOWN * 2) - (now - last_escalation)))
-      [[ ${remaining} -gt 0 ]] || remaining=0
-    fi
-  fi
-
-  echo "${remaining}"
 
 }
 
@@ -1726,15 +1641,22 @@ Environment Variables:
     Set the maximum number of startup retries before executing application without VPN configuration.
     The fallback fires after roughly MAX_STARTUP_RETRIES x POLL_DELAY seconds (one poll interval
     less, plus the time each check takes), so lowering POLL_DELAY requires a proportionally
-    higher MAX_STARTUP_RETRIES to keep the same grace period.
+    higher MAX_STARTUP_RETRIES to keep the same grace period. Each failed pass also retries the
+    VPN repair, which adds the Control Server's timeout (a few seconds normally, up to about a
+    minute when it stalls) per pass, so the fallback is later still in a degraded Control Server.
   MAX_APP_RESTART_ATTEMPTS
     Set the maximum number of consecutive application restart attempts before leaving
     recovery to the container healthcheck and watchdog (default: 3).
   GLUETUN_ESCALATION_COOLDOWN
-    Set the cooldown period in seconds between Phase 4 escalation attempts (default: 300).
+    Set the cooldown period in seconds between incoming-port recovery attempts; a recovery
+    attempt may restart the VPN (default: 300).
   DEBUG
     Set to 'yes' to enable debug mode.
 Notes:
+  - With GLUETUN_INCOMING_PORT=yes a stopped VPN is started again at container start, and
+    the container healthcheck reports a dead VPN tunnel as unhealthy. A hand-stopped VPN
+    therefore lasts only until the container restarts, which a watchdog does when the
+    healthcheck fails; stop the container instead.
   - Command line arguments take precedence over environment variables.
 
 Examples:

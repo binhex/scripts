@@ -61,7 +61,10 @@ setup() {
 }
 
 teardown() {
-    rm -f "${IMAGE_BUILD_INFO_FILE}" "${LOG_FILE}" "${PROBE_TRACKER}" "${HC_OUT}"
+    # the legacy escalation flag lives at a fixed absolute path (that is what makes
+    # the test meaningful), so it must be removed even when an assertion failed
+    rm -f "${IMAGE_BUILD_INFO_FILE}" "${LOG_FILE}" "${PROBE_TRACKER}" "${HC_OUT}" \
+        /tmp/gluetun_escalation_attempted
 }
 
 # Calls a healthcheck function in the current shell so that globals set by the
@@ -460,6 +463,42 @@ https:example.com' ]
     call check_app_specific
     [ "${HC_STATUS}" -eq 0 ]
     [[ "${HC_OUTPUT}" == *'transient or host specific'* ]]
+}
+
+# ---------------------------------------------------------------------------
+# incoming port check
+# ---------------------------------------------------------------------------
+
+@test "an unreachable incoming port fails the healthcheck even when a stale escalation flag exists" {
+    cd "${BATS_TEST_DIRNAME}/.." || return 1
+    export ENABLE_HEALTHCHECK=yes GLUETUN_INCOMING_PORT=yes HEALTHCHECK_RETRIES=1 HEALTHCHECK_COMMAND=""
+
+    # portset.sh used to write this flag before stopping the VPN as a "final
+    # escalation" and the healthcheck then suppressed itself for twice the
+    # escalation cooldown. That escalation is gone: a stale flag must not hide the
+    # failure, or the container keeps serving traffic on a dead tunnel forever.
+    date +%s > /tmp/gluetun_escalation_attempted
+
+    check_internet_connectivity() { return 0; }
+    check_process() { return 0; }
+    check_app_specific() { return 0; }
+    # healthcheck_command sources utils.sh itself, so the adapter lookup has to be
+    # mocked at the command it shells out to rather than at the function
+    # shellcheck disable=SC2329 # invoked indirectly by the sourced utils.sh
+    ifconfig() {
+        if [[ "$*" == *'tun0'* ]]; then
+            echo '        inet 10.0.0.2  netmask 255.255.255.0  broadcast 10.0.0.255'
+        else
+            echo 'tun0: flags=4305<UP,POINTOPOINT,RUNNING>  mtu 1500'
+        fi
+    }
+    check_incoming_port() { return 1; }
+
+    run healthcheck_command
+    echo "Status=${status} Output=${output}"
+
+    [ "${status}" -eq 1 ]
+    [[ "${output}" == *'Incoming port healthcheck failed'* ]]
 }
 
 # ---------------------------------------------------------------------------

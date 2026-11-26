@@ -530,40 +530,9 @@ function healthcheck_command() {
 				# This catches cases where the VPN tunnel is up but port forwarding
 				# is broken -- otherwise the healthcheck would pass (because the VPN
 				# adapter is healthy) while qbit's web UI and API are unreachable.
-				# Check if portset.sh has already attempted gluetun-unhealthy escalation.
-				# If so, don't mark this container unhealthy — the escalation either worked
-				# (gluetun will restart) or it didn't, and repeatedly marking qbittorrent
-				# unhealthy only triggers useless external restarts.
 				if ! check_incoming_port; then
-					if [[ -f "/tmp/gluetun_escalation_attempted" ]]; then
-						local escalation_time
-						escalation_time=$(cat /tmp/gluetun_escalation_attempted 2>/dev/null)
-						escalation_time="${escalation_time:-0}"
-						local now
-						now=$(date +%s)
-						local elapsed=$((now - escalation_time))
-						# Derive the suppression window from portset.sh's escalation cooldown.
-						# Use 2x the cooldown to give gluetun time to restart after the watchdog
-						# detects the failure (default: 300s * 2 = 600s = 10 minutes).
-						# Check emptiness first before arithmetic to avoid brittle
-						# arithmetic-on-empty behaviour in $(( )).
-						local escalation_cooldown_secs="${GLUETUN_ESCALATION_COOLDOWN:-300}"
-						# portset.sh normalises this knob the same way; a non-numeric or zero
-						# value must not collapse the suppression window to nothing
-						if [[ ! "${escalation_cooldown_secs}" =~ ^[0-9]+$ ]] || [[ ${escalation_cooldown_secs} -le 0 ]]; then
-							escalation_cooldown_secs=300
-						fi
-						local suppression_window=$((escalation_cooldown_secs * 2))
-						if [[ ${elapsed} -lt ${suppression_window} ]]; then
-							echo "[info] Incoming port unavailable but escalation attempted ${elapsed}s ago — deferring to gluetun restart"
-						else
-							echo "[warn] Incoming port healthcheck failed (escalation cooldown expired)"
-							exit_code=1
-						fi
-					else
-						echo "[warn] Incoming port healthcheck failed"
-						exit_code=1
-					fi
+					echo "[warn] Incoming port healthcheck failed"
+					exit_code=1
 				fi
 
 			fi

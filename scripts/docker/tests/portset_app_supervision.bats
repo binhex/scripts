@@ -30,8 +30,8 @@ setup() {
     export WEBUI_PORT=8080
     export POLL_DELAY=1
     export MAX_APP_RESTART_ATTEMPTS=3
-    # the stale-marker threshold is 2x this value; a zero default would make every
-    # fresh marker look stale
+    # a stop-intent marker older than max(2x this value, 900s) is stale and never
+    # overrides an operator stop (see restart_vpn_connection)
     export GLUETUN_ESCALATION_COOLDOWN=300
 
     # Shared files for cross-subshell state
@@ -42,10 +42,8 @@ setup() {
     rm -f "${VPN_STOP_INTENT_FILE}"
     VPN_ESCALATION_LAST_FILE=$(mktemp -t portset_esc.XXXXXX)
     rm -f "${VPN_ESCALATION_LAST_FILE}"
-    GLUETUN_ESCALATION_COOLDOWN_FILE=$(mktemp -t portset_cd.XXXXXX)
-    rm -f "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
     export CALL_TRACKER VPN_STATE APP_STATE VPN_STOP_INTENT_FILE
-    export VPN_ESCALATION_LAST_FILE GLUETUN_ESCALATION_COOLDOWN_FILE
+    export VPN_ESCALATION_LAST_FILE
 
     {
         echo "vpn_restart=0"
@@ -141,7 +139,7 @@ setup() {
 
 teardown() {
     rm -f "${CALL_TRACKER}" "${VPN_STATE}" "${APP_STATE}" "${VPN_STOP_INTENT_FILE}" \
-        "${VPN_ESCALATION_LAST_FILE}" "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
+        "${VPN_ESCALATION_LAST_FILE}"
 }
 
 tracker() {
@@ -166,17 +164,29 @@ tracker() {
     [ ! -f "${VPN_STOP_INTENT_FILE}" ]
 }
 
-@test "ensure_vpn_running leaves an operator-requested stop untouched" {
+@test "ensure_vpn_running starts a stopped VPN with no recorded stop intent" {
     echo "stopped" > "${VPN_STATE}"
-    # no stop-intent marker: the stop was not ours
+    # the marker cannot gate the startup repair: it lives in /config and can outlive
+    # the stop, so a stopped VPN is always started here
     rm -f "${VPN_STOP_INTENT_FILE}"
 
     run ensure_vpn_running
-    echo "Output: $output"
+    echo "Output: $output vpn_set=$(tracker vpn_set)"
 
     [ "$status" -eq 0 ]
-    [ "$(tracker vpn_set)" -eq 0 ]
-    [ "$(cat "${VPN_STATE}")" = "stopped" ]
+    [ "$(tracker vpn_set)" -ge 1 ]
+    [ "$(cat "${VPN_STATE}")" = "running" ]
+}
+
+@test "the stop-intent marker lives under /config, not the wiped /tmp" {
+    # a fresh shell: re-sourcing portset.sh here would hit its readonly defaults
+    run env -u VPN_STOP_INTENT_FILE PORTSET_TEST_MODE=true \
+        bash -c "source '${BATS_TEST_DIRNAME}/../portset.sh' >/dev/null 2>&1; echo \"\${VPN_STOP_INTENT_FILE}\""
+
+    echo "Output: $output"
+
+    [ "${status}" -eq 0 ]
+    [ "${output}" = "/config/portset_vpn_stop_intent" ]
 }
 
 @test "restart_vpn_connection records the stop intent and clears it on success" {
@@ -243,10 +253,62 @@ tracker() {
     [ "$status" -eq 1 ]
 }
 
+@test "ensure_vpn_running keeps trying after a rejected start PUT" {
+    echo "stopped" > "${VPN_STATE}"
+    rm -f "${VPN_STOP_INTENT_FILE}"
+
+    # the first PUT is rejected, the second is accepted
+    eval '
+    set_vpn_status() {
+        local c; c=$(grep "^vpn_set=" "$CALL_TRACKER" 2>/dev/null | cut -d= -f2 || echo "0")
+        c=$((c + 1))
+        sed -i "s/^vpn_set=.*/vpn_set=${c}/" "$CALL_TRACKER" 2>/dev/null
+        if [ "${c}" -eq 1 ]; then return 1; fi
+        echo "${1}" > "${VPN_STATE}"
+        return 0
+    }
+    '
+    export -f set_vpn_status
+
+    rstatus=0; ensure_vpn_running || rstatus=$?
+    echo "Status=${rstatus} vpn_set=$(tracker vpn_set) state=$(cat "${VPN_STATE}")"
+
+    [ "${rstatus}" -eq 0 ]
+    [ "$(cat "${VPN_STATE}")" = "running" ]
+    [ "$(tracker vpn_set)" -ge 2 ]
+}
+
+@test "main retries the VPN repair on every failed startup pass" {
+    cd "${BATS_TEST_DIRNAME}/.." || return 1
+    export APP_PARAMETERS=(/usr/bin/true)
+    export MAX_STARTUP_RETRIES=2 POLL_DELAY=1
+    : > "${CALL_TRACKER}"
+
+    # startup conditions never become true, and every repair is rejected: the loop
+    # must keep repairing until its retry budget runs out
+    check() { return 1; }
+    ensure_vpn_running() {
+        echo "REPAIR" >> "${CALL_TRACKER}"
+        return 1
+    }
+    export -f check ensure_vpn_running
+
+    run main
+    local repairs
+    repairs=$(grep -c REPAIR "${CALL_TRACKER}" || true)
+    echo "Status=${status} repairs=${repairs}"
+
+    # one repair before the loop plus one for each failed pass that still has
+    # retry budget; the pass that spends the last retry execs immediately instead
+    # of repairing again
+    [ "${status}" -eq 0 ]
+    [ "${repairs}" -eq 2 ]
+    [[ "${output}" == *"Maximum startup retries (2) reached"* ]]
+}
+
 # ======================================================================
 # 2. Application supervision
 # ======================================================================
-
 @test "ensure_application_running restarts a dead application" {
     echo "0" > "${APP_STATE}"
 
@@ -438,30 +500,6 @@ tracker() {
     [ "$status" -eq 0 ]
 }
 
-@test "gluetun_escalation_pending tracks the Phase 4 cooldown file" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=300
-    rm -f "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-
-    run gluetun_escalation_pending
-    [ "$status" -eq 1 ]
-
-    date +%s > "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-    run gluetun_escalation_pending
-    [ "$status" -eq 0 ]
-    run gluetun_escalation_remaining
-    [ "$output" -gt 0 ]
-
-    # the pending window matches the healthcheck suppression window: twice the cooldown
-    echo "$(( $(date +%s) - 301 ))" > "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-    run gluetun_escalation_pending
-    [ "$status" -eq 0 ]
-
-    echo "$(( $(date +%s) - 601 ))" > "${GLUETUN_ESCALATION_COOLDOWN_FILE}"
-    run gluetun_escalation_pending
-    [ "$status" -eq 1 ]
-}
-
 @test "escalation limiter still works when its state file is unwritable" {
     # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
     export GLUETUN_ESCALATION_COOLDOWN=300 VPN_ESCALATION_LAST_FILE="/nonexistent-dir/portset_escalation_state"
@@ -473,7 +511,7 @@ tracker() {
     [ "$status" -eq 1 ]
 }
 
-@test "a failed stop PUT keeps the stop-intent marker for the startup repair" {
+@test "a failed stop PUT keeps the stop-intent marker for the next runtime repair" {
     rm -f "${VPN_STOP_INTENT_FILE}"
     echo "running" > "${VPN_STATE}"
 
@@ -487,21 +525,6 @@ tracker() {
 
     [ "${rstatus}" -ne 0 ]
     [ -f "${VPN_STOP_INTENT_FILE}" ]
-}
-
-@test "a stale stop-intent marker is discarded and never overrides an operator stop" {
-    echo "stopped" > "${VPN_STATE}"
-    echo "12345" > "${VPN_STOP_INTENT_FILE}"
-    # backdate the marker beyond twice the escalation cooldown
-    touch -d "2 hours ago" "${VPN_STOP_INTENT_FILE}"
-
-    run ensure_vpn_running
-    echo "Output: $output vpn_set=$(tracker vpn_set)"
-
-    [ "$status" -eq 0 ]
-    [ "$(tracker vpn_set)" -eq 0 ]
-    [ "$(cat "${VPN_STATE}")" = "stopped" ]
-    [ ! -f "${VPN_STOP_INTENT_FILE}" ]
 }
 
 @test "get_incoming_port succeeds when only the public IP lookup fails" {
@@ -523,35 +546,32 @@ tracker() {
     [ "${INCOMING_PORT}" = "44921" ]
 }
 
-@test "Phase 4 escalation records the stop intent before the VPN stop" {
-    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
-    export GLUETUN_ESCALATION_COOLDOWN=1
-    rm -f "${VPN_STOP_INTENT_FILE}" "${GLUETUN_ESCALATION_COOLDOWN_FILE}" /tmp/gluetun_escalation_attempted
+@test "ensure_incoming_port never stops the VPN when the port cannot be read" {
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
 
     # gluetun never reports a port, the application is irrelevant here
     eval 'get_incoming_port() { INCOMING_PORT=""; return 1; }'
     eval 'restart_vpn_connection() { return 0; }'
-    # record ordering: the marker must exist when the stop is requested
     eval '
     set_vpn_status() {
-        if [ "${1}" = "stopped" ]; then
-            [ -f "${VPN_STOP_INTENT_FILE}" ] && echo "marker_present_at_stop" >> "${CALL_TRACKER}"
-        fi
+        echo "${1}" >> "${VPN_STATE_REQUESTS}"
         return 0
     }
     '
     export -f get_incoming_port restart_vpn_connection set_vpn_status
 
     s=0; ensure_incoming_port 1 || s=$?
-    echo "Status=${s} marker=$([[ -f ${VPN_STOP_INTENT_FILE} ]] && echo present || echo absent)"
+    echo "Status=${s} requested=$(tr '\n' ',' < "${VPN_STATE_REQUESTS}")"
 
     [ "${s}" -eq 1 ]
-    grep -q "marker_present_at_stop" "${CALL_TRACKER}"
-    [ -f "${VPN_STOP_INTENT_FILE}" ]
-    [ -f "${GLUETUN_ESCALATION_COOLDOWN_FILE}" ]
+    # stopping the VPN used to be the "final escalation": gluetun's healthcheck stays
+    # green with the VPN stopped, so nothing restarted it and the tunnel stayed down
+    [ ! -s "${VPN_STATE_REQUESTS}" ]
 
-    rm -f /tmp/gluetun_escalation_attempted
+    rm -f "${VPN_STATE_REQUESTS}"
 }
+
 @test "ensure_vpn_running reports success when the VPN starts on the last attempt" {
     echo "stopped" > "${VPN_STATE}"
     echo "12345" > "${VPN_STOP_INTENT_FILE}"
@@ -617,6 +637,159 @@ tracker() {
     [ "$(wc -l < "${VPN_STATE_REQUESTS}" | tr -d ' ')" -eq 0 ]
     [ "$(cat "${VPN_STATE}")" = "stopped" ]
     rm -f "${VPN_STATE_REQUESTS}"
+}
+
+@test "restart_vpn_connection treats a marker naming this process as its own at any age" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
+    export GLUETUN_ESCALATION_COOLDOWN=30
+    echo "stopped" > "${VPN_STATE}"
+    echo "$$" > "${VPN_STOP_INTENT_FILE}"
+    # a long, stalled recovery cycle must not age our own marker out
+    touch -d "2 hours ago" "${VPN_STOP_INTENT_FILE}"
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() { echo "$*" >> "${VPN_STATE_REQUESTS}"; return 0; }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    echo "Status=${rstatus} requests=$(tr '\n' ',' < "${VPN_STATE_REQUESTS}")"
+
+    [ "${rstatus}" -eq 0 ]
+    grep -q 'running' "${VPN_STATE_REQUESTS}"
+    rm -f "${VPN_STATE_REQUESTS}"
+}
+
+@test "restart_vpn_connection does not follow a symlinked stop-intent marker" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    echo "running" > "${VPN_STATE}"
+    local target before
+    target=$(mktemp -t portset_target.XXXXXX)
+    echo "do-not-touch" > "${target}"
+    before=$(cat "${target}")
+    rm -f "${VPN_STOP_INTENT_FILE}"
+    ln -s "${target}" "${VPN_STOP_INTENT_FILE}"
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() {
+        echo "$*" >> "${VPN_STATE_REQUESTS}"
+        if [ -f "${VPN_STOP_INTENT_FILE}" ] && [ ! -L "${VPN_STOP_INTENT_FILE}" ]; then
+            echo "marker_regular" >> "${VPN_STATE_REQUESTS}"
+        fi
+        return 0
+    }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    echo "Status=${rstatus} target='$(cat "${target}")'"
+
+    # the link target is untouched, and the marker created for the stop is a
+    # regular file rather than the planted symlink
+    [ "$(cat "${target}")" = "${before}" ]
+    grep -q 'marker_regular' "${VPN_STATE_REQUESTS}"
+    [ ! -L "${VPN_STOP_INTENT_FILE}" ]
+    rm -f "${VPN_STATE_REQUESTS}" "${target}"
+}
+
+@test "restart_vpn_connection refuses a symlinked marker while the VPN is stopped" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    echo "stopped" > "${VPN_STATE}"
+    local target before
+    target=$(mktemp -t portset_target.XXXXXX)
+    echo "do-not-touch" > "${target}"
+    before=$(cat "${target}")
+    rm -f "${VPN_STOP_INTENT_FILE}"
+    ln -s "${target}" "${VPN_STOP_INTENT_FILE}"
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() { echo "$*" >> "${VPN_STATE_REQUESTS}"; return 0; }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    echo "Status=${rstatus} target='$(cat "${target}")'"
+
+    [ "${rstatus}" -eq 1 ]
+    [ ! -s "${VPN_STATE_REQUESTS}" ]
+    [ "$(cat "${target}")" = "${before}" ]
+    rm -f "${VPN_STATE_REQUESTS}" "${target}"
+}
+
+@test "restart_vpn_connection tolerates a repair gap longer than the cooldown" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    # a short cooldown must not make the staleness bound shorter than this script's
+    # own retry cadence (2 minutes between attempts here)
+    # shellcheck disable=SC2030,SC2031 # every @bats test body runs in its own subshell
+    export GLUETUN_ESCALATION_COOLDOWN=30
+    echo "stopped" > "${VPN_STATE}"
+    echo "12345" > "${VPN_STOP_INTENT_FILE}"
+    touch -d "2 minutes ago" "${VPN_STOP_INTENT_FILE}"
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() { echo "$*" >> "${VPN_STATE_REQUESTS}"; return 0; }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    echo "Status=${rstatus} requests=$(tr '\n' ',' < "${VPN_STATE_REQUESTS}")"
+
+    # our own stop is only 2 minutes old: it is still ours to repair
+    [ "${rstatus}" -eq 0 ]
+    grep -q 'running' "${VPN_STATE_REQUESTS}"
+    rm -f "${VPN_STATE_REQUESTS}"
+}
+
+@test "restart_vpn_connection refuses to start a VPN stopped long after our own stop" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    echo "stopped" > "${VPN_STATE}"
+    echo "12345" > "${VPN_STOP_INTENT_FILE}"
+    # a marker older than the floored staleness bound (max(2x cooldown, 900s))
+    # cannot describe an interrupted stop->start window: our stop is long finished
+    touch -d "2 hours ago" "${VPN_STOP_INTENT_FILE}"
+    VPN_STATE_REQUESTS=$(mktemp -t portset_req.XXXXXX)
+    export VPN_STATE_REQUESTS
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() {
+        echo "PUT" >> "${VPN_STATE_REQUESTS}"
+        return 0
+    }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    echo "Status=${rstatus} puts=$(wc -l < "${VPN_STATE_REQUESTS}" | tr -d ' ') marker=$([[ -f ${VPN_STOP_INTENT_FILE} ]] && echo present || echo absent)"
+
+    # the later operator stop stands and the stale marker is discarded
+    [ "${rstatus}" -eq 1 ]
+    [ "$(wc -l < "${VPN_STATE_REQUESTS}" | tr -d ' ')" -eq 0 ]
+    [ "$(cat "${VPN_STATE}")" = "stopped" ]
+    [ ! -f "${VPN_STOP_INTENT_FILE}" ]
+    rm -f "${VPN_STATE_REQUESTS}"
+}
+
+@test "restart_vpn_connection refreshes its stop-intent marker on every repair attempt" {
+    eval "${REAL_RESTART_VPN_CONNECTION}"
+    export -f restart_vpn_connection
+    echo "stopped" > "${VPN_STATE}"
+    echo "12345" > "${VPN_STOP_INTENT_FILE}"
+    # inside the staleness bound, so this marker still counts as ours
+    touch -d "5 minutes ago" "${VPN_STOP_INTENT_FILE}"
+    # the start PUT is rejected: the marker has to survive for the next attempt
+    # shellcheck disable=SC2329 # invoked indirectly by the restored production function
+    curl_with_retry() { return 1; }
+
+    rstatus=0; restart_vpn_connection || rstatus=$?
+    local marker_mtime marker_age
+    marker_mtime=$(stat -c %Y "${VPN_STOP_INTENT_FILE}")
+    marker_age=$(( $(date +%s) - marker_mtime ))
+    echo "Status=${rstatus} marker_age=${marker_age}s"
+
+    # kept for the retry, and its age now measures time since this attempt, so a
+    # long outage cannot age our own marker into "operator stop" territory
+    [ "${rstatus}" -ne 0 ]
+    [ -f "${VPN_STOP_INTENT_FILE}" ]
+    [ "${marker_age}" -lt 60 ]
 }
 
 # ======================================================================
